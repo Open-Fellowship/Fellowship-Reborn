@@ -78,6 +78,92 @@ static bool collect_plugins(const char *directory, plugin_list_t *list)
     return true;
 }
 
+/* ------------------------------------------------------------------------------- which build
+ *
+ * Two file sizes, logged before anything else happens, because they decide whether any of the
+ * rest of this log means what it says. Every site in this project was measured against one pair
+ * of files, and a plugin that declines on a different pair is behaving correctly - but a reader
+ * cannot tell that apart from a plugin that is broken unless the log says which files these are.
+ *
+ * The sizes are read off DISK rather than from the loaded image, because Fellowship.rfl is not
+ * loaded yet at this point and will not be for several seconds.
+ *
+ * The retail values are recorded here so that the two builds anyone actually has are both named
+ * rather than one of them being "unexpected":
+ *
+ *     Fellowship.exe   2,133,459   the No-CD executable, what this project targets
+ *                      2,137,555   retail, SafeDisc. Its code is encrypted on disk, so every
+ *                                  byte check made at the entry point fails.
+ *     Fellowship.rfl   1,372,160   the v1.1 game, what this project targets
+ *                      1,306,624   pre-1.1. Different addresses; eight of the nine rfl sites
+ *                                  used here are not in that build at all.
+ */
+#define EXE_SIZE_SUPPORTED   2133459u
+#define EXE_SIZE_RETAIL_CD   2137555u
+#define RFL_SIZE_SUPPORTED   1372160u
+#define RFL_SIZE_PRE_11      1306624u
+
+static bool file_size(const char *path, uint32_t *out)
+{
+    WIN32_FILE_ATTRIBUTE_DATA attributes;
+
+    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &attributes)) {
+        return false;
+    }
+    if (attributes.nFileSizeHigh != 0) {
+        return false;
+    }
+
+    *out = attributes.nFileSizeLow;
+    return true;
+}
+
+static void log_which_build(void)
+{
+    char     rfl_path[MAX_PATH];
+    uint32_t exe = 0;
+    uint32_t rfl = 0;
+    bool     exe_known;
+    bool     rfl_known;
+
+    snprintf(rfl_path, sizeof(rfl_path), "%sFellowship.rfl", host_directory());
+    rfl_path[sizeof(rfl_path) - 1] = '\0';
+
+    exe_known = file_size(host_path(), &exe);
+    rfl_known = file_size(rfl_path, &rfl);
+
+    if (exe_known) {
+        log_info("Fellowship.exe %lu bytes%s", (unsigned long)exe,
+                 exe == EXE_SIZE_SUPPORTED ? "  (the build this project targets)" :
+                 exe == EXE_SIZE_RETAIL_CD ? "  (retail, SafeDisc: its code is encrypted on disk, "
+                                             "so the exe plugins below will all decline)" :
+                                             "  (not a build this project has been measured "
+                                             "against)");
+    } else {
+        log_warning("could not read the size of %s", host_path());
+    }
+
+    if (rfl_known) {
+        log_info("Fellowship.rfl %lu bytes%s", (unsigned long)rfl,
+                 rfl == RFL_SIZE_SUPPORTED ? "  (the build this project targets)" :
+                 rfl == RFL_SIZE_PRE_11    ? "  (pre-1.1: different addresses, most rfl plugins "
+                                             "will decline. Apply the official v1.1 patch)" :
+                                             "  (not a build this project has been measured "
+                                             "against)");
+    } else {
+        log_warning("there is no Fellowship.rfl next to the executable");
+    }
+
+    if (exe_known && rfl_known && (exe != EXE_SIZE_SUPPORTED || rfl != RFL_SIZE_SUPPORTED)) {
+        log_warning("this is not the pair everything here was measured against, which is "
+                    "Fellowship.exe %u and Fellowship.rfl %u. Plugins that decline below are "
+                    "declining correctly. The order that gets you there: install, apply the "
+                    "official v1.1 patch, then put the 1.1 No-CD executable in - the patch "
+                    "replaces the executable, so the No-CD goes in last.",
+                    (unsigned)EXE_SIZE_SUPPORTED, (unsigned)RFL_SIZE_SUPPORTED);
+    }
+}
+
 static void load_one(const char *directory, const char *name)
 {
     char                         path[MAX_PATH];
@@ -124,6 +210,11 @@ void plugin_loader_run_once(void)
     log_info("OpenFellowship loader");
     log_info("host %s", host_path());
     log_info("ini  %s", ini_path());
+
+    /* Before the ini, before the plugin list, before anything can fail: which two files is this?
+     * Every bug report that starts with a log now answers that question in its first three
+     * lines. */
+    log_which_build();
 
     /* Every plugin falls back to its built-in defaults when the file is absent. That is a
      * legitimate way to run, but it must not look like the settings were read. */

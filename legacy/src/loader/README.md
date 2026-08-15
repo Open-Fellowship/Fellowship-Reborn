@@ -65,6 +65,32 @@ stays correct however the linker places it.
 | `PluginDirectory` | `plugins` | Relative to `Fellowship.exe` |
 | `ChainDll` | *(empty)* | Explicit forward target, absolute or relative to the game folder |
 
+## The first lines of the log
+
+Which two files this is, read off disk before anything else runs:
+
+```
+[loader] host C:\...\Fellowship.exe
+[loader] Fellowship.exe 2133459 bytes  (the build this project targets)
+[loader] Fellowship.rfl 1372160 bytes  (the build this project targets)
+```
+
+Every site in this project was measured against that pair. A plugin that declines on a different
+pair is behaving correctly, and this is what lets a reader tell that apart from a plugin that is
+broken. The two other builds anyone actually has are named rather than called unexpected:
+
+| | | |
+|---|---|---|
+| `Fellowship.exe` | 2,137,555 | retail, SafeDisc. Its code is encrypted on disk and only decrypted once the game is running, so every byte check made at the entry point fails and every exe plugin declines. |
+| `Fellowship.rfl` | 1,306,624 | pre-1.1. Different addresses; eight of the nine rfl sites used here are not in that build at all. |
+
+Anything else gets "not a build this project has been measured against". A mismatched pair also
+gets the order that fixes it: install, apply the official v1.1 patch, then put the 1.1 No-CD
+executable in. The No-CD goes last, because the patch replaces the executable.
+
+The rfl's size is read from the file rather than from the loaded module, because at this point
+the game has not loaded it yet and will not for several seconds.
+
 ## The chain
 
 We take the `dinput8.dll` name, so whatever answered to it before needs a new one. Resolution

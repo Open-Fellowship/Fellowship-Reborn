@@ -18,7 +18,12 @@
 /* 8000 quads is roughly ten lines of forty characters with room to spare, at a scale where each
  * lit pixel is its own rectangle. Allocated once, never resized: a draw path that can fail to
  * allocate halfway through a frame is a draw path that can fail in front of the user. */
-#define MAX_QUADS     8000
+/* 8000 was enough for a panel with a slider on it. The engine flags page draws upward of a
+ * thousand glyphs at once, and a glyph is one quad per run of lit pixels per row, so it wants an
+ * order of magnitude more. The batch is one allocation made at first open and never touched
+ * again; at this size it is a few megabytes of ordinary memory, which is a fair price for a page
+ * that does not silently lose half its rows. */
+#define MAX_QUADS     48000
 #define MAX_VERTICES  (MAX_QUADS * 6)
 
 typedef struct glyph {
@@ -296,6 +301,10 @@ void overlay_flush(void *device)
     DWORD                    previous_stage[4];
     DWORD                    previous_shader = 0;
     void                    *previous_texture = NULL;
+    void                    *previous_stream = NULL;
+    UINT                     previous_stride = 0;
+    void                    *previous_indices = NULL;
+    UINT                     previous_base = 0;
     int                      i;
 
     if (!g_ready || g_count == 0 || device == NULL) {
@@ -329,9 +338,38 @@ void overlay_flush(void *device)
     ((d3d8_get_vertex_shader_t)vtable[D3D8_GETVERTEXSHADER])(device, &previous_shader);
     ((d3d8_set_vertex_shader_t)vtable[D3D8_SETVERTEXSHADER])(device, OVERLAY_FVF);
 
+    /* THE ONE THAT BIT.
+     *
+     * DrawPrimitiveUP does not just draw: it sets vertex stream 0 to NULL on the way out, and its
+     * indexed cousin does the same to the index buffer. Documented, and easy to miss, because
+     * nothing about drawing a few quads suggests it would unbind the caller's geometry.
+     *
+     * The engine binds its stream once and reuses it across draws, so an overlay that left the
+     * stream unbound meant every later draw that frame ran on whatever the runtime had - which
+     * looked like lens flares and light sprites blowing up into white blobs, and eventually a
+     * crash. Both are saved and put back.
+     */
+    ((d3d8_get_stream_source_t)vtable[D3D8_GETSTREAMSOURCE])(device, 0, &previous_stream,
+                                                            &previous_stride);
+    ((d3d8_get_indices_t)vtable[D3D8_GETINDICES])(device, &previous_indices, &previous_base);
+
     ((d3d8_draw_primitive_up_t)vtable[D3D8_DRAWPRIMITIVEUP])(
         device, D3DPT_TRIANGLELIST, (UINT)(g_count / 3), g_vertices,
         (UINT)sizeof(overlay_vertex_t));
+
+    ((d3d8_set_stream_source_t)vtable[D3D8_SETSTREAMSOURCE])(device, 0, previous_stream,
+                                                             previous_stride);
+    ((d3d8_set_indices_t)vtable[D3D8_SETINDICES])(device, previous_indices, previous_base);
+
+    /* Both getters added a reference. The device holds its own now that they are bound again. */
+    if (previous_stream != NULL) {
+        typedef ULONG (STDMETHODCALLTYPE *release_t)(void *);
+        ((release_t)(*(void ***)previous_stream)[2])(previous_stream);
+    }
+    if (previous_indices != NULL) {
+        typedef ULONG (STDMETHODCALLTYPE *release_t)(void *);
+        ((release_t)(*(void ***)previous_indices)[2])(previous_indices);
+    }
 
     ((d3d8_set_vertex_shader_t)vtable[D3D8_SETVERTEXSHADER])(device, previous_shader);
 

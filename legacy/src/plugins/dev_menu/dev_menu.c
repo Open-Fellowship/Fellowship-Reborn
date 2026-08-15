@@ -1,4 +1,7 @@
 #include "dev_menu.h"
+#include "cheats.h"
+#include "flags.h"
+#include "messages.h"
 #include "d3d8_min.h"
 #include "dinput8_min.h"
 #include "overlay.h"
@@ -15,6 +18,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define PLUGIN_SECTION "dev_menu"
@@ -26,8 +30,9 @@
 
 #define PANEL_X       24
 #define PANEL_Y       24
-#define PANEL_W       520
-#define PANEL_H       224
+#define PANEL_W       760
+/* The panel's height is computed rather than fixed, because FontHeight is configurable and a
+ * constant here would cut the cheat buttons off at anything above the default. */
 #define PADDING       16
 
 #define COLOUR_PANEL   0xC8101014u
@@ -58,6 +63,24 @@ static channel_block_t *g_channel;
 
 static bool  g_auto_fov = true;      /* true: field_of_view uses its own value, we ask nothing */
 static float g_fov_degrees;          /* the slider's position, once the user has taken over    */
+
+/* Two pages. The camera page is what this menu has always been; the flags page is the engine's
+ * own 124-entry developer menu, which does not fit anywhere near the same panel. */
+#define TAB_CAMERA   0
+#define TAB_FLAGS    1
+#define TAB_MESSAGES 2
+#define TAB_COUNT    3
+
+static int  g_tab;
+static int  g_flag_page;
+static bool g_show_messages;   /* the BOX. Capturing runs from start-up, see messages.c */
+static bool g_show_stats = true;   /* include the per-frame statistics rows in the box */
+
+/* The typed field. -1 when nothing is being edited; while editing, the flag's value is not
+ * touched until Enter, so a half-typed number never reaches the engine. */
+static int  g_edit_flag = -1;
+static char g_edit_text[12];
+static int  g_edit_length;   /* include the per-frame statistics rows in the box */
 
 static bool  g_mouse_down;
 static bool  g_mouse_was_down;
@@ -614,8 +637,707 @@ static void draw_pointer(void)
     overlay_rect(g_mouse_x, g_mouse_y, 1, 13, 0xFF000000u);
 }
 
-static void draw_menu(void *device, const camera_view_t *view, bool have_camera)
+/* ------------------------------------------------------------------------------ the layout
+ *
+ * ONE definition of where everything is, used by the drawing and by the hit testing. The field
+ * of view row predates this and computed its geometry twice, once in each place; that has been
+ * pulled into content_top() below rather than repeated a third time.
+ */
+#define CHEAT_COLUMNS 2
+#define CHEAT_GAP     10
+#define FLAG_COLUMNS  2
+#define FLAG_GAP      12
+#define FLAG_PANEL_W  900
+
+static int row_step(void)
 {
+    return overlay_line_height() + 6;
+}
+
+static int panel_width(void)
+{
+    int width = (g_tab == TAB_FLAGS || g_tab == TAB_MESSAGES) ? FLAG_PANEL_W : PANEL_W;
+    int room  = g_view_w - PANEL_X * 2;
+
+    if (room > 0 && width > room) { width = room; }
+    if (width < 320)              { width = 320; }
+    return width;
+}
+
+/* The first row below the title and the tab strip. Everything on the camera page hangs off this,
+ * so adding the strip moved the slider and its hit box together rather than one of them. */
+static int content_top(void)
+{
+    int step = row_step();
+    return PANEL_Y + PADDING + (step + 6) + (step + 6);
+}
+
+static void messages_button_rect(int *x, int *y, int *w, int *h)
+{
+    *w = overlay_text_width(" engine messages: off ", 1) + 10;
+    *h = overlay_line_height() + 4;
+    *x = PANEL_X + panel_width() - PADDING - *w;
+    *y = PANEL_Y + PADDING + row_step() + 4;
+}
+
+static void tab_rect(int index, int *x, int *y, int *w, int *h)
+{
+    *w = overlay_text_width(" engine flags ", 1) + 10;
+    *h = overlay_line_height() + 4;
+    *x = PANEL_X + PADDING + index * (*w + 8);
+    *y = PANEL_Y + PADDING + row_step() + 4;
+}
+
+/* -------------------------------------------------------------------------- the camera page */
+
+static int cheats_top(void)
+{
+    int step = row_step();
+    return content_top() + step + (step + 8) + step * 3 + 8;
+}
+
+static int cheat_rows(void)
+{
+    return (CHEAT_COUNT + CHEAT_COLUMNS - 1) / CHEAT_COLUMNS;
+}
+
+static void cheat_button_rect(int index, int *bx, int *by, int *bw, int *bh)
+{
+    int step  = row_step();
+    int width = (panel_width() - PADDING * 2 - CHEAT_GAP * (CHEAT_COLUMNS - 1)) / CHEAT_COLUMNS;
+
+    *bx = PANEL_X + PADDING + (index % CHEAT_COLUMNS) * (width + CHEAT_GAP);
+    *by = cheats_top() + step + (index / CHEAT_COLUMNS) * (step + 4);
+    *bw = width;
+    *bh = overlay_line_height() + 6;
+}
+
+/* --------------------------------------------------------------------------- the flags page
+ *
+ * A row is a name and a switch, exactly like the cheat buttons: press it and the engine does
+ * whatever that entry means. The seven entries that hold a range rather than a state get a second
+ * line underneath with the number and a pair of steppers, because those are the only ones where
+ * a number is the point.
+ *
+ * Rows are therefore not all the same height, so the page is laid out once per frame into a
+ * table that the drawing and the hit testing both read. Nothing computes a rectangle twice.
+ */
+#define FLAG_MAX_ROWS   64
+#define FLAG_MAX_PAGES  16
+#define FLAG_SWITCH_W   52
+
+typedef struct flag_row {
+    int  index;
+    int  x;
+    int  y;
+    int  w;
+    int  line;          /* height of one line: the switch sits on this */
+    bool has_picker;    /* a second line underneath with value, - and + */
+} flag_row_t;
+
+static flag_row_t g_rows[FLAG_MAX_ROWS];
+static int        g_row_count;
+static int        g_page_starts[FLAG_MAX_PAGES];
+static int        g_page_count;
+
+static int flag_rows(void)
+{
+    int step = row_step();
+    int room = g_view_h - PANEL_Y * 2 - (content_top() - PANEL_Y) - step * 2 - PADDING;
+    int rows = (step > 0) ? room / step : 0;
+
+    if (rows < 4)  { rows = 4; }
+    if (rows > 22) { rows = 22; }   /* two columns of these stay inside the vertex batch */
+    return rows;
+}
+
+static int flag_row_height(int index)
+{
+    int step = row_step();
+    return (flags_kind(index) == FLAG_CYCLE) ? step * 2 : step;
+}
+
+static bool flag_is_number(int index)
+{
+    return flags_kind(index) == FLAG_NUMBER;
+}
+
+/* Fills one page starting at `first` and returns the index the next page would start at. Rows are
+ * only recorded when `collect` is set, so the same walk both measures the pages and builds the
+ * one being shown. */
+static int layout_page(int first, bool collect)
+{
+    int step      = row_step();
+    int column_h  = flag_rows() * step;
+    int width     = (panel_width() - PADDING * 2 - FLAG_GAP * (FLAG_COLUMNS - 1)) / FLAG_COLUMNS;
+    int index     = first;
+    int column;
+
+    if (collect) { g_row_count = 0; }
+
+    for (column = 0; column < FLAG_COLUMNS; ++column) {
+        int x = PANEL_X + PADDING + column * (width + FLAG_GAP);
+        int y = content_top();
+
+        while (index < FLAG_COUNT) {
+            int height = flag_row_height(index);
+
+            if (y + height > content_top() + column_h) {
+                break;
+            }
+            if (collect && g_row_count < FLAG_MAX_ROWS) {
+                flag_row_t *row = &g_rows[g_row_count++];
+                row->index      = index;
+                row->x          = x;
+                row->y          = y;
+                row->w          = width;
+                row->line       = overlay_line_height() + 2;
+                row->has_picker = (flags_kind(index) == FLAG_CYCLE);
+            }
+            y += height;
+            ++index;
+        }
+    }
+
+    return index;
+}
+
+static void layout_flags(void)
+{
+    int index = 0;
+
+    g_page_count = 0;
+    while (index < FLAG_COUNT && g_page_count < FLAG_MAX_PAGES) {
+        int next;
+
+        g_page_starts[g_page_count++] = index;
+        next = layout_page(index, false);
+        if (next <= index) {
+            break;                            /* no forward progress: stop rather than spin */
+        }
+        index = next;
+    }
+    if (g_page_count == 0) { g_page_count = 1; g_page_starts[0] = 0; }
+    if (g_flag_page >= g_page_count) { g_flag_page = g_page_count - 1; }
+
+    layout_page(g_page_starts[g_flag_page], true);
+}
+
+static void flag_switch_rect(const flag_row_t *row, int *bx, int *by, int *bw, int *bh)
+{
+    *bw = FLAG_SWITCH_W;
+    *bh = row->line;
+    *bx = row->x + row->w - FLAG_SWITCH_W;
+    *by = row->y;
+}
+
+static void flag_step_rect(const flag_row_t *row, bool plus, int *bx, int *by, int *bw, int *bh)
+{
+    *bw = 18;
+    *bh = row->line;
+    *bx = row->x + row->w - (plus ? 20 : 42);
+    *by = row->y + (row->has_picker ? row_step() : 0);   /* second line for a cycle, same line
+                                                          * for a typed number */
+}
+
+/* The box a number is typed into. Wide enough for a five figure coordinate and a minus sign. */
+static void flag_field_rect(const flag_row_t *row, int *bx, int *by, int *bw, int *bh)
+{
+    *bw = 76;
+    *bh = row->line;
+    *bx = row->x + row->w - 44 - *bw;
+    *by = row->y;
+}
+
+static void page_button_rect(bool next, int *bx, int *by, int *bw, int *bh)
+{
+    *bw = overlay_text_width(" next ", 1) + 8;
+    *bh = overlay_line_height() + 6;
+    *bx = PANEL_X + PADDING + (next ? (*bw + 8) : 0);
+    *by = content_top() + flag_rows() * row_step() + 6;
+}
+
+static int panel_height(void)
+{
+    int step = row_step();
+
+    if (g_tab == TAB_FLAGS || g_tab == TAB_MESSAGES) {
+        return content_top() - PANEL_Y + flag_rows() * step + step + 6 + PADDING;
+    }
+    return cheats_top() - PANEL_Y + step + cheat_rows() * (step + 4) + PADDING;
+}
+
+static void draw_cheats(int x, bool have_camera)
+{
+    bool available = have_camera && cheats_available();
+    int  index;
+    int  y = cheats_top();
+
+    overlay_rect(PANEL_X + PADDING, y - 6, panel_width() - PADDING * 2, 1, COLOUR_TRACK);
+
+    overlay_text(x, y, 1, COLOUR_TITLE, "Cheats");
+    overlay_text(x + overlay_text_width("Cheats    ", 1), y, 1, COLOUR_DIM,
+                 available ? "the game's own commands"
+                           : "load a level - the game has nothing to send them to");
+
+    for (index = 0; index < CHEAT_COUNT; ++index) {
+        int bx;
+        int by;
+        int bw;
+        int bh;
+        unsigned face;
+        unsigned ink;
+
+        cheat_button_rect(index, &bx, &by, &bw, &bh);
+
+        if (!available) {
+            face = COLOUR_TRACK;
+            ink  = COLOUR_DIM;
+        } else if (cheat_is_toggle((cheat_id_t)index) && cheat_believed_state((cheat_id_t)index)) {
+            face = COLOUR_ON;
+            ink  = COLOUR_VALUE;
+        } else {
+            face = COLOUR_BUTTON;
+            ink  = COLOUR_VALUE;
+        }
+
+        overlay_rect(bx, by, bw, bh, face);
+        overlay_text(bx + 6, by + 3, 1, ink, cheat_label((cheat_id_t)index));
+
+        /* The two the engine tracks a state for say which state we believe they are in. The word
+         * is "believed" on purpose: the command is fire-and-forget and the game offers no way to
+         * ask, so this is what was last sent, not what is true. */
+        if (cheat_is_toggle((cheat_id_t)index)) {
+            const char *state = cheat_believed_state((cheat_id_t)index) ? "on" : "off";
+            overlay_text(bx + bw - 8 - overlay_text_width(state, 1), by + 3, 1,
+                         available ? ink : COLOUR_DIM, state);
+        }
+    }
+}
+
+static void draw_tabs(void)
+{
+    static const char *labels[TAB_COUNT] = { " camera ", " engine flags ", " messages " };
+    int index;
+
+    for (index = 0; index < TAB_COUNT; ++index) {
+        int bx;
+        int by;
+        int bw;
+        int bh;
+
+        tab_rect(index, &bx, &by, &bw, &bh);
+        overlay_rect(bx, by, bw, bh, (g_tab == index) ? COLOUR_FILL : COLOUR_BUTTON);
+        overlay_text(bx + 5, by + 2, 1, (g_tab == index) ? COLOUR_VALUE : COLOUR_DIM,
+                     labels[index]);
+    }
+
+    {
+        int bx;
+        int by;
+        int bw;
+        int bh;
+
+        messages_button_rect(&bx, &by, &bw, &bh);
+        overlay_rect(bx, by, bw, bh, g_show_messages ? COLOUR_ON : COLOUR_BUTTON);
+        overlay_text(bx + 5, by + 2, 1, COLOUR_VALUE,
+                     g_show_messages ? " engine messages: on " : " engine messages: off ");
+    }
+}
+
+/* The engine's own developer menu. Names and values are read from the engine every frame rather
+ * than cached here, so a flag the game changes by itself is shown changing. */
+static void draw_flags(void)
+{
+    char line[64];
+    int  i;
+    int  bx;
+    int  by;
+    int  bw;
+    int  bh;
+
+    if (!flags_available()) {
+        overlay_text(PANEL_X + PADDING, content_top(), 1, COLOUR_DIM,
+                     "the engine has not registered its debug flags yet");
+        return;
+    }
+
+    layout_flags();
+
+    for (i = 0; i < g_row_count; ++i) {
+        const flag_row_t *row   = &g_rows[i];
+        const char       *name  = flags_name(row->index);
+        int32_t           value = 0;
+        flag_kind_t       kind  = flags_kind(row->index);
+        const char       *state;
+        unsigned          face;
+
+        if (!flags_value(row->index, &value)) {
+            continue;
+        }
+
+        /* A typed number: the value in a box, with steppers, and no switch at all. Clicking it
+         * starts typing rather than setting it to 1. */
+        if (kind == FLAG_NUMBER) {
+            bool editing = (g_edit_flag == row->index);
+
+            if (inside(row->x, row->y, row->w, row->line)) {
+                overlay_rect(row->x, row->y, row->w, row->line, COLOUR_TRACK);
+            }
+
+            sprintf(line, "%3d", row->index);
+            overlay_text(row->x + 2, row->y + 1, 1, COLOUR_DIM, line);
+            overlay_text(row->x + 2 + overlay_text_width("000 ", 1), row->y + 1, 1, COLOUR_LABEL,
+                         name ? name : "(unnamed in this build)");
+
+            flag_field_rect(row, &bx, &by, &bw, &bh);
+            overlay_rect(bx, by, bw, bh, editing ? COLOUR_FILL : COLOUR_BUTTON);
+            if (editing) {
+                sprintf(line, "%s_", g_edit_text);
+            } else {
+                sprintf(line, "%ld", (long)value);
+            }
+            overlay_text(bx + bw - 6 - overlay_text_width(line, 1), by + 1, 1, COLOUR_VALUE, line);
+
+            flag_step_rect(row, false, &bx, &by, &bw, &bh);
+            overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
+            overlay_text(bx + 6, by + 1, 1, COLOUR_VALUE, "-");
+
+            flag_step_rect(row, true, &bx, &by, &bw, &bh);
+            overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
+            overlay_text(bx + 5, by + 1, 1, COLOUR_VALUE, "+");
+            continue;
+        }
+
+        flag_switch_rect(row, &bx, &by, &bw, &bh);
+
+        /* Green when it is doing something, exactly like the cheat buttons, so the page can be
+         * read down the right hand edge without comparing numbers. */
+        if (kind == FLAG_ACTION) {
+            state = " run";
+            face  = COLOUR_BUTTON;
+        } else if (value != 0) {
+            state = "  on";
+            face  = COLOUR_ON;
+        } else {
+            state = " off";
+            face  = COLOUR_BUTTON;
+        }
+
+        if (inside(row->x, row->y, row->w, row->line)) {
+            overlay_rect(row->x, row->y, row->w, row->line, COLOUR_TRACK);
+        }
+
+        sprintf(line, "%3d", row->index);
+        overlay_text(row->x + 2, row->y + 1, 1, COLOUR_DIM, line);
+        overlay_text(row->x + 2 + overlay_text_width("000 ", 1), row->y + 1, 1,
+                     (value != 0 && kind != FLAG_ACTION) ? COLOUR_VALUE : COLOUR_LABEL,
+                     name ? name : "(unnamed in this build)");
+
+        overlay_rect(bx, by, bw, bh, face);
+        overlay_text(bx + 6, by + 1, 1, COLOUR_VALUE, state);
+
+        /* The second line, only for the entries that hold a range. */
+        if (row->has_picker) {
+            sprintf(line, "%ld of 0-%d", (long)value, flags_cycle_range(row->index) - 1);
+            overlay_text(row->x + 2 + overlay_text_width("000 ", 1), row->y + row_step() + 1, 1,
+                         COLOUR_DIM, line);
+
+            flag_step_rect(row, false, &bx, &by, &bw, &bh);
+            overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
+            overlay_text(bx + 6, by + 1, 1, COLOUR_VALUE, "-");
+
+            flag_step_rect(row, true, &bx, &by, &bw, &bh);
+            overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
+            overlay_text(bx + 5, by + 1, 1, COLOUR_VALUE, "+");
+        }
+    }
+
+    page_button_rect(false, &bx, &by, &bw, &bh);
+    overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
+    overlay_text(bx + 4, by + 3, 1, COLOUR_VALUE, " prev ");
+
+    page_button_rect(true, &bx, &by, &bw, &bh);
+    overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
+    overlay_text(bx + 4, by + 3, 1, COLOUR_VALUE, " next ");
+
+    sprintf(line, "page %d of %d", g_flag_page + 1, g_page_count);
+    overlay_text(bx + bw + 16, by + 3, 1, COLOUR_DIM, line);
+
+    overlay_text(bx + bw + 16 + overlay_text_width("page 0 of 0        ", 1), by + 3, 1,
+                 COLOUR_DIM, overlay_overflowed()
+                             ? "overlay batch full - some rows are missing"
+                             : (g_edit_flag >= 0
+                                ? "type a number, Enter to set it - Escape also opens the game's pause menu"
+                                : "click a row to press it, as the game's own menu would"));
+}
+
+/* ------------------------------------------------------------------------- engine messages
+ *
+ * Its own box, at the bottom of the screen, drawn whenever "Engine Debug Messages" is not zero -
+ * with the menu open or closed, because a log you can only see while a menu covers the game is
+ * not much of a log.
+ */
+#define MESSAGE_PANEL_W   900
+#define MESSAGE_LINES_MAX 14
+#define MESSAGE_SCALE     1
+
+static int message_step(void)
+{
+    return overlay_line_height() * MESSAGE_SCALE + 6;
+}
+
+
+static int message_lines_shown(void)
+{
+    int step = message_step();
+    int room = (g_view_h / 3) / (step > 0 ? step : 1);
+
+    if (room < 4)                 { room = 4; }
+    if (room > MESSAGE_LINES_MAX) { room = MESSAGE_LINES_MAX; }
+    return room;
+}
+
+static void message_panel_rect(int *x, int *y, int *w, int *h)
+{
+    int step = message_step();
+
+    *w = MESSAGE_PANEL_W;
+    if (*w > g_view_w - PANEL_X * 2) { *w = g_view_w - PANEL_X * 2; }
+    if (*w < 320)                    { *w = 320; }
+
+    *h = PADDING + step + message_lines_shown() * step + PADDING / 2;
+    *x = PANEL_X;
+    *y = g_view_h - *h - PANEL_Y;
+    if (*y < PANEL_Y) { *y = PANEL_Y; }
+}
+
+static void message_stats_rect(int *bx, int *by, int *bw, int *bh)
+{
+    int x;
+    int y;
+    int w;
+    int h;
+
+    message_panel_rect(&x, &y, &w, &h);
+    *bw = overlay_text_width(" stats: off ", 1) + 8;
+    *bh = overlay_line_height() + 4;
+    *bx = x + w - PADDING - (overlay_text_width(" clear ", 1) + 8) - 8 - *bw;
+    *by = y + PADDING - 2;
+}
+
+static void message_clear_rect(int *bx, int *by, int *bw, int *bh)
+{
+    int x;
+    int y;
+    int w;
+    int h;
+
+    message_panel_rect(&x, &y, &w, &h);
+    *bw = overlay_text_width(" clear ", 1) + 8;
+    *bh = overlay_line_height() + 4;
+    *bx = x + w - PADDING - *bw;
+    *by = y + PADDING - 2;
+}
+
+static void draw_messages(void)
+{
+    char     line[96];
+    int      x;
+    int      y;
+    int      w;
+    int      h;
+    int      shown = message_lines_shown();
+    int      step  = message_step();
+    int      row   = 0;
+    unsigned live  = messages_live_count();
+    unsigned i;
+
+    message_panel_rect(&x, &y, &w, &h);
+
+    overlay_rect(x, y, w, h, COLOUR_PANEL);
+    overlay_frame(x, y, w, h, 1, COLOUR_EDGE);
+
+    sprintf(line, "engine messages   %u seen, %u kept", messages_total(), messages_kept());
+    overlay_text(x + PADDING, y + PADDING - 2, 1, COLOUR_TITLE, line);
+
+    if (!messages_installed()) {
+        overlay_text(x + PADDING, y + PADDING + step, MESSAGE_SCALE, COLOUR_DIM,
+                     "not hooked yet");
+        return;
+    }
+
+    /* The live rows first: the statistics, each replaced in place as it arrives, and gone within
+     * a second and a half of the flag that produces it being switched off. */
+    if (g_show_stats) {
+        for (i = 0; i < live && row < shown; ++i) {
+            const char *text = messages_live(i);
+
+            if (text == NULL) {
+                break;
+            }
+            if (!messages_text_enabled(text)) {
+                continue;
+            }
+            overlay_text(x + PADDING, y + PADDING + step + row * step, MESSAGE_SCALE,
+                         COLOUR_VALUE, text);
+            ++row;
+        }
+
+        if (row > 0 && row < shown) {
+            overlay_rect(x + PADDING, y + PADDING + step + row * step + step / 2 - 1,
+                         w - PADDING * 2, 1, COLOUR_TRACK);
+            ++row;
+        }
+    }
+
+    /* Then the events, newest at the bottom of what is left. */
+    {
+        const char *picked[MESSAGE_LINES_MAX];
+        int         count = 0;
+        int         space = shown - row;
+        unsigned    age;
+
+        for (age = 0; count < space && age < MESSAGE_LINES; ++age) {
+            const char *text = messages_line_ex(age, NULL);
+
+            if (text == NULL) {
+                break;
+            }
+            if (text[0] == '\0' || !messages_text_enabled(text)) {
+                continue;
+            }
+            picked[count++] = text;
+        }
+
+        for (i = 0; (int)i < count; ++i) {
+            overlay_text(x + PADDING, y + PADDING + step + (row + count - 1 - (int)i) * step,
+                         MESSAGE_SCALE, ((int)i == 0) ? COLOUR_VALUE : COLOUR_LABEL, picked[i]);
+        }
+    }
+
+    /* Only when the menu is open, because that is the only time there is a pointer to click
+     * them with. */
+    if (g_visible) {
+        int bx;
+        int by;
+        int bw;
+        int bh;
+
+        message_stats_rect(&bx, &by, &bw, &bh);
+        overlay_rect(bx, by, bw, bh, g_show_stats ? COLOUR_ON : COLOUR_BUTTON);
+        overlay_text(bx + 4, by + 1, 1, COLOUR_VALUE, g_show_stats ? " stats: on " : " stats: off ");
+
+        message_clear_rect(&bx, &by, &bw, &bh);
+        overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
+        overlay_text(bx + 4, by + 1, 1, COLOUR_VALUE, " clear ");
+    }
+}
+
+/* OUR switch, deliberately not the engine's flag 0.
+ *
+ * Flag 0 turns on the engine's OWN message display, and that display is what corrupted the
+ * lighting and then took the game down: it is a dev feature this build cannot draw. Capturing
+ * the text does not need it - the hooks see every message whatever the flag says - so the box is
+ * driven from here and flag 0 is left alone.
+ *
+ * Belt and braces: switching the box on also puts flag 0 back to 0, so a stray click on the
+ * flags page cannot bring the broken display back while the box is up. */
+static bool messages_wanted(void)
+{
+    return g_show_messages && messages_enabled();
+}
+
+static void set_messages(bool on)
+{
+    int32_t engine_display = 0;
+
+    g_show_messages = on;
+
+    if (on && flags_value(0, &engine_display) && engine_display != 0) {
+        flags_set(0, 0);
+        log_warning("the engine's own message display (flag 0) was on and has been switched off. "
+                    "It is what makes the lighting go wrong and then crashes; this box does not "
+                    "need it.");
+    }
+}
+
+/* --------------------------------------------------------------------------- the messages page
+ *
+ * One row per channel, and the channels are whatever the engine has actually printed since the
+ * game started. Nothing here is a fixed list: play for five minutes in a different level and the
+ * page grows.
+ */
+static void channel_row_rect(int slot, int *bx, int *by, int *bw, int *bh)
+{
+    int step  = row_step();
+    int width = (panel_width() - PADDING * 2 - FLAG_GAP) / 2;
+
+    *bx = PANEL_X + PADDING + (slot / flag_rows()) * (width + FLAG_GAP);
+    *by = content_top() + (slot % flag_rows()) * step;
+    *bw = width;
+    *bh = overlay_line_height() + 2;
+}
+
+static void channel_all_rect(bool on, int *bx, int *by, int *bw, int *bh)
+{
+    *bw = overlay_text_width(" none ", 1) + 8;
+    *bh = overlay_line_height() + 6;
+    *bx = PANEL_X + PADDING + (on ? 0 : (*bw + 8));
+    *by = content_top() + flag_rows() * row_step() + 6;
+}
+
+static void draw_channels(void)
+{
+    char     line[64];
+    unsigned count = messages_channel_count();
+    unsigned i;
+    int      bx;
+    int      by;
+    int      bw;
+    int      bh;
+
+    if (count == 0) {
+        overlay_text(PANEL_X + PADDING, content_top(), 1, COLOUR_DIM,
+                     "nothing has been printed yet");
+        return;
+    }
+
+    for (i = 0; i < count && (int)i < flag_rows() * 2; ++i) {
+        bool        on   = messages_channel_enabled(i);
+        const char *name = messages_channel_name(i);
+
+        channel_row_rect((int)i, &bx, &by, &bw, &bh);
+
+        if (inside(bx, by, bw, bh)) {
+            overlay_rect(bx, by, bw, bh, COLOUR_TRACK);
+        }
+
+        overlay_text(bx + 2, by + 1, 1, on ? COLOUR_VALUE : COLOUR_DIM,
+                     (name != NULL) ? name : "?");
+
+        sprintf(line, "%u", messages_channel_hits(i));
+        overlay_text(bx + bw - 56 - overlay_text_width(line, 1), by + 1, 1, COLOUR_DIM, line);
+
+        overlay_rect(bx + bw - 52, by, 50, bh, on ? COLOUR_ON : COLOUR_BUTTON);
+        overlay_text(bx + bw - 46, by + 1, 1, COLOUR_VALUE, on ? " on" : "off");
+    }
+
+    channel_all_rect(true, &bx, &by, &bw, &bh);
+    overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
+    overlay_text(bx + 4, by + 3, 1, COLOUR_VALUE, " all  ");
+
+    channel_all_rect(false, &bx, &by, &bw, &bh);
+    overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
+    overlay_text(bx + 4, by + 3, 1, COLOUR_VALUE, " none ");
+
+    sprintf(line, "%u channels - switched off means not recorded at all, not merely hidden", count);
+    overlay_text(bx + bw + 16, by + 3, 1, COLOUR_DIM, line);
+}
+
+static void draw_menu(const camera_view_t *view, bool have_camera)
+{
+
     char  line[128];
     int   x     = PANEL_X + PADDING;
     int   y     = PANEL_Y + PADDING;
@@ -626,21 +1348,33 @@ static void draw_menu(void *device, const camera_view_t *view, bool have_camera)
     int   knob;
     float fraction;
 
-    overlay_begin();
-    overlay_rect(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, COLOUR_PANEL);
-    overlay_frame(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, 1, COLOUR_EDGE);
+    overlay_rect(PANEL_X, PANEL_Y, panel_width(), panel_height(), COLOUR_PANEL);
+    overlay_frame(PANEL_X, PANEL_Y, panel_width(), panel_height(), 1, COLOUR_EDGE);
 
     overlay_text(x, y, 1, COLOUR_TITLE, "OpenFellowship  -  dev menu");
-    overlay_text(PANEL_X + PANEL_W - PADDING - overlay_text_width("` to close", 1), y, 1,
+    overlay_text(PANEL_X + panel_width() - PADDING - overlay_text_width("` to close", 1), y, 1,
                  COLOUR_DIM, "` to close");
-    y += step + 6;
+
+    draw_tabs();
+
+    if (g_tab == TAB_FLAGS) {
+        draw_flags();
+        return;
+    }
+
+    if (g_tab == TAB_MESSAGES) {
+        draw_channels();
+        return;
+    }
+
+    y = content_top();
 
     /* ---- the field of view row */
     overlay_text(x, y, 1, COLOUR_LABEL, "Vertical FOV");
 
     track_x = x + 150;
     track_y = y + overlay_line_height() / 2 - 3;
-    track_w = PANEL_W - PADDING * 2 - 150 - 70;
+    track_w = panel_width() - PADDING * 2 - 150 - 90;
 
     fraction = (clampf(g_fov_degrees, FOV_MIN, FOV_MAX) - FOV_MIN) / (FOV_MAX - FOV_MIN);
     knob     = track_x + (int)(fraction * (float)(track_w - 10));
@@ -650,7 +1384,7 @@ static void draw_menu(void *device, const camera_view_t *view, bool have_camera)
     overlay_rect(knob, track_y - 7, 10, 20, g_auto_fov ? COLOUR_DIM : COLOUR_KNOB);
 
     sprintf(line, "%.1f", (double)g_fov_degrees);
-    overlay_text(PANEL_X + PANEL_W - PADDING - overlay_text_width("000.0", 1), y, 1,
+    overlay_text(PANEL_X + panel_width() - PADDING - overlay_text_width("000.0", 1), y, 1,
                  g_auto_fov ? COLOUR_DIM : COLOUR_VALUE, line);
     y += step;
 
@@ -686,22 +1420,268 @@ static void draw_menu(void *device, const camera_view_t *view, bool have_camera)
     }
     y += step;
 
+    draw_cheats(x, have_camera);
+
+    y = cheats_top() + row_step() + cheat_rows() * (row_step() + 4);
+
     if (overlay_overflowed()) {
         overlay_text(x, y, 1, COLOUR_EDGE, "overlay batch full - some of this is missing");
     }
 
-    draw_pointer();
-    overlay_flush(device);
 }
 
-static void handle_input(void)
+/* Released inside the box, which is what a button is. Kept in one place so every clickable thing
+ * on both pages agrees about what a click is. */
+static bool clicked(int x, int y, int w, int h)
+{
+    return g_mouse_was_down && !g_mouse_down && inside(x, y, w, h);
+}
+
+/* Edge-detected, because this runs once a frame and a held key would otherwise repeat sixty
+ * times a second. One entry per key we care about; nothing else on the keyboard is looked at. */
+static bool key_pressed(int vk)
+{
+    static bool previous[256];
+    bool        down = (GetAsyncKeyState(vk) & 0x8000) != 0;
+    bool        went_down;
+
+    if (vk < 0 || vk > 255) {
+        return false;
+    }
+    went_down     = down && !previous[vk];
+    previous[vk]  = down;
+    return went_down;
+}
+
+static void edit_begin(int index)
+{
+    int32_t value = 0;
+
+    flags_value(index, &value);
+    _snprintf(g_edit_text, sizeof(g_edit_text), "%ld", (long)value);
+    g_edit_text[sizeof(g_edit_text) - 1] = '\0';
+    g_edit_length = (int)strlen(g_edit_text);
+    g_edit_flag   = index;
+}
+
+static void edit_commit(bool keep)
+{
+    if (g_edit_flag < 0) {
+        return;
+    }
+    if (keep && g_edit_length > 0) {
+        flags_set(g_edit_flag, (int32_t)atoi(g_edit_text));
+    }
+    g_edit_flag   = -1;
+    g_edit_length = 0;
+    g_edit_text[0] = '\0';
+}
+
+static void edit_keys(void)
+{
+    int digit;
+
+    if (g_edit_flag < 0) {
+        return;
+    }
+
+    for (digit = 0; digit <= 9; ++digit) {
+        if (key_pressed('0' + digit) || key_pressed(VK_NUMPAD0 + digit)) {
+            if (g_edit_length < (int)sizeof(g_edit_text) - 1) {
+                g_edit_text[g_edit_length++] = (char)('0' + digit);
+                g_edit_text[g_edit_length]   = '\0';
+            }
+        }
+    }
+
+    /* A minus only means anything as the first character, which is also the only place the
+     * engine would accept one. */
+    if ((key_pressed(VK_OEM_MINUS) || key_pressed(VK_SUBTRACT)) && g_edit_length == 0) {
+        g_edit_text[g_edit_length++] = '-';
+        g_edit_text[g_edit_length]   = '\0';
+    }
+
+    if (key_pressed(VK_BACK) && g_edit_length > 0) {
+        g_edit_text[--g_edit_length] = '\0';
+    }
+    if (key_pressed(VK_RETURN)) {
+        edit_commit(true);
+    }
+    if (key_pressed(VK_ESCAPE)) {
+        edit_commit(false);
+    }
+}
+
+static void handle_flags_input(void)
+{
+    int bx;
+    int by;
+    int bw;
+    int bh;
+    int i;
+
+    /* Laid out here as well as in the drawing, rather than reusing last frame's table: input runs
+     * before the draw, and a page that has just changed would otherwise be clicked at the old
+     * page's rectangles for one frame. */
+    layout_flags();
+
+    edit_keys();
+
+    page_button_rect(false, &bx, &by, &bw, &bh);
+    if (clicked(bx, by, bw, bh)) {
+        if (g_flag_page > 0) { --g_flag_page; }
+        return;
+    }
+    page_button_rect(true, &bx, &by, &bw, &bh);
+    if (clicked(bx, by, bw, bh)) {
+        if (g_flag_page + 1 < g_page_count) { ++g_flag_page; }
+        return;
+    }
+
+    for (i = 0; i < g_row_count; ++i) {
+        const flag_row_t *row   = &g_rows[i];
+        int32_t           value = 0;
+
+        if (!flags_value(row->index, &value)) {
+            continue;
+        }
+
+        /* A typed number: the field takes the click, the steppers nudge, and the rest of the row
+         * does nothing - pressing it would run the dispatcher's default case and flatten the
+         * coordinate to 0 or 1. */
+        if (flag_is_number(row->index)) {
+            flag_field_rect(row, &bx, &by, &bw, &bh);
+            if (clicked(bx, by, bw, bh)) {
+                if (g_edit_flag == row->index) {
+                    edit_commit(true);
+                } else {
+                    edit_commit(true);
+                    edit_begin(row->index);
+                }
+                return;
+            }
+
+            flag_step_rect(row, false, &bx, &by, &bw, &bh);
+            if (clicked(bx, by, bw, bh)) { flags_set(row->index, value - 1); return; }
+
+            flag_step_rect(row, true, &bx, &by, &bw, &bh);
+            if (clicked(bx, by, bw, bh)) { flags_set(row->index, value + 1); return; }
+
+            continue;
+        }
+
+        /* The steppers first: they sit inside the row's own area and mean the raw number, which
+         * is a different thing from pressing the entry. */
+        if (row->has_picker) {
+            int range = flags_cycle_range(row->index);
+
+            flag_step_rect(row, false, &bx, &by, &bw, &bh);
+            if (clicked(bx, by, bw, bh)) {
+                flags_set(row->index, (value > 0) ? value - 1 : range - 1);
+                return;
+            }
+            flag_step_rect(row, true, &bx, &by, &bw, &bh);
+            if (clicked(bx, by, bw, bh)) {
+                flags_set(row->index, (value + 1 < range) ? value + 1 : 0);
+                return;
+            }
+        }
+
+        /* Anywhere else on the row's first line presses the entry, and the engine's dispatcher
+         * decides what that means: a switch flips, a range steps, an action fires, and the
+         * side effects that make twenty-four of these mean anything are run. */
+        if (clicked(row->x, row->y, row->w, row->line)) {
+            flags_activate(row->index);
+            return;
+        }
+    }
+}
+
+static void handle_input(bool have_camera)
 {
     int track_x = PANEL_X + PADDING + 150;
-    int track_y = PANEL_Y + PADDING + overlay_line_height() + 6
-                  + overlay_line_height() / 2 - 3;
-    int track_w = PANEL_W - PADDING * 2 - 150 - 70;
-    int button_y = PANEL_Y + PADDING + (overlay_line_height() + 6) * 2 + 6;
+    int track_y = content_top() + overlay_line_height() / 2 - 3;
+    int track_w = panel_width() - PADDING * 2 - 150 - 90;
+    int button_y = content_top() + row_step();
     int button_w = overlay_text_width(" automatic ", 1) + 8;
+    int index;
+
+    {
+        int bx;
+        int by;
+        int bw;
+        int bh;
+
+        messages_button_rect(&bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) {
+            set_messages(!g_show_messages);
+            return;
+        }
+    }
+
+    /* the tab strip */
+    for (index = 0; index < TAB_COUNT; ++index) {
+        int bx;
+        int by;
+        int bw;
+        int bh;
+
+        tab_rect(index, &bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) {
+            edit_commit(false);
+            g_tab = index;
+            return;
+        }
+    }
+
+    /* The message box's clear button. It is not on either page - the box is its own panel - so
+     * it is checked before the page split. */
+    if (messages_wanted()) {
+        int bx;
+        int by;
+        int bw;
+        int bh;
+
+        message_stats_rect(&bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) {
+            g_show_stats = !g_show_stats;
+            return;
+        }
+
+        message_clear_rect(&bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) {
+            messages_clear();
+            return;
+        }
+    }
+
+    if (g_tab == TAB_FLAGS) {
+        handle_flags_input();
+        return;
+    }
+
+    if (g_tab == TAB_MESSAGES) {
+        unsigned count = messages_channel_count();
+        unsigned i;
+        int      bx;
+        int      by;
+        int      bw;
+        int      bh;
+
+        channel_all_rect(true, &bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) { messages_channels_all(true);  return; }
+        channel_all_rect(false, &bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) { messages_channels_all(false); return; }
+
+        for (i = 0; i < count && (int)i < flag_rows() * 2; ++i) {
+            channel_row_rect((int)i, &bx, &by, &bw, &bh);
+            if (clicked(bx, by, bw, bh)) {
+                messages_channel_set(i, !messages_channel_enabled(i));
+                return;
+            }
+        }
+        return;
+    }
 
     /* the automatic button, on release inside it */
     if (g_mouse_was_down && !g_mouse_down
@@ -729,6 +1709,28 @@ static void handle_input(void)
         channel_publish_field_of_view(g_channel, g_fov_degrees);
     }
 
+    /* ---- the cheat buttons, on release inside one, exactly like the automatic button above.
+     *
+     * This runs inside the EndScene hook, which is the game's own thread inside its own frame,
+     * and that is the only reason calling into the engine from here is reasonable at all. A
+     * button pressed on a key thread would be calling engine code from underneath the engine. */
+    if (g_mouse_was_down && !g_mouse_down && have_camera) {
+        int index;
+
+        for (index = 0; index < CHEAT_COUNT; ++index) {
+            int bx;
+            int by;
+            int bw;
+            int bh;
+
+            cheat_button_rect(index, &bx, &by, &bw, &bh);
+            if (inside(bx, by, bw, bh)) {
+                cheat_send((cheat_id_t)index);
+                break;
+            }
+        }
+    }
+
     /* Arrow keys do the same job. Not a fallback in spirit - a slider is for finding the value
      * and a key is for landing on it - but it is also what still works if the cursor turns out
      * to be somewhere this plugin cannot see it. */
@@ -748,10 +1750,17 @@ static void handle_input(void)
 
 static HRESULT STDMETHODCALLTYPE hooked_end_scene(void *device)
 {
-    if (g_visible && device != NULL) {
+    if (device != NULL) {
         camera_view_t   view;
         bool            have_camera = camera_read(&view);
+        bool            show_messages;
         d3d8_viewport_t viewport;
+
+        show_messages = messages_wanted();
+
+        if (!g_visible && !show_messages) {
+            return g_original_end_scene(device);
+        }
 
         /* The device's own answer, so the pointer is clamped to the surface actually being drawn
          * into rather than to whatever the camera last reported. */
@@ -762,21 +1771,32 @@ static HRESULT STDMETHODCALLTYPE hooked_end_scene(void *device)
             g_view_h = (int)viewport.height;
         }
 
-        /* The slider starts wherever the game currently is, so opening the menu never moves the
-         * picture. Only a drag does. */
-        if (g_fov_degrees <= 0.0f && have_camera) {
-            g_fov_degrees = (float)(2.0 * to_degrees(atan((double)view.half_h
-                                                          / (double)view.focal)));
-            g_fov_degrees = clampf(g_fov_degrees, FOV_MIN, FOV_MAX);
+        overlay_begin();
+
+        if (show_messages) {
+            draw_messages();
         }
 
-        if (g_mouse_x == 0 && g_mouse_y == 0) {
-            g_mouse_x = PANEL_X + PANEL_W / 2;
-            g_mouse_y = PANEL_Y + PANEL_H / 2;
+        if (g_visible) {
+            /* The slider starts wherever the game currently is, so opening the menu never moves
+             * the picture. Only a drag does. */
+            if (g_fov_degrees <= 0.0f && have_camera) {
+                g_fov_degrees = (float)(2.0 * to_degrees(atan((double)view.half_h
+                                                              / (double)view.focal)));
+                g_fov_degrees = clampf(g_fov_degrees, FOV_MIN, FOV_MAX);
+            }
+
+            if (g_mouse_x == 0 && g_mouse_y == 0) {
+                g_mouse_x = PANEL_X + PANEL_W / 2;
+                g_mouse_y = PANEL_Y + panel_height() / 2;
+            }
+            read_mouse();
+            handle_input(have_camera);
+            draw_menu(&view, have_camera);
+            draw_pointer();
         }
-        read_mouse();
-        handle_input();
-        draw_menu(device, &view, have_camera);
+
+        overlay_flush(device);
     }
 
     return g_original_end_scene(device);
@@ -845,6 +1865,16 @@ static DWORD WINAPI poll_thread(LPVOID parameter)
 
     for (;;) {
         bool pressed = (GetAsyncKeyState(g_toggle_key) & 0x8000) != 0;
+
+        /* The message capture goes in as soon as the engine has an object to hook, which is
+         * during start-up and long before anybody presses anything. Nearly everything this engine
+         * prints, it prints while loading: hooking at the moment the box is opened meant the
+         * interesting lines had already gone by, and the only way to see any was to quit to the
+         * menu and load again. Now the ring is filling from the first frame and opening the box
+         * shows what has already happened. */
+        if (messages_enabled() && !messages_installed()) {
+            messages_install();
+        }
 
         while (PeekMessageA(&message, NULL, 0, 0, PM_REMOVE)) {
             TranslateMessage(&message);
@@ -920,6 +1950,11 @@ void dev_menu_install(void)
          * It forwards until the menu opens, so the cost of it existing is a jump. */
         install_input_intercept();
     }
+
+    /* Capture is separate from the box: the box is a view of a ring that has been filling since
+     * start-up. Off only if somebody asks, because two vtable entries that record a string are
+     * not something anyone needs to opt out of by default. */
+    messages_set_enabled(ini_read_bool(PLUGIN_SECTION, "CaptureMessages", true));
 
     g_channel = channel_open();
     if (g_channel == NULL) {
