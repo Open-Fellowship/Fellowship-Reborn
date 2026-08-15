@@ -97,7 +97,7 @@ To uninstall, delete `dinput8.dll`.
 `Fellowship.rfl` is a **PE32 DLL** despite the extension, ImageBase `0x10000000`.
 
 The engine is 32-bit and every offset in this tree assumes it.
-`legacy/src/common/engine_types.h` asserts it at compile time.
+`legacy/src/common/engine_types.h` asserts it at compile time....
 
 ## Licence
 
