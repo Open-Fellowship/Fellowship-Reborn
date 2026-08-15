@@ -1,0 +1,6 @@
+# The build writes to build/dist/, which the line above already covers. The dist/ directory in
+# the source tree is NOT build output - it holds open_fellowship.ini, the shipped configuration,
+# and ignoring it would leave the repository without the file every install needs.
+build/
+release/*
+!release/.gitignore
