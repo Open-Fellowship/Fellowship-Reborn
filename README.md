@@ -2,7 +2,7 @@
 
 A reverse engineering and preservation project for the PC version of
 *The Lord of the Rings: The Fellowship of the Ring* (Surreal Software, 2002,
-Riot Engine).
+Riot Engine)..
 
 The aim is the same as its sibling project [OpenPhantom](https://github.com/OpenPhantom/OpenPhantom):
 documented, maintainable source that preserves the original game's behaviour on
