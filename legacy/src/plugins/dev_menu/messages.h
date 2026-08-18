@@ -28,6 +28,15 @@
 void messages_set_enabled(bool enabled);
 bool messages_enabled(void);
 
+/* Mirrors every captured line into open_fellowship.log as well as the ring.
+ *
+ * The ring is for reading on screen, which is no use at all on a machine that never draws
+ * anything - and a game that stops drawing is the case where what the engine said last matters
+ * most. Off by default because it is a great deal of text, and the file is the only place it can
+ * go when the screen is black. Per-frame statistics are NOT mirrored; they would be the whole
+ * file within a minute. */
+void messages_set_logging(bool enabled);
+
 /* Idempotent, and safe to call every frame until it succeeds: the message object does not exist
  * at the entry point and appears during start-up. Does nothing while disabled. */
 bool messages_install(void);
