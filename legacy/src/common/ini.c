@@ -31,6 +31,39 @@ const char *ini_path(void)
  * escape \x02a, which is a different character and an error at -Werror. */
 #define INI_ABSENT "\x01\x02" "absent"
 
+/* The profile API returns everything after the '=' verbatim, INLINE COMMENT AND ALL, and this
+ * project walked straight into that with its own documentation:
+ *
+ *     LogMessages=1                ; Mirrors what the engine prints...
+ *
+ * comes back as "1                ; Mirrors what the engine prints...". The numeric readers get
+ * away with it, because strtol and strtod stop at the space - which is why KeyCode=192 with a
+ * comment has always worked. The BOOLEAN reader compared the whole string against "1" and quietly
+ * fell back to its default, so EVERY DOCUMENTED BOOLEAN in the shipped ini was ignored. That is
+ * why LogMessages appeared to do nothing however many times it was set.
+ *
+ * A comment here is a ';' or '#' at the start of the value or following whitespace. Trailing
+ * whitespace goes with it. */
+static void strip_inline_comment(char *value)
+{
+    size_t end = strlen(value);
+    size_t i;
+
+    for (i = 0; i < end; ++i) {
+        if ((value[i] == ';' || value[i] == '#') &&
+            (i == 0 || value[i - 1] == ' ' || value[i - 1] == '\t')) {
+            end = i;
+            break;
+        }
+    }
+
+    while (end > 0 && (value[end - 1] == ' '  || value[end - 1] == '\t' ||
+                       value[end - 1] == '\r' || value[end - 1] == '\n')) {
+        --end;
+    }
+    value[end] = '\0';
+}
+
 bool ini_read_string(const char *section, const char *key, const char *default_value,
                      char *buffer, size_t buffer_size)
 {
@@ -44,6 +77,15 @@ bool ini_read_string(const char *section, const char *key, const char *default_v
     length = GetPrivateProfileStringA(section, key, INI_ABSENT, raw, (DWORD)sizeof(raw),
                                       ini_path());
     if (length == 0 || strcmp(raw, INI_ABSENT) == 0) {
+        snprintf(buffer, buffer_size, "%s", (default_value != NULL) ? default_value : "");
+        return false;
+    }
+
+    strip_inline_comment(raw);
+
+    /* A key whose value is nothing but a comment is a key that says nothing, which is the same as
+     * not being there. */
+    if (raw[0] == '\0') {
         snprintf(buffer, buffer_size, "%s", (default_value != NULL) ? default_value : "");
         return false;
     }
