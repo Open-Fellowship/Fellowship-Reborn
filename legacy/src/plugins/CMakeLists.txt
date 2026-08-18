@@ -129,6 +129,15 @@ add_fellowship_plugin(level_select
     level_select.c
 )
 
+# Five bytes that make the movie player report that playback did not start. The engine's opening
+# movies go through the Windows Media Format runtime, which Wine only stubs, so under Proton or
+# Lutris the movie neither plays nor fails and the game waits for it behind a black screen with a
+# perfectly healthy Direct3D device. Off by default: on Windows the movies work.
+add_fellowship_plugin(movie_skip
+    dll_main.c
+    movie_skip.c
+)
+
 # A DIAGNOSTIC, not a fix, and off by default. It hooks the engine's universal property getter in
 # Fellowship.exe and records which code asks for which authored value - the tool for finding the
 # in-game HUD's draw path. See HUD-FINDING.md in hud_scaling.
