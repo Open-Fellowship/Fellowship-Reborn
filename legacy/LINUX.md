@@ -74,5 +74,6 @@ Confirmed on the Steam Deck: with `movie_skip` v2 the game reaches the main menu
 ## The instruments
 
 The diagnostics that found all of this - `env_probe`, `frame_state`, `screen_test` - and the
-`borderless` experiment are not on this branch. They are kept on `steamdeck-diagnostics`, which
-is this branch plus those four plugins, for the next time the screen is the thing that is broken.
+`borderless` experiment are on this branch and nowhere else. `steamdeck-experimental` carries the
+fixes alone; this is that branch plus these four, kept for the next time the screen is the thing
+that is broken. Nothing here is required by the fixes.

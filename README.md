@@ -13,7 +13,7 @@ bytes by hand ever again.
 
 | Part | State |
 |---|---|
-| `legacy/` | **Working.** Loader plus 19 plugins, built and tested on a retail install at 3840x2160. |
+| `legacy/` | **Working.** Loader plus 23 plugins, built and tested on a retail install at 3840x2160. |
 | `architecture/` | Notes only. |
 | `engine/` | Not started. |
 | `editor/` | Not started. |
