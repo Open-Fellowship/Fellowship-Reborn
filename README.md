@@ -13,7 +13,7 @@ bytes by hand ever again.
 
 | Part | State |
 |---|---|
-| `legacy/` | **Working.** Loader plus 18 plugins, built and tested on a retail install at 3840x2160. |
+| `legacy/` | **Working.** Loader plus 19 plugins, built and tested on a retail install at 3840x2160. |
 | `architecture/` | Notes only. |
 | `engine/` | Not started. |
 | `editor/` | Not started. |
@@ -47,6 +47,8 @@ On by default:
 | `fog_toggle` | distance fog on and off while the game runs |
 | `dev_menu` | an in-game overlay: a live field-of-view slider, the game's own cheats as buttons, and the engine's own 124-entry developer flag menu that no shipping build reaches |
 | `level_select` | New Game opens the game's own level list, a finished screen that ships in every rfl and that nothing reaches. Two bytes, found by signature |
+
+| `movie_skip` | the opening movies go through a Windows Media runtime Wine only stubs, so under Proton the game waits behind a black screen for an end that never comes. Three bytes, and it goes straight on |
 
 Off by default, and documented in the ini: `view_distance`, `model_lod`,
 `field_of_view`, `inventory_icons`, `cd_check`, `windowed_res`, `hud_probe`.
