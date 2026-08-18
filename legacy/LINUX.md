@@ -6,9 +6,9 @@ down because most of it cost a night to learn and none of it is guessable.
 
 ## What is fixed
 
-Three plugins exist because of this hunt, and all three switch themselves **on under Wine and off
-on Windows**. `platform_is_wine()` asks `ntdll` for `wine_get_version`, which Windows does not
-export, so it is a fact rather than a guess. The ini overrides either way.
+`movie_skip` switches itself **on under Wine and off on Windows**: `platform_is_wine()` asks
+`ntdll` for `wine_get_version`, which Windows does not export, so it is a fact rather than a
+guess. The ini overrides either way. The other two fixes are right on every platform.
 
 ### `movie_skip` - the engine waits for ever on a movie Wine cannot play
 
@@ -23,27 +23,18 @@ never comes:
 ```
 
 Symptom: **exactly ten frames presented and then nothing**, identically on every run, with a
-healthy device, a correct window and a message loop still answering. Five bytes at `0x47B9B0`
-make playback report that it did not start.
+healthy device, a correct window and a message loop still answering. Three bytes at `0x47BA29`
+end it; the mechanism is in "The main menu: solved" below.
 
-### `borderless` - exclusive full screen loses its window
+### `fps_limit` - the limiter ran away into the future
 
-A fullscreen d3d8 device hands its window's fate to the focus. On the Deck the desktop window
-(`class "#32769"`) takes the foreground a moment after the mode change, the runtime takes the game
-window down with it, and a minimised game draws nothing:
-
-```
-[env_probe]  window now  ... 160x24 at -32000,-32000, minimised
-```
-
-`borderless` rewrites the presentation parameters to windowed at `CreateDevice` and `Reset`, and
-shapes the window **after** those calls, because leaving exclusive mode makes the runtime restore
-the window's saved style and size. A keeper thread re-asserts it four times a second.
-
-**It must not change the size the game asked for.** The first version forced the back buffer to
-the size of the screen; the engine's viewport stayed at its own mode, everything it drew landed in
-one corner of a larger surface, and the rest was never written to. That looks exactly like a black
-screen with the game hiding in the top left.
+The frame limiter only ever looked one way. Falling *behind* is the obvious case and was handled.
+Running *ahead* was not: the hook is one call site, and the engine is under no obligation to reach
+it once per drawn frame - during start-up it goes round far more often than that, with nothing
+being presented. Every one of those calls added a whole frame period to the target while almost no
+real time passed, so the schedule ran away, a single `Sleep` grew to several seconds, and the game
+sat in it behind a black screen. The limiter now resyncs in both directions and reports the first
+few resyncs with the call count, so a site reached far more often than the frame rate says so.
 
 ### `ini` inline comments - our own configuration file was lying
 
@@ -52,18 +43,6 @@ survived it because `strtol` stops at the first space. The boolean reader compar
 string against `"1"` and silently fell back to its default, so **every documented boolean in the
 shipped ini was ignored** - which is why `LogMessages=1` did nothing for a week of runs. Fixed in
 `common/ini.c`.
-
-## What the diagnostics can now do
-
-- `env_probe`: which Direct3D is really loaded and from where, what `CreateDevice` and `Reset`
-  asked for and answered, the window's client and frame rects, whether frames are being presented,
-  and - on a stall - a sample of **every thread in the process**, each named module+offset, plus
-  whether the main thread still answers `WM_NULL`.
-- `frame_state`: the engine's own frame mode word and frame counter, and a hook on the mode setter
-  that names the caller.
-- `screen_test`: paints the back buffer red, green, blue every frame. The one measurement that
-  cannot be argued with when the log says frames are going out and the screen is black. It needs
-  no keyboard, which matters on a handheld.
 
 ## The main menu: solved
 
@@ -91,6 +70,9 @@ Confirmed on the Steam Deck: with `movie_skip` v2 the game reaches the main menu
   loop, a black one. The clean route is a `movie_player` plugin that hooks the same Begin /
   Update / callback seam, plays a converted file from a `Movies\` folder and presents it on the
   D3D8 device - the same shape as OpenPhantom's `fmv_player`.
-- `screen_test` paints in the Present hook, so it proves the display path, not that the game's
-  own draws land. A DrawPrimitive/SetTexture count per frame in `env_probe` would tell "nothing
-  drawn" from "drawn black" directly next time.
+
+## The instruments
+
+The diagnostics that found all of this - `env_probe`, `frame_state`, `screen_test` - and the
+`borderless` experiment are not on this branch. They are kept on `steamdeck-diagnostics`, which
+is this branch plus those four plugins, for the next time the screen is the thing that is broken.

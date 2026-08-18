@@ -129,10 +129,12 @@ add_fellowship_plugin(level_select
     level_select.c
 )
 
-# Five bytes that make the movie player report that playback did not start. The engine's opening
-# movies go through the Windows Media Format runtime, which Wine only stubs, so under Proton or
-# Lutris the movie neither plays nor fails and the game waits for it behind a black screen with a
-# perfectly healthy Direct3D device. Off by default: on Windows the movies work.
+# Three bytes that send the movie player's per-frame Update down the engine's own "this movie is
+# not going to play" path, so the completion callback fires and the media manager forgets it. The
+# opening movies go through the Windows Media Format runtime, which Wine only stubs, so under
+# Proton or Lutris the movie neither plays nor fails and the game waits for it behind a black
+# screen with a perfectly healthy Direct3D device. On under Wine, off on Windows, where the
+# movies work; the ini overrides either way.
 add_fellowship_plugin(movie_skip
     dll_main.c
     movie_skip.c
