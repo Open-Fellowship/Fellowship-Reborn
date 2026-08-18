@@ -421,6 +421,13 @@ has an object to hook, long before anybody presses anything, and the box is just
 that has been filling since the game started. `CaptureMessages=0` in the ini turns the capture
 off entirely for anyone who wants nothing hooked.
 
+`LogMessages=1` is the same ring written to `open_fellowship.log` as well, and it exists for the
+case the box cannot serve: a machine where the screen never comes on. A box you cannot see is no
+help at all in working out why you cannot see it, and what the engine said in the seconds before
+it stopped is usually the whole answer. It is off by default because it is a great deal of text,
+and the per-frame statistics are left out of it deliberately - at sixty frames a second they would
+be the entire file within a minute.
+
 ### Four slots, and slot 0 is the one that matters in game
 
 `0x00`, the object's first virtual method, is the **per-frame** printf, and missing it is why

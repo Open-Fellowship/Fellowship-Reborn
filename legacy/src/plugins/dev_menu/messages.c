@@ -218,6 +218,38 @@ bool messages_text_enabled(const char *text)
 static bool             g_recording_stats;   /* set around the slot 0 hook only */
 static unsigned         g_written;      /* into the ring */
 static unsigned         g_seen;         /* everything, filtered or not */
+static bool             g_mirror_to_log;
+
+void messages_set_logging(bool enabled)
+{
+    g_mirror_to_log = enabled;
+}
+
+/* The log gets the line before the channels get a say. A muted channel is a line you do not want
+ * filling the box on screen; it is not a line you want missing from a file you are reading
+ * precisely because the screen never came on. */
+static void mirror_to_log(const char *text)
+{
+    char   line[MESSAGE_LENGTH];
+    size_t length;
+
+    if (!g_mirror_to_log || text == NULL) {
+        return;
+    }
+
+    _snprintf(line, sizeof(line), "%s", text);
+    line[sizeof(line) - 1] = '\0';
+
+    length = strlen(line);
+    while (length > 0 && (line[length - 1] == '\n' || line[length - 1] == '\r')) {
+        line[--length] = '\0';
+    }
+    if (line[0] == '\0') {
+        return;
+    }
+
+    log_info("engine: %s", line);
+}
 
 /* The engine prints from whichever thread is loading or running, and the overlay reads on the
  * render thread, so this is the one place in this plugin that genuinely needs a lock. It is held
@@ -230,6 +262,8 @@ static void record(const char *text)
     if (text == NULL || !g_lock_ready) {
         return;
     }
+
+    mirror_to_log(text);
 
     EnterCriticalSection(&g_lock);
 

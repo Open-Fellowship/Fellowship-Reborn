@@ -1956,6 +1956,13 @@ void dev_menu_install(void)
      * not something anyone needs to opt out of by default. */
     messages_set_enabled(ini_read_bool(PLUGIN_SECTION, "CaptureMessages", true));
 
+    /* Off by default: it is a great deal of text. On when the screen is the thing that is broken,
+     * because then the log is the only place the engine's own account of itself can go. */
+    if (ini_read_bool(PLUGIN_SECTION, "LogMessages", false)) {
+        messages_set_logging(true);
+        log_info("LogMessages=1: everything the engine prints is going into this file as well");
+    }
+
     g_channel = channel_open();
     if (g_channel == NULL) {
         log_warning("the shared channel could not be opened - the slider will have nothing to "
