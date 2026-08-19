@@ -1,0 +1,4 @@
+build/
+# --verify compiles the generated tables in place to compare them against the
+# retail image; the objects are a by-product of the check, not of the build.
+objectdef/*.obj

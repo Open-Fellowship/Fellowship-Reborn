@@ -14,8 +14,10 @@ bytes by hand ever again.
 | Part | State |
 |---|---|
 | `legacy/` | **Working.** Loader plus 18 plugins, built and tested on a retail install at 3840x2160. |
+| `decomp/` | **Started.** Toolchain identified and reproduced; 58 functions match byte for byte. The object model is fully decoded. |
+| `documentation/` | The toolchain, the matching method, the object model, and the ordinal map. |
 | `architecture/` | Notes only. |
-| `engine/` | Not started. |
+| `engine/` | **Experimental.** A drop-in `Fellowship.rfl` that forwards to the retail engine, with four static registries served from our own generated code. Runs the retail game. |
 | `editor/` | Not started. |
 | `installer/` | Not started. |
 
@@ -99,6 +101,20 @@ To uninstall, delete `dinput8.dll`.
 
 The engine is 32-bit and every offset in this tree assumes it.
 `legacy/src/common/engine_types.h` asserts it at compile time.
+
+Both were built by **Visual C++ 6.0 with the Processor Pack**, linker 6.00, `/MD`, no `/GS`,
+optimised `/O2 /Gy /GX`. `documentation/TOOLCHAIN.md` has the Rich-header measurement behind that,
+the confirmation from the Processor Pack's own `C2.DLL`, and how to assemble the toolchain
+without installing anything.
+
+`decomp/` is where that gets used: source which, compiled by that toolchain, reproduces the
+original's bytes exactly. It is not the engine — it is how `engine/` gets verified. A subsystem
+is matched byte for byte to prove it is understood completely, and only then written properly.
+58 functions match today, including the whole `Vector3` class; `python decomp/build.py` re-checks
+them all and reports coverage against an honest denominator.
+
+`engine/` is the beginning of replacing the engine module itself rather than patching it from
+outside. See [BRANCH-NOTES.md](BRANCH-NOTES.md) for what exists, what is verified and what is not.
 
 ## Licence
 

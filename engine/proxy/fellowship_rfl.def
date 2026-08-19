@@ -1,0 +1,29 @@
+; Fellowship.rfl exports, in the order and spelling the retail engine uses.
+;
+; All eleven are undecorated, which means the originals are extern "C" __cdecl.
+; The names must match exactly: the host resolves them by GetProcAddress, so a
+; typo here is not a link error, it is a silent "RFL initialization fail" at
+; runtime with nothing to say which one was missing.
+;
+; Ordinals are pinned to the retail values. Nothing observed so far imports by
+; ordinal, but a host that did would break invisibly if these drifted.
+;
+; No LIBRARY directive: it writes the module name into the export table, and
+; since this DLL is built as Fellowship.rfl rather than Fellowship.dll the
+; linker would warn that the two disagree and then ignore it anyway.
+;
+; DllMain is exported because the retail module exports it. Nothing is known to
+; call it by name, but a drop-in replacement that quietly offers fewer symbols
+; than the thing it replaces is a trap for whoever debugs it next.
+EXPORTS
+    GetBaseRFLInterface     @1
+    GetLandTypeInterface    @2
+    GetMessageInterface     @3
+    GetObjTypeInterface     @4
+    GetObjectDefInterface   @5
+    IsObjectLight           @6
+    IsObjectMoveNode        @7
+    IsObjectPortal          @8
+    RiotDllGetID            @9
+    RiotDllType             @10
+    DllMain                 @11
