@@ -121,7 +121,7 @@ void inventory_icons_install(void)
         return;
     }
 
-    if (!module_watch_when_loaded(FELLOWSHIP_RFL_MODULE, on_rfl_loaded, 60000)) {
+    if (!module_watch_when_loaded(fellowship_rfl_module_name(), on_rfl_loaded, 60000)) {
         log_error("could not start the module watch");
     }
 }

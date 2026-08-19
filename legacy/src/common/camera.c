@@ -144,6 +144,14 @@ bool camera_read(camera_view_t *out)
     return true;
 }
 
+/* C4702 is emitted by the code generator, not the parser, so it cannot be suppressed at the
+ * statement - the pragma has to sit outside the function. See the note on the return below:
+ * this loop provably never exits and the return exists only to satisfy the signature.
+ * MSVC 19.50 reports it where earlier compilers did not. */
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4702)
+#endif
 static DWORD WINAPI watch_thread(LPVOID parameter)
 {
     camera_view_t last;
@@ -179,9 +187,16 @@ static DWORD WINAPI watch_thread(LPVOID parameter)
 
     /* Not reached: the thread lives as long as the process. There is no result to hand back and
      * nothing to release, and a plugin DLL is never unloaded. The return is here because the
-     * signature demands one, not because control can arrive at it. */
+     * signature demands one, not because control can arrive at it.
+     *
+     * Suppressed rather than restructured. MSVC 19.50 proves the loop never exits and reports
+     * C4702, which /WX makes fatal; earlier compilers did not. Removing the return to satisfy it
+     * would leave a non-void function with no return statement, which is worse. */
     return 0;
 }
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 bool camera_watch(unsigned interval_ms, camera_watch_callback_t on_change)
 {

@@ -1,7 +1,10 @@
 #include "common/module_watch.h"
 
+#include "common/engine_types.h"
+#include "common/host_image.h"
 #include "common/logging.h"
 
+#include <string.h>
 #include <windows.h>
 
 #define POLL_INTERVAL_MS 25u
@@ -54,6 +57,34 @@ static DWORD WINAPI watch_thread(LPVOID parameter)
 
     HeapFree(GetProcessHeap(), 0, request);
     return 0;
+}
+
+const char *fellowship_rfl_module_name(void)
+{
+    static const char *resolved;
+    char path[MAX_PATH];
+    const char *dir;
+
+    if (resolved != NULL) {
+        return resolved;
+    }
+    resolved = FELLOWSHIP_RFL_MODULE;           /* the answer if anything below fails */
+
+    dir = host_directory();
+    if (dir[0] == '\0') {
+        return resolved;
+    }
+    if (strlen(dir) + strlen(FELLOWSHIP_RFL_PROXIED_MODULE) >= sizeof path) {
+        return resolved;
+    }
+    strcpy(path, dir);
+    strcat(path, FELLOWSHIP_RFL_PROXIED_MODULE);
+
+    if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) {
+        resolved = FELLOWSHIP_RFL_PROXIED_MODULE;
+        log_info("engine module is %s - the engine proxy is installed", resolved);
+    }
+    return resolved;
 }
 
 bool module_watch_when_loaded(const char *module_name, module_watch_callback_t on_loaded,

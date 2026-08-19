@@ -5,6 +5,7 @@
 #include "common/host_image.h"
 #include "common/ini.h"
 #include "common/logging.h"
+#include "common/module_watch.h"
 #include "common/patch.h"
 #include "common/trampoline.h"
 
@@ -116,7 +117,7 @@ static void dump(void)
 {
     uintptr_t exe_low  = host_image_base();
     uintptr_t exe_high = host_image_end();
-    HMODULE   rfl      = GetModuleHandleA(FELLOWSHIP_RFL_MODULE);
+    HMODULE   rfl      = GetModuleHandleA(fellowship_rfl_module_name());
     int       shown    = 0;
     int       index;
 
@@ -146,6 +147,13 @@ static void dump(void)
     log_info("---- %d distinct (caller, index) pairs ----", shown);
 }
 
+/* C4702 comes from the code generator, so the pragma has to sit outside the function rather than
+ * at the return. This thread loops for the life of the process; the return exists to satisfy the
+ * signature. MSVC 19.50 proves it unreachable where earlier compilers did not. */
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4702)
+#endif
 static DWORD WINAPI key_thread(LPVOID parameter)
 {
     bool previous = false;
@@ -173,6 +181,9 @@ static DWORD WINAPI key_thread(LPVOID parameter)
 
     return 0;
 }
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 void hud_probe_install(void)
 {

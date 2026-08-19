@@ -32,6 +32,11 @@ _Static_assert(sizeof(float) == 4, "engine floats are IEEE 754 single precision"
 #define FELLOWSHIP_EXE_MODULE "Fellowship.exe"
 #define FELLOWSHIP_RFL_MODULE "Fellowship.rfl"
 
+/* What the retail engine is called once engine/'s proxy has taken its name. Do not compare
+ * against these two by hand: ask fellowship_rfl_module_name() in common/module_watch.h, which
+ * picks the right one and is correct whether or not the proxy is installed. */
+#define FELLOWSHIP_RFL_PROXIED_MODULE "Fellowship.orig.rfl"
+
 /* The engine's virtual screen is always 128 units wide, so the authored 640x480 interface maps
  * at exactly 5 pixels per unit and the field of view is horizontal. Several plugins need these
  * and none of them should be spelling them out again.

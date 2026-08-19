@@ -1,6 +1,7 @@
 #include "template_plugin.h"
 
 #include "common/engine_types.h"
+#include "common/module_watch.h"
 #include "common/host_image.h"
 #include "common/ini.h"
 #include "common/logging.h"
@@ -36,11 +37,11 @@ void template_plugin_install(void)
     /* Worth logging even though it is always the same answer at install time: it is the fact that
      * catches out everybody who tries to patch the rfl from here and cannot work out why the
      * pattern never matches. */
-    if (GetModuleHandleA(FELLOWSHIP_RFL_MODULE) == NULL) {
-        log_info("  %s not loaded yet - as expected at entry-point time", FELLOWSHIP_RFL_MODULE);
+    if (GetModuleHandleA(fellowship_rfl_module_name()) == NULL) {
+        log_info("  %s not loaded yet - as expected at entry-point time", fellowship_rfl_module_name());
     } else {
-        log_info("  %s already at %08X", FELLOWSHIP_RFL_MODULE,
-                 (unsigned)(uintptr_t)GetModuleHandleA(FELLOWSHIP_RFL_MODULE));
+        log_info("  %s already at %08X", fellowship_rfl_module_name(),
+                 (unsigned)(uintptr_t)GetModuleHandleA(fellowship_rfl_module_name()));
     }
 
     ini_read_string(PLUGIN_SECTION, "Greeting", "hello from plugins\\",
