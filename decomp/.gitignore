@@ -1,0 +1,5 @@
+build/
+tools/__pycache__/
+# Derived from the binaries by tools/ExportFunctions.java - regenerate rather
+# than commit. Large, and not source.
+export/

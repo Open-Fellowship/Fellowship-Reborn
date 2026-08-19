@@ -1,0 +1,29 @@
+# Totals for each image, from tools/ExportFunctions.java. Regenerate if the
+# analysis changes:
+#
+#   analyzeHeadless <proj> <name> -process <image> -noanalysis #       -scriptPath decomp/tools -postScript ExportFunctions.java <outdir> census
+#
+# The honest denominator for coverage, and honest is the whole point of the file.
+#
+# `functions` and `code_bytes` are what Ghidra put inside a function body. They
+# are NOT the size of the image's code. In an optimised C++ image a large amount
+# of code is reached only through a vtable or a jump table, so nothing calls it
+# by an address Ghidra can follow and it never becomes a function at all:
+#
+#   `orphan_functions` / `orphan_bytes`  loose code in no function. Real code,
+#       Surreal's, and a decompilation target like any other. In the rfl it is
+#       205,725 bytes in 1,237 runs - a fifth of .text, and 30% on top of the
+#       body total. Counting only bodies overstates our coverage by a third.
+#
+#   `truncations` / `truncated_bytes`  loose code that begins exactly where a
+#       function body ends, i.e. a body that stopped early - usually at a
+#       mid-body INT3. These are not separate functions; they belong to the one
+#       in front of them, and a size taken from Ghidra for such a function is
+#       short. No function in manifest.tsv is currently affected, which was
+#       checked rather than assumed.
+#
+# The exe's `.cms_t` (SecuROM, 184,320 bytes) holds no code at rest and is
+# excluded from every figure here - it contributes nothing to the denominator.
+# image	functions	code_bytes	leaf_functions	leaf_bytes	orphan_functions	orphan_bytes	truncations	truncated_bytes
+rfl	4962	694205	849	82827	1237	220016	695	14291
+exe	4351	811612	1118	147511	1490	183359	439	24369

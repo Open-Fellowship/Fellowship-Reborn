@@ -1,0 +1,80 @@
+# One line per decompiled function. Tab separated; # starts a comment.
+#
+# image   the original this function lives in: rfl or exe
+# va      its virtual address there
+# size    the length of the function itself, excluding trailing padding
+# source  the file under src/ that is meant to reproduce it
+# expect  match  - it matched when last run, so a mismatch now is a regression
+#         todo   - not reproduced yet, a match now is progress to record here
+# symbol  the decorated name in the compiled object
+#
+# image	va	size	source	expect	symbol
+rfl	0x10002230	25	math/vector3.cpp	match	??4Vector3@@QAEAAV0@ABV0@@Z
+rfl	0x10002250	31	math/vector3.cpp	match	??ZVector3@@QAEXABV0@@Z
+rfl	0x10002270	31	math/vector3.cpp	match	??XVector3@@QAEXM@Z
+rfl	0x10002290	31	math/vector3.cpp	match	??YVector3@@QAEXABV0@@Z
+rfl	0x100022b0	31	math/vector3.cpp	match	??G@YA?AVVector3@@ABV0@@Z
+rfl	0x100022d0	35	math/vector3.cpp	match	??HVector3@@QBE?AV0@ABV0@@Z
+rfl	0x10002300	35	math/vector3.cpp	match	??GVector3@@QBE?AV0@ABV0@@Z
+rfl	0x10002330	75	math/vector3.cpp	match	?Normalized@Vector3@@QBE?AV1@XZ
+rfl	0x10002380	27	math/vector3.cpp	match	?dot@Vector3@@QBEMABV1@@Z
+rfl	0x100023a0	31	math/vector3.cpp	match	?LengthSquared@Vector3@@QBEMXZ
+rfl	0x100044e0	33	math/vector3.cpp	match	??_0Vector3@@QAEXM@Z
+rfl	0x10004510	35	math/vector3.cpp	match	??DVector3@@QBE?AV0@M@Z
+rfl	0x10004540	33	math/matrix.cpp	match	?GetColumn@Matrix@@QBEXAAVVector3@@H@Z
+rfl	0x10004570	33	math/matrix.cpp	match	?GetColumnFP@Matrix@@QBE?AVVector3@@H@Z
+rfl	0x100045a0	33	math/matrix.cpp	match	?SetColumn@Matrix@@QAEXHABVVector3@@@Z
+rfl	0x100045d0	82	math/matrix.cpp	todo	??DMatrix@@QBE?AVVector3@@ABV1@@Z
+rfl	0x10072880	50	level/levellist.cpp	match	?IsBackupPath@@YAHPBD@Z
+rfl	0x10072e90	134	level/levellist.cpp	todo	?Reserve@LevelList@@QAEXH@Z
+exe	0x00402100	31	math/vector3.cpp	match	??ZVector3@@QAEXABV0@@Z
+exe	0x00416320	31	math/vector3.cpp	match	??XVector3@@QAEXM@Z
+exe	0x00416300	31	math/vector3.cpp	match	??YVector3@@QAEXABV0@@Z
+exe	0x0041a730	31	math/vector3.cpp	match	??G@YA?AVVector3@@ABV0@@Z
+exe	0x00402120	35	math/vector3.cpp	match	??HVector3@@QBE?AV0@ABV0@@Z
+exe	0x00402150	35	math/vector3.cpp	match	??GVector3@@QBE?AV0@ABV0@@Z
+exe	0x004011d0	27	math/vector3.cpp	match	?dot@Vector3@@QBEMABV1@@Z
+exe	0x004021e0	31	math/vector3.cpp	match	?LengthSquared@Vector3@@QBEMXZ
+exe	0x00402180	35	math/vector3.cpp	match	??DVector3@@QBE?AV0@M@Z
+exe	0x00444720	33	math/matrix.cpp	match	?GetColumn@Matrix@@QBEXAAVVector3@@H@Z
+exe	0x00415e80	33	math/matrix.cpp	match	?SetColumn@Matrix@@QAEXHABVVector3@@@Z
+exe	0x00449600	33	math/vector3.cpp	match	??_0Vector3@@QAEXM@Z
+rfl	0x100047a0	34	math/matrix3.cpp	match	?SetIdentity@Matrix3@@QAEXXZ
+rfl	0x10004690	42	core/array.cpp	match	?ForEachArrayElement@@YGXPAXHHP8ArrayElement@@AEXXZ@Z
+rfl	0x10004ea0	40	core/record_state.cpp	match	??0RecordState@@QAE@PAX@Z
+rfl	0x10005190	38	core/value_filter.cpp	match	?Accepts@ValueFilter@@QAEHH@Z
+rfl	0x100051c0	33	core/handle.cpp	match	?Resolve@Handle@@QBEPAXXZ
+exe	0x0043d2b0	150	render/pixel_format.cpp	match	?PixelFormatFromDepth@@YAHHI@Z
+exe	0x0048b820	252	render/device_caps.cpp	match	?DeviceCapsCheck@@YAJPBUD3DCAPS8@@PAI@Z
+exe	0x00411ba0	29	debug/debug_flags.cpp	match	?GetValue@DebugMenuFlags@@QBEHH@Z
+exe	0x0048bdd0	40	render/render_gate.cpp	match	?Gate@RenderGate@@QAEHXZ
+exe	0x0044e670	103	core/global_array.cpp	match	?SetCount@GlobalArray@@QAEHH@Z
+rfl	0x1000d760	163	objectdef/predicates.cpp	match	_IsObjectLight
+rfl	0x1000d810	16	objectdef/predicates.cpp	match	_IsObjectPortal
+rfl	0x1000d820	16	objectdef/predicates.cpp	match	_IsObjectMoveNode
+rfl	0x10008f30	46	objectdef/entry_list.cpp	match	?GetEntry@ObjectDefEntryList@@QAEPAUObjectDefEntry@@H@Z
+rfl	0x10057b60	22	player/stats.cpp	match	?GetMaxPurity@Player@@QAEMXZ
+rfl	0x1005c4e0	25	player/stats.cpp	match	?GetMaxMana@Player@@QAEMXZ
+rfl	0x10060210	77	player/head_neck.cpp	match	?ClearUpperBodyPitch@Player@@QAEHXZ
+rfl	0x10057030	41	player/health_regen.cpp	match	?GetCriticalHealth@Player@@QAEMXZ
+rfl	0x1005ad00	69	objectdef/property_ref.cpp	match	?GetRightPropertiesDef@@YGPAUObjectDefEntry@@PAVPropertyOwner@@@Z
+rfl	0x10058360	87	objectdef/property_ref_change.cpp	match	?ObjectRefPropertyChanged@PropertyObject@@QAEHXZ
+rfl	0x10057060	103	player/health_regen.cpp	match	?RegenerateHealth@Player@@QAEXXZ
+rfl	0x100570d0	67	player/health_regen.cpp	match	?ShouldRegenerate@Player@@QAEHXZ
+rfl	0x10059f00	35	objectdef/entry_cache.cpp	match	?ReleaseHandle@HandleOwner@@QAEXXZ
+rfl	0x10059490	45	objectdef/entry_cache.cpp	match	?Reset@RecordPair@@QAEXXZ
+rfl	0x1005a480	90	objectdef/property_ref.cpp	match	?IsWeaponOrRingDef@@YGHH@Z
+rfl	0x1005ac90	103	objectdef/property_ref.cpp	match	?GetRightPropertiesDefByIndex@@YGPAUObjectDefEntry@@H@Z
+rfl	0x1005a1c0	704	player/spell_hotkeys.cpp	match	?AcquireObject@Player@@QAEHH@Z
+rfl	0x1005e9d0	119	objectdef/index_lookup.cpp	todo	?LocalPlayerState54Bit7@@YAHXZ
+rfl	0x1005ea50	119	objectdef/index_lookup.cpp	todo	?LocalPlayerState50Bit13@@YAHXZ
+rfl	0x1005eb40	119	objectdef/index_lookup.cpp	todo	?LocalPlayerValue17c@@YAHXZ
+rfl	0x1005c500	262	player/mana.cpp	todo	?SetMana@Player@@QAEXM@Z
+rfl	0x1005adf0	376	player/scabbard.cpp	match	?UpdateScabbard@Player@@QAEXXZ
+rfl	0x10050aa0	465	player/targeting.cpp	match	?UpdateTargeting@Player@@QAEHXZ
+rfl	0x1005a790	273	player/weapon_equip.cpp	match	?EquipWeapon@Player@@QAEPAVGameObject@@H@Z
+rfl	0x1005a8b0	318	player/weapon_equip.cpp	todo	?StowWeapon@Player@@QAEHXZ
+rfl	0x1005efa0	348	player/npc_activation.cpp	todo	?UpdateNpcActivation@Player@@QAEXXZ
+rfl	0x1005ddc0	1186	player/aim.cpp	todo	?UpdateAim@Player@@QAEXXZ
+rfl	0x10055650	816	player/conversation.cpp	todo	?CheckConversationTarget@Player@@QAEHXZ
+rfl	0x100621b0	692	player/special_attack.cpp	todo	?UpdateSpecialAttackTap@Player@@QAEXXZ
