@@ -44,7 +44,12 @@
 #define FLAG_VALUES_AT   0xE0u
 #define FLAG_SETTER_VA   0x00411800u
 
-typedef void (__thiscall *set_flag_fn)(void *self, int index, int32_t value);
+/* `__fastcall` with a dead EDX parameter, standing in for the engine's `__thiscall`.
+ * MSVC does not accept `__thiscall` on a function-pointer typedef in C; the substitution is
+ * exact on x86 - `this` in ECX either way, the real arguments in the same stack slots, callee
+ * cleanup either way - and EDX is caller-saved and never read. See the longer note in
+ * cheats.c. */
+typedef void (__fastcall *set_flag_fn)(void *self, void *unused_edx, int index, int32_t value);
 
 /* 99, 100 and 101 are X, Y and Z: the destination the Teleport entry (98) reads when it builds
  * "tele %d %d %d". They are the only entries here holding a number that means something in the
@@ -198,7 +203,7 @@ bool flags_set(int index, int32_t value)
     }
 
     setter = (set_flag_fn)exe_site(FLAG_SETTER_VA);
-    setter((void *)exe_site(FLAG_OBJECT_VA), index, value);
+    setter((void *)exe_site(FLAG_OBJECT_VA), NULL, index, value);
 
     log_info("flag %d %s = %ld", index, flags_name(index) ? flags_name(index) : "(unnamed)",
              (long)value);
@@ -247,7 +252,12 @@ bool flags_set(int index, int32_t value)
  */
 #define FLAG_ACTIVATE_VA 0x00411BC0u
 
-typedef void (__thiscall *activate_fn)(void *self, int index);
+/* `__fastcall` with a dead EDX parameter, standing in for the engine's `__thiscall`.
+ * MSVC does not accept `__thiscall` on a function-pointer typedef in C; the substitution is
+ * exact on x86 - `this` in ECX either way, the real arguments in the same stack slots, callee
+ * cleanup either way - and EDX is caller-saved and never read. See the longer note in
+ * cheats.c. */
+typedef void (__fastcall *activate_fn)(void *self, void *unused_edx, int index);
 
 static const struct { int index; int range; } g_cycles[] = {
     {   0, 3 }, {  51, 3 }, {  16, 3 },
@@ -303,7 +313,7 @@ bool flags_activate(int index)
     flags_value(index, &before);
 
     activate = (activate_fn)exe_site(FLAG_ACTIVATE_VA);
-    activate((void *)exe_site(FLAG_OBJECT_VA), index);
+    activate((void *)exe_site(FLAG_OBJECT_VA), NULL, index);
 
     flags_value(index, &after);
 

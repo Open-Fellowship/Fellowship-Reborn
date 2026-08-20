@@ -1,5 +1,7 @@
 #include "common/camera.h"
 
+#include "common/compiler.h"
+
 #include "common/engine_sites.h"
 #include "common/host_image.h"
 #include "common/memory.h"
@@ -144,6 +146,7 @@ bool camera_read(camera_view_t *out)
     return true;
 }
 
+OF_NORETURN_THREAD_BEGIN
 static DWORD WINAPI watch_thread(LPVOID parameter)
 {
     camera_view_t last;
@@ -182,6 +185,7 @@ static DWORD WINAPI watch_thread(LPVOID parameter)
      * signature demands one, not because control can arrive at it. */
     return 0;
 }
+OF_NORETURN_THREAD_END
 
 bool camera_watch(unsigned interval_ms, camera_watch_callback_t on_change)
 {

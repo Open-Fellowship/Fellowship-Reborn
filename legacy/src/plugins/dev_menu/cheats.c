@@ -41,7 +41,22 @@
 #define COMMAND_OBJECT_PTR_VA  0x00544070u
 #define COMMAND_VTABLE_SLOT    0x68u
 
-typedef void (__thiscall *command_fn)(void *self, const char *command);
+/* Spelled `__fastcall` with a dead second parameter rather than `__thiscall`, which is what the
+ * engine actually uses. MSVC accepts `__thiscall` on a function-pointer typedef in C++ but not in
+ * C - under `/permissive-` with `C_STANDARD 11` it is not a keyword at all, and the declaration
+ * below stops parsing at the `*`. This built once because an older toolset was laxer; 19.50 is
+ * not, and no pragma reopens it.
+ *
+ * The substitution is exact on x86 rather than approximate, which is the only reason it is
+ * acceptable here:
+ *
+ *     __thiscall (this, arg)          this -> ECX, arg on the stack, callee cleans
+ *     __fastcall (this, dead, arg)    this -> ECX, dead -> EDX, arg on the stack, callee cleans
+ *
+ * Same register for `this`, same stack layout for the real argument, same cleanup. EDX is
+ * caller-saved and `__thiscall` never reads it, so what we put there is discarded - it is
+ * passed as NULL to make that explicit rather than leaving a register uninitialised. */
+typedef void (__fastcall *command_fn)(void *self, void *unused_edx, const char *command);
 
 typedef struct cheat {
     const char *label;
@@ -239,7 +254,7 @@ bool cheat_send(cheat_id_t id)
         return false;
     }
 
-    command(object, g_cheats[id].command);
+    command(object, NULL, g_cheats[id].command);   /* NULL lands in EDX and is discarded */
 
     if (g_cheats[id].is_toggle) {
         g_believed[id] = !g_believed[id];

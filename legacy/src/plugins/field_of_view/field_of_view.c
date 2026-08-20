@@ -1,4 +1,5 @@
 #include "field_of_view.h"
+#include "common/compiler.h"
 
 #include "common/camera.h"
 #include "common/channel.h"
@@ -95,6 +96,7 @@ static void complain_once(const char *what, double value)
     }
 }
 
+OF_NORETURN_THREAD_BEGIN
 static DWORD WINAPI poll_thread(LPVOID parameter)  /* never returns */
 {
     bool announced = false;
@@ -185,6 +187,7 @@ static DWORD WINAPI poll_thread(LPVOID parameter)  /* never returns */
      * nobody to hand a result to. */
     return 0;
 }
+OF_NORETURN_THREAD_END
 
 void field_of_view_install(void)
 {

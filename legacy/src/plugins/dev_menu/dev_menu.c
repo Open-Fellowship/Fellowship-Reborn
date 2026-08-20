@@ -1,4 +1,5 @@
 #include "dev_menu.h"
+#include "common/compiler.h"
 #include "cheats.h"
 #include "flags.h"
 #include "messages.h"
@@ -1715,17 +1716,17 @@ static void handle_input(bool have_camera)
      * and that is the only reason calling into the engine from here is reasonable at all. A
      * button pressed on a key thread would be calling engine code from underneath the engine. */
     if (g_mouse_was_down && !g_mouse_down && have_camera) {
-        int index;
+        int cheat;   /* not `index`: the tab loop above already has one, and shadowing it is C4456 */
 
-        for (index = 0; index < CHEAT_COUNT; ++index) {
+        for (cheat = 0; cheat < CHEAT_COUNT; ++cheat) {
             int bx;
             int by;
             int bw;
             int bh;
 
-            cheat_button_rect(index, &bx, &by, &bw, &bh);
+            cheat_button_rect(cheat, &bx, &by, &bw, &bh);
             if (inside(bx, by, bw, bh)) {
-                cheat_send((cheat_id_t)index);
+                cheat_send((cheat_id_t)cheat);
                 break;
             }
         }
@@ -1846,6 +1847,7 @@ static bool install_hook(void)
 
 /* ------------------------------------------------------------------------------- the thread */
 
+OF_NORETURN_THREAD_BEGIN
 static DWORD WINAPI poll_thread(LPVOID parameter)
 {
     bool previous = false;
@@ -1910,6 +1912,7 @@ static DWORD WINAPI poll_thread(LPVOID parameter)
     /* Not reached; the thread lives as long as the process. */
     return 0;
 }
+OF_NORETURN_THREAD_END
 
 void dev_menu_install(void)
 {

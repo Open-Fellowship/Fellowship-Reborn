@@ -88,6 +88,11 @@ cmake -S . -B build -A Win32
 cmake --build build --config Release
 ```
 
+Verified clean on MSVC 19.38 (VS2022) and 19.50 (VS2026) under `/W4 /WX`. `-A Win32` on its own
+takes the newest Visual Studio installed; pin an older one with `-G "Visual Studio 17 2022"`.
+Plugins in installs predating this note were built with MinGW GCC 13, under which the strict flags
+never applied - `legacy/README.md` says what that hid and why it cannot recur.
+
 Everything lands in `build\dist\`, laid out exactly as it installs. Copy
 `dinput8.dll`, `open_fellowship.ini` and `plugins\` next to `Fellowship.exe`.
 To uninstall, delete `dinput8.dll`.

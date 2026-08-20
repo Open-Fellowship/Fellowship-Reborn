@@ -1,4 +1,5 @@
 #include "hud_probe.h"
+#include "common/compiler.h"
 
 #include "common/emit.h"
 #include "common/engine_sites.h"
@@ -146,6 +147,7 @@ static void dump(void)
     log_info("---- %d distinct (caller, index) pairs ----", shown);
 }
 
+OF_NORETURN_THREAD_BEGIN
 static DWORD WINAPI key_thread(LPVOID parameter)
 {
     bool previous = false;
@@ -173,6 +175,7 @@ static DWORD WINAPI key_thread(LPVOID parameter)
 
     return 0;
 }
+OF_NORETURN_THREAD_END
 
 void hud_probe_install(void)
 {
