@@ -2,7 +2,6 @@
 
 #include "common/engine_sites.h"
 #include "common/host_image.h"
-#include "common/ini.h"
 #include "common/logging.h"
 #include "common/memory.h"
 #include "common/patch.h"
@@ -37,10 +36,14 @@ void black_screen_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", true)) {
-        log_info("Enabled=0, doing nothing");
-        return;
-    }
+    /* NO SWITCH. This one reads the constant before it writes and declines on anything it does
+     * not recognise: a copy already answering D3DFMT_L8 is left alone and told so, and a value
+     * that is neither 41 nor 50 is treated as a different build rather than as a bug. There is
+     * nothing an `Enabled` key protects against that those two checks do not, and the mistake it
+     * invites - leaving it off on an NVIDIA card - is a black screen at load with no clue as to
+     * why, which is the exact failure this plugin exists to prevent.
+     *
+     * A plugin is still switched off the way every plugin is: delete its DLL from plugins. */
     if (!host_image_resolve()) {
         log_error("the host image could not be resolved; refusing to touch anything");
         return;

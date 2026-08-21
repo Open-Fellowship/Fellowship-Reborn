@@ -92,7 +92,8 @@ to reproduce.
 | `hud_scaling` | rfl | **on** | GUI sizes are authored in 640x480 pixels and never scale. Menu controls only - the in-game HUD is a different draw path, see its README |
 | `text_scaling` | rfl | **on** | all in-game text is drawn at a fixed pixel size. Seven hooks |
 | `inventory_icons` | rfl | off | only needed alongside a FOV mod that rewrites the focal numerator |
-| `black_screen` | exe | **on** | 8-bit textures ask for D3DFMT_P8, which NVIDIA dropped. Reads before it writes |
+| `black_screen` | exe | **always** | 8-bit textures ask for D3DFMT_P8, which NVIDIA dropped. Reads before it writes, and has no switch |
+| `cd_check` | exe | **always** | redirects the disc check at `0x406439` to a stub returning 1. Verifies the opcode first, and has no switch |
 | `frame_timing` | exe | **on** | the frame clock is `GetTickCount`, which cannot measure a modern frame. Moves the engine's Timer onto `QueryPerformanceCounter` |
 | `game_speed` | exe | **on** | lowers the floor the engine puts under a frame delta. Treats the symptom `frame_timing` removes the cause of |
 | `fps_limit` | exe | **on** | caps the frame rate. The dev menu's slider drives it while the game runs |
