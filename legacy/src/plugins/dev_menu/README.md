@@ -421,7 +421,7 @@ has an object to hook, long before anybody presses anything, and the box is just
 that has been filling since the game started. `CaptureMessages=0` in the ini turns the capture
 off entirely for anyone who wants nothing hooked.
 
-`LogMessages=1` is the same ring written to `open_fellowship.log` as well, and it exists for the
+`LogMessages=1` is the same ring written to `fix_enhancers.log` as well, and it exists for the
 case the box cannot serve: a machine where the screen never comes on. A box you cannot see is no
 help at all in working out why you cannot see it, and what the engine said in the seconds before
 it stopped is usually the whole answer. It is off by default because it is a great deal of text,
@@ -527,18 +527,22 @@ for a `memcpy`.
 The hook needs the menu to have been opened once in the session, because that is when the overlay
 hook and the font exist at all.
 
-## The open fellowship page
+## The fix enhancers page
+
+Everything on the other three tabs asks the engine to do something it already knows how to do: the
+cheats are its own commands, the flags are its own debug menu. This one does not. The engine has no
+notion of a character's size and no notion of a frame rate it is meant to aim for, so this page is
+where the things that are ours rather than the engine's live.
+
+### Player size
 
 Two sliders, each with a reset. **Height** scales the player up and down, **Width** scales it
 across on top of whatever height is set. The camera holds its distance through both and the mouse
 still moves it normally. With both at 1.00 the plugin writes once to restore and then stops
 touching the object, so an idle page costs the game nothing.
 
-Everything on the other three tabs asks the engine to do something it already knows how to do: the
-cheats are its own commands, the flags are its own debug menu. This one does not. The engine has no
-notion of a character's size, so this page reaches into the player's object and writes to it, which
-is a heavier thing than anything else in this plugin and is why every step is validated on every
-call.
+This reaches into the player's object and writes to it, which is a heavier thing than anything else
+in this plugin and is why every step is validated on every call.
 
 ### Finding the player
 
@@ -652,6 +656,41 @@ range is checked committed and writable first. The matrix is renormalised before
 applying it every frame is a hold rather than a multiplication, and it survives the engine
 rewriting the matrix from animation. A row that has collapsed means this is no longer an
 orientation matrix, so the module stops rather than writing into whatever replaced it.
+
+### Frame rate
+
+A slider from 30 to 300, four presets, an **uncapped** toggle and a **save as default** button.
+The slider does not wait for anything itself. It publishes a target to `fps_limit` over the shared
+channel, exactly as the field of view slider publishes to `field_of_view`, so there is one writer
+for the thing and one writer for the request. Save writes `MaxFPS` into the `[fps_limit]` section
+of `fix_enhancers.ini`, which is another plugin's section and is deliberate: the menu is the
+player acting, not a plugin minding its own business.
+
+The two lines underneath are the reason this is on a page rather than in a config file.
+
+```
+engine fps 59.9
+frame delta over 240 frames:  low 15.98  avg 16.67  high 17.10 ms  spread 6%
+```
+
+What the game actually simulates is one float at `0x00543284`, read by every animation, physics and
+effect site in the engine, and this samples it once per frame for the last four seconds. The
+**spread** is the number that says smooth or not, and on a stock build it is unmistakable. The
+engine reads its clock with `GetTickCount`, which advances about every 15.6 ms, so at a 60 fps cap
+the two rates beat against each other at exactly 4 Hz: four times a second the delta reads 31 ms
+and then 0. The window shows a low of 0.00 against a high of 31.00 and a spread in the hundreds of
+percent. With `frame_timing` installed the same window collapses to a fraction of a millisecond
+either side of the target.
+
+The header line says which clock is running, and it asks the engine rather than the plugin:
+
+```
+clock: QueryPerformanceCounter at 100000 Hz
+```
+
+That is read out of the Timer's own ticks-to-seconds constant at `0x0053EE68`. `0.001` means the
+engine is still on `GetTickCount` and `frame_timing` is not installed, whatever any log says about
+load order.
 
 ## Configuration: `[dev_menu]`
 

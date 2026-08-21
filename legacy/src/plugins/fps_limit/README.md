@@ -76,15 +76,37 @@ frame rate, and that is worth reading rather than silently absorbing.
 
 `timeBeginPeriod(1)` is called at install, because without it `Sleep(1)` can be `Sleep(15)`.
 
-## Not the same thing as game_speed
+## The live target
 
-`game_speed` makes the simulation step fine enough that the physics stop depending on frame time.
-This stops the frame time being 800 microseconds in the first place. Run both.
+The dev menu's frame rate slider publishes a target over the shared channel, and this prefers it
+over the ini value whenever one has been published. Same arrangement as `field_of_view` and the
+field of view slider: one writer for the engine, one writer for the request, and a plugin whose
+partner is not installed reads a block nobody ever writes to.
+
+It is polled once a frame from the top of the hook rather than pushed, because the menu runs on
+the game's thread inside `EndScene` and this runs on the same thread at the top of the frame.
+There is no moment where a push would be cheaper, and a poll needs no agreement about who is
+allowed to call whom. While the serial has not moved the poll is one aligned load.
+
+`MaxFPS=0` means uncapped. The hook stays installed and waits for nothing, so the menu can still
+hand it a rate later without a restart.
+
+## Not the same thing as the other two
+
+Three plugins, three different problems.
+
+| | |
+|---|---|
+| `frame_timing` | gives the engine a clock fine enough to measure a frame at all. Without it the delta is quantised to 15.6 ms and no cap can be smooth |
+| `game_speed` | lowers the floor the engine puts under that delta, so a fast frame stops being reported as a slow one |
+| `fps_limit` | stops the frame time being 800 microseconds in the first place |
+
+Run all three.
 
 ## Configuration: `[fps_limit]`
 
 | Key | Default | |
 |---|---|---|
 | `Enabled` | `1` | |
-| `MaxFPS` | `60` | clamped to `10 .. 1000` |
+| `MaxFPS` | `60` | `0` for uncapped, otherwise clamped to `10 .. 1000`. The dev menu overrides this while the game runs, and its save button writes back here |
 | `Mode` | `2` | `0` sleep, `1` spin, `2` hybrid |

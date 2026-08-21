@@ -136,7 +136,7 @@ Plugins in installs predating this note were built with MinGW GCC 13, under whic
 never applied - `legacy/README.md` says what that hid and why it cannot recur.
 
 Everything lands in `build\dist\`, laid out exactly as it installs. Copy
-`dinput8.dll`, `open_fellowship.ini` and `plugins\` next to `Fellowship.exe`.
+`dinput8.dll`, `fix_enhancers.ini` and `plugins\` next to `Fellowship.exe`.
 To uninstall, delete `dinput8.dll`.
 
 ## Target build

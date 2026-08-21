@@ -14,8 +14,8 @@ moving one file.
     Fellowship.exe
     Fellowship.rfl
     dinput8.dll               <- the loader
-    open_fellowship.ini       <- configuration, optional
-    open_fellowship.log       <- written at run time
+    fix_enhancers.ini       <- configuration, optional
+    fix_enhancers.log       <- written at run time
     plugins\
         template_plugin.dll
         ...
@@ -93,6 +93,9 @@ to reproduce.
 | `text_scaling` | rfl | **on** | all in-game text is drawn at a fixed pixel size. Seven hooks |
 | `inventory_icons` | rfl | off | only needed alongside a FOV mod that rewrites the focal numerator |
 | `black_screen` | exe | **on** | 8-bit textures ask for D3DFMT_P8, which NVIDIA dropped. Reads before it writes |
+| `frame_timing` | exe | **on** | the frame clock is `GetTickCount`, which cannot measure a modern frame. Moves the engine's Timer onto `QueryPerformanceCounter` |
+| `game_speed` | exe | **on** | lowers the floor the engine puts under a frame delta. Treats the symptom `frame_timing` removes the cause of |
+| `fps_limit` | exe | **on** | caps the frame rate. The dev menu's slider drives it while the game runs |
 | `hud_probe` | exe | off | a diagnostic, not a fix: records which code reads which authored value |
 | `dev_menu` | draws | **on** | an in-game overlay, toggled with the key under Escape. Hooks nothing until you press it |
 | `template_plugin` | nothing | **on** | the loader contract's own test |
@@ -106,7 +109,7 @@ Each has its own README next to its source, with the measurement that justifies 
 | `src/common/` | host image geometry, logging, ini, memory, patch, trampoline, emit, module watch, camera, channel |
 | `src/loader/` | `dinput8.dll`. Loads `plugins\`, patches nothing itself. See its README |
 | `src/plugins/` | one directory per plugin |
-| `dist/` | `open_fellowship.ini`, copied into the build output |
+| `dist/` | `fix_enhancers.ini`, copied into the build output |
 
 `camera.c` earns its place by being the answer to a crash. Three plugins were written against the
 comment "`EXE_ACTIVE_CAMERA_PTR` is NULL outside a level", and on a second install it was neither

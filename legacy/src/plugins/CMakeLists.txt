@@ -100,6 +100,15 @@ add_fellowship_plugin(fps_limit
 )
 target_link_libraries(fps_limit PRIVATE winmm)
 
+# Not ported from anywhere: the engine's frame clock is GetTickCount, which cannot measure a
+# modern frame at all, and this moves the Timer class onto QueryPerformanceCounter. It is the
+# reason game_speed's constant was ever needed, and the one of these three that actually makes
+# the picture smooth. See its header for the fourteen call sites and why only those fourteen.
+add_fellowship_plugin(frame_timing
+    dll_main.c
+    frame_timing.c
+)
+
 # Wants the opposite of resolution_unlock at one site, exactly as the original pair does.
 add_fellowship_plugin(windowed_res
     dll_main.c
@@ -151,6 +160,7 @@ add_fellowship_plugin(dev_menu
     flags.c
     messages.c
     player.c
+    timing.c
 )
 target_link_libraries(dev_menu PRIVATE gdi32)
 

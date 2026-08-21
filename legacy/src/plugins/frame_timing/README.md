@@ -1,0 +1,142 @@
+# frame_timing
+
+**Produces:** `frame_timing.dll`. On by default.
+
+The engine's frame clock is `GetTickCount`. This moves it to `QueryPerformanceCounter`.
+
+Not ported from anywhere. Everything below was read out of the shipped executable.
+
+## The measurement
+
+The engine has a Timer class at `0x0040CF10`..`0x0040D29D` with one global instance at
+`0x0053EE58`, and every clock read in it goes through the same five-byte thunk at `0x004C12B0`,
+which is `jmp dword ptr [GetTickCount]`. The frame delta is the difference between two readings:
+
+```
+0040D150  Timer::Tick(float *out)
+0040D156    call 004C12B0                ; now
+0040D15F    sub  ecx, edx                ; now - this->lastTick
+0040D171    fild qword [esp+4]
+0040D175    fmul dword [esi+0x28]        ; timeScale
+0040D178    fmul dword [esi+0x10]        ; 0.001f, ticks to seconds
+0040D17B    fstp dword [edx]             ; -> 0x00543284
+```
+
+`GetTickCount` advances with the system clock interrupt, about every 15.625 ms. So above roughly
+64 fps most frames measure **zero** milliseconds and every fifteenth measures fifteen or sixteen.
+
+At a 60 fps cap the two rates beat against each other at exactly 4 Hz. Four times a second the
+world takes a 31 ms step and then a 0 ms one, and between those it alternates 15 and 16 against a
+real 16.67. That is the judder, and no amount of tuning the limiter touches it, because the clock
+reading the frames is coarser than the frames.
+
+The engine's own answer to the zero frames is a floor of `0.002` s at `0x0051C764`, which invents
+simulation time that did not happen and is why the stock game speeds up when it is unlocked.
+`game_speed` lowers that floor. This plugin removes the reason it exists.
+
+The high-resolution path was half-built and never wired up. The Timer's constructor already asks
+for the performance counter's frequency and stores it at `+0x0C`:
+
+```
+0040CF10   call 004C12E0        ; QueryPerformanceFrequency -> float
+0040CF18   fstp [ecx+0x0C]      ; stored, and never read again
+0040CF1D   mov  [ecx+0x10], 3A83126F   ; 0.001f, used instead
+```
+
+## What this changes
+
+`Timer::Tick` never divides by a frequency, it **multiplies** by a ticks-to-seconds constant it
+keeps at `+0x10`. So the class does not have to be rewritten, or even understood by the patch:
+give it a finer counter and tell it what a tick is now worth, and every function in it keeps
+working with its own arithmetic untouched.
+
+| | |
+|---|---|
+| fourteen `call 004C12B0` sites | redirected to a `QueryPerformanceCounter` of ours |
+| `0040CF20` | the constructor's `0.001f` immediate becomes `1/rate` |
+| `0051C774` | the `1000.0f` `Timer::Reset` uses to go the other way becomes `rate` |
+
+The sites are `40CF47 40CFB3 40CFC7 40CFE4 40D037 40D05A 40D0DA 40D105 40D156 40D17F 40D1C3
+40D229 40D246 40D276`. **Call sites and not the thunk**, because forty-six other callers of that
+thunk are loading timeouts and progress bars that must keep counting in milliseconds. Turning a
+ten second timeout into a ten millisecond one is the bug that distinction exists to avoid.
+
+All fourteen are validated before any of them is written. A partial application would be worse
+than none: the Timer would be reading some of its origins in milliseconds and the rest in
+hundred-thousandths, and the differences it takes between them would be nonsense rather than
+merely coarse.
+
+The constructor's immediate is patched rather than the field it writes, so there is no race to win
+with the constructor, which runs from `0x00403CC4` during start-up.
+
+The frame rate readout is fixed by the same change and needed no work of its own:
+`Timer::GetFramerate` at `0x0040D1B0` measures its own interval with the same counter. On a stock
+clock at high frame rates its eight-frame sample can span zero milliseconds and divide by zero.
+
+## The thirty-two bit span
+
+The counter is a DWORD and the engine zero-extends the difference before converting it:
+
+```
+0040D161   mov dword ptr [esp+8], 0      ; the high half, forced to zero
+0040D171   fild qword ptr [esp+4]
+```
+
+so a wrap does not produce a negative delta, it produces an enormous positive one.
+
+**A rebase does not help, and it is worth saying why because it was the first design.** The engine
+only ever computes `now - stored`, and a common offset subtracted from both is invisible to a
+difference, whether or not either side wraps. What has to fit in thirty-two bits is the **span**:
+the oldest origin the Timer is still counting from, which is `+0x24`, set at start-up, at a level
+load and at a savegame load. At 100 kHz that span is 11.9 hours of one uninterrupted level.
+
+So the plugin takes its own once-per-frame hook at `0x004046CE`, the engine's call to
+`UpdateTime`, and moves the engine's origin before the span runs out, exactly the way the engine
+moves it itself in `SetTimeScale` at `0x0040D220`: carry the accumulated seconds at `+0x1C` into
+the time base at `+0x20` and start counting again from now. The accumulator comes out at the value
+it went in, so nothing on screen can tell it happened.
+
+`0x004046CE` rather than `0x004BCA19` because `fps_limit` already owns that one, and because this
+has to happen between whole frames rather than inside `Tick`.
+
+## Savegames
+
+`0x0040D030` writes `now - this->+4` into the save stream and `0x0040D0A0` reads it back, so a
+save carries an elapsed tick count in whatever unit the timer was using. A save made with this
+plugin and loaded without it, or the reverse, gets **one** wrong frame rate reading before the
+next eight-frame sample corrects it. Game time is stored as float seconds and is unit independent,
+so nothing else crosses over.
+
+## What it does not fix
+
+Variable-step Euler is not frame rate independent. Even with a perfect delta, a jump arc
+integrated in small steps lands very slightly differently from one integrated in large steps. The
+game will be smooth, it will run at the correct speed, and it will be consistent for any given
+cap. It will not make 30 fps and 300 fps produce identical physics.
+
+Doing that means a fixed-step accumulator around the update, which needs each of the thirty-one
+delta consumers sorted into simulation and presentation first. That is a separate project.
+
+## Checking it
+
+The dev menu's **fix enhancers** tab reads the Timer's `+0x10` back and says which clock is
+running, and samples `0x00543284` for the last four seconds. The spread between the lowest and
+highest frame delta is the number that says smooth or not: hundreds of percent on a stock clock,
+low single figures with this installed.
+
+## Configuration: `[frame_timing]`
+
+| Key | Default | |
+|---|---|---|
+| `Enabled` | `1` | |
+| `TickRate` | `100000` | ticks per second. Clamped to `1000 .. 1000000` |
+
+Higher is finer and costs range, because the span before the timer re-anchors itself is
+`2^32 / TickRate` seconds.
+
+| `TickRate` | resolution | span | quantisation at 60 fps |
+|---|---|---|---|
+| `1000` | 1 ms | 49.7 days | 6% (and this is the engine's own behaviour with extra steps) |
+| `10000` | 0.1 ms | 4.97 days | 0.6% |
+| `100000` | 0.01 ms | 11.9 hours | 0.06% |
+| `1000000` | 1 us | 71 minutes | 0.006% |

@@ -4,6 +4,7 @@
 #include "flags.h"
 #include "messages.h"
 #include "player.h"
+#include "timing.h"
 #include "d3d8_min.h"
 #include "dinput8_min.h"
 #include "overlay.h"
@@ -71,7 +72,9 @@ static float g_fov_degrees;          /* the slider's position, once the user has
 #define TAB_CAMERA   0
 #define TAB_FLAGS    1
 #define TAB_MESSAGES 2
-#define TAB_PLAYER   3
+/* This was TAB_PLAYER while the page held only the size sliders. It now holds anything of ours
+ * that the engine has no notion of, which is what "fix enhancers" names. */
+#define TAB_FIXES    3
 #define TAB_COUNT    4
 
 static int  g_tab;
@@ -684,14 +687,14 @@ static void messages_button_rect(int *x, int *y, int *w, int *h)
 }
 
 static const char *const g_tab_labels[TAB_COUNT] = {
-    " camera ", " engine flags ", " messages ", " open fellowship "
+    " camera ", " engine flags ", " messages ", " fix enhancers "
 };
 
 /* Each tab is as wide as ITS OWN label, and sits after the ones before it.
  *
  * Every tab used to be given the width of " engine flags ", which was fine while that was the
- * longest. " open fellowship " is longer, so its text ran out of its box and over the button
- * beside it. Measuring per tab means adding another one can never do that again. */
+ * longest. The fourth tab is longer, so its text ran out of its box and over the button beside
+ * it. Measuring per tab means adding another one, or renaming one, can never do that again. */
 static void tab_rect(int index, int *x, int *y, int *w, int *h)
 {
     int i;
@@ -734,17 +737,19 @@ static void cheat_button_rect(int index, int *bx, int *by, int *bw, int *bh)
  * inside(), which is a hover and fires every frame. */
 static bool clicked(int x, int y, int w, int h);
 
-/* ------------------------------------------------------------------- the open fellowship page
+/* --------------------------------------------------------------------- the fix enhancers page
  *
  * Everything on the other three tabs asks the engine to do something it already knows how to do:
  * the cheats are the engine's own commands, the flags are its own debug menu. This one does not.
  * The engine has no notion of a character's size - there is no such property among the 4,262 the
- * ObjectDef table defines, and no such debug command - so this reaches into the player's object
- * and writes to it.
+ * ObjectDef table defines, and no such debug command - and it has no notion of a frame rate it
+ * is supposed to aim for either.
  *
  * That is a bigger step than anything else in this plugin, so the page shows its working: the
  * object it found, the offset it is writing to, and the reason it is refusing when it refuses.
  * A button that silently does nothing is the failure mode this whole tree is written against.
+ * The frame rate half follows the same rule - it shows which clock the engine is running on and
+ * what the delta has actually been doing, rather than asking to be believed.
  */
 #define SIZE_OPTION_COUNT 3
 
@@ -885,6 +890,235 @@ static void draw_player(void)
 
     overlay_text(x, player_row(3), 1, COLOUR_DIM,
                  "width is on top of height - the camera holds its distance either way");
+}
+
+/* ------------------------------------------------------------ the frame rate, on the same page
+ *
+ * The slider publishes to fps_limit rather than waiting anywhere itself, for the same reason the
+ * field of view slider publishes to field_of_view: one writer per thing. What this owns is the
+ * REQUEST, and the readout underneath it.
+ *
+ * Row 4 down. Rows 0 to 3 are the player size half above.
+ */
+#define FPS_ROW_TITLE   4
+#define FPS_ROW_SLIDER  5
+#define FPS_ROW_BUTTONS 6
+#define FPS_ROW_STATS   7
+#define FPS_ROW_DELTA   8
+#define FPS_ROW_HINT    9
+#define FPS_ROW_COUNT  10
+
+#define FPS_PRESET_COUNT 4
+static const int g_fps_presets[FPS_PRESET_COUNT] = { 30, 60, 120, 144 };
+
+static int g_fps_drag;   /* 1 while the frame rate track is grabbed, 0 otherwise */
+
+static void fps_uncapped_rect(int *bx, int *by, int *bw, int *bh)
+{
+    *bw = overlay_text_width(" uncapped ", 1) + 10;
+    *bh = overlay_line_height() + 6;
+    *bx = PANEL_X + panel_width() - PADDING - *bw;
+    *by = player_row(FPS_ROW_SLIDER) - 3;
+}
+
+static void fps_slider_rect(int *tx, int *ty, int *tw)
+{
+    int bx;
+    int by;
+    int bw;
+    int bh;
+
+    fps_uncapped_rect(&bx, &by, &bw, &bh);
+    *tx = PANEL_X + PADDING + 110;
+    *ty = player_row(FPS_ROW_SLIDER) + overlay_line_height() / 2 - 3;
+    *tw = (bx - 10 - overlay_text_width("0000", 1) - 10) - *tx;
+}
+
+static void fps_preset_rect(int index, int *bx, int *by, int *bw, int *bh)
+{
+    int width = overlay_text_width(" 000 ", 1) + 10;
+
+    *bw = width;
+    *bh = overlay_line_height() + 6;
+    *bx = PANEL_X + PADDING + index * (width + 8);
+    *by = player_row(FPS_ROW_BUTTONS) - 3;
+}
+
+static void fps_save_rect(int *bx, int *by, int *bw, int *bh)
+{
+    *bw = overlay_text_width(" save as default ", 1) + 10;
+    *bh = overlay_line_height() + 6;
+    *bx = PANEL_X + panel_width() - PADDING - *bw;
+    *by = player_row(FPS_ROW_BUTTONS) - 3;
+}
+
+static void draw_frame_rate(void)
+{
+    char     line[160];
+    int      x    = PANEL_X + PADDING;
+    float    target = timing_target();
+    unsigned rate = timing_tick_rate();
+    int      tx;
+    int      ty;
+    int      tw;
+    int      bx;
+    int      by;
+    int      bw;
+    int      bh;
+    int      index;
+
+    /* ---- the title, and which clock the engine is on. That second part is the honest answer to
+     * "is the fix even installed", read out of the engine rather than out of our own state. */
+    overlay_rect(x, player_row(FPS_ROW_TITLE) - 8, panel_width() - PADDING * 2, 1, COLOUR_TRACK);
+    overlay_text(x, player_row(FPS_ROW_TITLE), 1, COLOUR_TITLE, "Frame rate");
+
+    if (rate == 0u) {
+        sprintf(line, "the engine timer has not been built yet");
+    } else if (rate <= 1000u) {
+        sprintf(line, "clock: GetTickCount at %u Hz - frame_timing is not installed, so the "
+                      "delta below is quantised to 15.6 ms", rate);
+    } else {
+        sprintf(line, "clock: QueryPerformanceCounter at %u Hz", rate);
+    }
+    overlay_text(x + overlay_text_width("Frame rate    ", 1), player_row(FPS_ROW_TITLE), 1,
+                 (rate > 1000u) ? COLOUR_DIM : COLOUR_EDGE, line);
+
+    /* ---- the slider */
+    fps_slider_rect(&tx, &ty, &tw);
+    if (tw >= 20) {
+        float fraction = (clampf(target <= 0.0f ? TIMING_FPS_HIGH : target,
+                                 TIMING_FPS_LOW, TIMING_FPS_HIGH) - TIMING_FPS_LOW)
+                         / (TIMING_FPS_HIGH - TIMING_FPS_LOW);
+        int   knob     = tx + (int)(fraction * (float)(tw - 10));
+        bool  capped   = (target > 0.0f);
+
+        overlay_text(x, player_row(FPS_ROW_SLIDER), 1, COLOUR_LABEL, "Target");
+        overlay_rect(tx, ty, tw, 6, COLOUR_TRACK);
+        overlay_rect(tx, ty, knob - tx + 10, 6, capped ? COLOUR_FILL : COLOUR_TRACK);
+        overlay_rect(knob, ty - 7, 10, 20, capped ? COLOUR_KNOB : COLOUR_DIM);
+
+        if (capped) {
+            sprintf(line, "%d", (int)(target + 0.5f));
+        } else {
+            sprintf(line, "off");
+        }
+        fps_uncapped_rect(&bx, &by, &bw, &bh);
+        overlay_text(bx - 10 - overlay_text_width("0000", 1), player_row(FPS_ROW_SLIDER), 1,
+                     capped ? COLOUR_VALUE : COLOUR_DIM, line);
+
+        overlay_rect(bx, by, bw, bh, capped ? COLOUR_BUTTON : COLOUR_ON);
+        overlay_text(bx + 6, by + 3, 1, COLOUR_VALUE, "uncapped");
+    }
+
+    /* ---- the presets, and the save button */
+    for (index = 0; index < FPS_PRESET_COUNT; ++index) {
+        bool on = (target > 0.0f)
+                  && (float)fabs((double)(target - (float)g_fps_presets[index])) < 0.5f;
+
+        fps_preset_rect(index, &bx, &by, &bw, &bh);
+        sprintf(line, "%d", g_fps_presets[index]);
+        overlay_rect(bx, by, bw, bh, on ? COLOUR_ON : COLOUR_BUTTON);
+        overlay_text(bx + (bw - overlay_text_width(line, 1)) / 2, by + 3, 1, COLOUR_VALUE, line);
+    }
+
+    fps_save_rect(&bx, &by, &bw, &bh);
+    overlay_rect(bx, by, bw, bh, timing_saved() ? COLOUR_TRACK : COLOUR_BUTTON);
+    overlay_text(bx + 6, by + 3, 1, timing_saved() ? COLOUR_DIM : COLOUR_VALUE,
+                 "save as default");
+
+    /* ---- what actually happened, which is the only part of this page worth believing */
+    {
+        float    lowest  = 0.0f;
+        float    average = 0.0f;
+        float    highest = 0.0f;
+        unsigned frames  = 0;
+        float    engine  = timing_engine_fps();
+
+        if (engine > 0.0f) {
+            sprintf(line, "engine fps %.1f", (double)engine);
+        } else {
+            sprintf(line, "engine fps not yet sampled");
+        }
+        overlay_text(x, player_row(FPS_ROW_STATS), 1, COLOUR_DIM, line);
+
+        if (timing_stats(&lowest, &average, &highest, &frames)) {
+            /* The spread is the number that says smooth or not. On a stock clock at a 60 fps cap
+             * it runs to hundreds of percent, because the two rates beat and the delta goes 31 ms
+             * then 0. With a fine clock it sits in the low single figures. */
+            double spread = (average > 0.0f)
+                            ? ((double)(highest - lowest) * 100.0 / (double)average) : 0.0;
+
+            sprintf(line, "frame delta over %u frames:  low %.2f   avg %.2f   high %.2f ms   "
+                          "spread %.0f%%",
+                    frames, (double)lowest, (double)average, (double)highest, spread);
+            overlay_text(x, player_row(FPS_ROW_DELTA), 1,
+                         (spread < 25.0) ? COLOUR_DIM : COLOUR_EDGE, line);
+        } else {
+            overlay_text(x, player_row(FPS_ROW_DELTA), 1, COLOUR_DIM,
+                         "frame delta: not enough frames yet");
+        }
+    }
+
+    overlay_text(x, player_row(FPS_ROW_HINT), 1, COLOUR_DIM,
+                 "the slider drives fps_limit; save writes MaxFPS into fix_enhancers.ini");
+}
+
+static void handle_frame_rate_input(void)
+{
+    int   bx;
+    int   by;
+    int   bw;
+    int   bh;
+    int   tx;
+    int   ty;
+    int   tw;
+    int   index;
+    float target = timing_target();
+
+    fps_uncapped_rect(&bx, &by, &bw, &bh);
+    if (clicked(bx, by, bw, bh)) {
+        /* Off turns on at whatever the slider last showed, and 60 when it has never shown one,
+         * so the button is a toggle rather than a one-way door. */
+        timing_set_target(target > 0.0f ? 0.0f : 60.0f);
+        return;
+    }
+
+    for (index = 0; index < FPS_PRESET_COUNT; ++index) {
+        fps_preset_rect(index, &bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) {
+            timing_set_target((float)g_fps_presets[index]);
+            return;
+        }
+    }
+
+    fps_save_rect(&bx, &by, &bw, &bh);
+    if (clicked(bx, by, bw, bh)) {
+        timing_save();
+        return;
+    }
+
+    /* Grab on the way down and hold it until the button comes up, exactly as the two sliders
+     * above do. Dragging the track also takes it off uncapped, because moving a slider is an
+     * unambiguous request for the value under the knob. */
+    fps_slider_rect(&tx, &ty, &tw);
+    if (g_mouse_down && !g_mouse_was_down && inside(tx - 6, ty - 10, tw + 12, 26)) {
+        g_fps_drag = 1;
+    }
+    if (!g_mouse_down) {
+        g_fps_drag = 0;
+    }
+    if (g_fps_drag != 0 && tw > 12) {
+        float fraction = (float)(g_mouse_x - tx) / (float)(tw - 10);
+        float value    = clampf(TIMING_FPS_LOW + fraction * (TIMING_FPS_HIGH - TIMING_FPS_LOW),
+                                TIMING_FPS_LOW, TIMING_FPS_HIGH);
+
+        /* Whole frames per second. A fractional target is meaningless to a person and makes the
+         * preset buttons impossible to light up. */
+        value = (float)(int)(value + 0.5f);
+        if (value != target) {
+            timing_set_target(value);
+        }
+    }
 }
 
 /* Both sliders, and the buttons, all end here. Writing on every frame rather than only on change
@@ -1128,6 +1362,11 @@ static int panel_height(void)
 
     if (g_tab == TAB_FLAGS || g_tab == TAB_MESSAGES) {
         return content_top() - PANEL_Y + flag_rows() * step + step + 6 + PADDING;
+    }
+    /* This page is a fixed number of rows, so it says so rather than inheriting the camera
+     * page's height and hoping the frame rate readout lands inside it. */
+    if (g_tab == TAB_FIXES) {
+        return player_row(FPS_ROW_COUNT) - PANEL_Y + PADDING;
     }
     return cheats_top() - PANEL_Y + step + cheat_rows() * (step + 4) + PADDING;
 }
@@ -1631,8 +1870,9 @@ static void draw_menu(const camera_view_t *view, bool have_camera)
         return;
     }
 
-    if (g_tab == TAB_PLAYER) {
+    if (g_tab == TAB_FIXES) {
         draw_player();
+        draw_frame_rate();
         return;
     }
 
@@ -1929,7 +2169,11 @@ static void handle_input(bool have_camera)
         return;
     }
 
-    if (g_tab == TAB_PLAYER) {
+    if (g_tab == TAB_FIXES) {
+        /* Frame rate first. It owns the right hand end of two rows the player half does not
+         * reach, and checking it first means a click there can never be swallowed by a slider
+         * grab belonging to the rows above. */
+        handle_frame_rate_input();
         handle_player_input();
         return;
     }
@@ -2037,6 +2281,13 @@ static HRESULT STDMETHODCALLTYPE hooked_end_scene(void *device)
          * what is on screen. This is also the game's own thread, which is the only place writing
          * into a live game object is reasonable at all. */
         player_hold_size();
+
+        /* Sampled here rather than on the drawing path, so the window is a picture of the game
+         * running and not of the game running with a menu over it. The hook is not installed
+         * until the toggle key is first pressed, so the window starts filling from that moment
+         * rather than from start-up - which is fine, because it takes four seconds to fill and
+         * the only reason to press the key is to look at it. */
+        timing_sample();
 
         if (!g_visible && !show_messages) {
             return g_original_end_scene(device);
@@ -2247,9 +2498,14 @@ void dev_menu_install(void)
 
     g_channel = channel_open();
     if (g_channel == NULL) {
-        log_warning("the shared channel could not be opened - the slider will have nothing to "
+        log_warning("the shared channel could not be opened - the sliders will have nothing to "
                     "drive, though the menu will still open and report");
     }
+
+    /* Starts the frame rate slider where the ini already has it, so opening the menu shows what
+     * the game is doing rather than a default that disagrees with it. Nothing is published until
+     * the slider is actually moved. */
+    timing_init(g_channel);
 
     thread = CreateThread(NULL, 0, poll_thread, NULL, 0, NULL);
     if (thread == NULL) {

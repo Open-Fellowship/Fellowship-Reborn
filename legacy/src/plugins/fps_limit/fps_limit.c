@@ -1,5 +1,6 @@
 #include "fps_limit.h"
 
+#include "common/channel.h"
 #include "common/emit.h"
 #include "common/engine_sites.h"
 #include "common/host_image.h"
@@ -37,11 +38,102 @@ static unsigned g_resyncs;
 static unsigned g_calls;
 static LONGLONG g_installed_at;
 
+/* The live target, published by the dev menu's slider and preferred over the ini value while it
+ * is there. Same arrangement as field_of_view and the field of view slider: one writer for the
+ * engine, one writer for the request, and a plugin whose partner is not installed reads a block
+ * nobody ever writes to. */
+static channel_block_t *g_channel;
+static uint32_t         g_seen_serial;
+static float            g_target_fps;
+static bool             g_uncapped;
+
+/* A drag of the menu's slider publishes a new value on every frame it moves, and the first
+ * version of this logged each one. One sweep of the track wrote about four hundred lines. The
+ * rates were all correct and the log was useless, which is the same thing as being wrong.
+ *
+ * So the change is applied immediately and the LINE waits for the value to stop moving. */
+static LONGLONG g_settle_at;      /* when the current value stops counting as still moving */
+static bool     g_settle_pending;
+#define SETTLE_MS 400
+
 static LONGLONG now_ticks(void)
 {
     LARGE_INTEGER counter;
     QueryPerformanceCounter(&counter);
     return counter.QuadPart;
+}
+
+/* One place computes everything that depends on the target, so changing it at run time cannot
+ * leave the period and the margin disagreeing with each other. `fps` of 0 means uncapped.
+ *
+ * The schedule is thrown away rather than adjusted. A target that has just moved says nothing
+ * useful about when the next frame is due, and the resync below would have discarded it on the
+ * following frame anyway - doing it here means one frame of the old rate instead of two. */
+static void apply_target(float fps)
+{
+    g_target_fps = fps;
+    g_uncapped   = (fps <= 0.0f);
+    g_next_frame = 0;
+
+    if (g_uncapped) {
+        return;
+    }
+
+    g_period_ticks        = (LONGLONG)((double)g_frequency / (double)fps);
+    g_period_milliseconds = (DWORD)((g_period_ticks * 1000) / g_frequency);
+    if (g_period_milliseconds == 0) {
+        g_period_milliseconds = 1;
+    }
+
+    /* 1.5 ms. Sleep(1) routinely overshoots by a millisecond or more depending on what else has
+     * asked for a finer timer, so the spin has to start further out than the error it is there
+     * to absorb. */
+    g_spin_margin = (g_frequency * 3) / 2000;
+    if (g_mode == MODE_SPIN) {
+        g_spin_margin = g_period_ticks;    /* spin the whole gap */
+    }
+}
+
+/* Polled once a frame rather than pushed, because the menu runs on the game's thread inside
+ * EndScene and this runs on the same thread at the top of the frame: there is no moment where a
+ * push would be cheaper, and a poll needs no agreement about who is allowed to call whom.
+ *
+ * The serial is the whole test. Reading it is one aligned load, and while it has not moved this
+ * costs nothing and the target is left exactly as the ini set it. */
+static void poll_target(void)
+{
+    float value;
+
+    /* The settled value goes in the log, once, however many intermediate ones went past on the
+     * way to it. Checked before the serial, because the last change of a drag is followed by no
+     * further publishing at all and would otherwise never be reported. */
+    if (g_settle_pending && now_ticks() >= g_settle_at) {
+        g_settle_pending = false;
+        if (g_uncapped) {
+            log_info("target: uncapped");
+        } else {
+            log_info("target: %g fps (%lld ticks/frame)", (double)g_target_fps,
+                     (long long)g_period_ticks);
+        }
+    }
+
+    if (g_channel == NULL || g_channel->frame_target_serial == g_seen_serial) {
+        return;
+    }
+    g_seen_serial = g_channel->frame_target_serial;
+
+    if (!channel_read_frame_target(g_channel, &value)) {
+        return;
+    }
+    if (value == g_target_fps) {
+        return;
+    }
+
+    /* Applied now, said later. Every further change inside the settle window pushes the deadline
+     * out again, so a drag costs one line and a preset button costs one line. */
+    apply_target(value);
+    g_settle_pending = true;
+    g_settle_at      = now_ticks() + (g_frequency * SETTLE_MS) / 1000;
 }
 
 /* Said out loud the first few times and then counted in silence. A resync is normal after a level
@@ -86,10 +178,17 @@ static void report_resync(LONGLONG gap)
  */
 static void __cdecl fps_limit_tick(void)
 {
-    LONGLONG current = now_ticks();
+    LONGLONG current;
     LONGLONG gap;
 
     ++g_calls;
+
+    poll_target();
+    if (g_uncapped) {
+        return;
+    }
+
+    current = now_ticks();
 
     if (g_next_frame == 0) {
         g_next_frame = current + g_period_ticks;
@@ -182,16 +281,13 @@ void fps_limit_install(void)
     g_frequency = frequency.QuadPart;
 
     target = ini_read_float(PLUGIN_SECTION, "MaxFPS", 60.0f);
-    if (target < 10.0f || target > 1000.0f) {
-        log_warning("MaxFPS=%g is outside 10..1000, using 60", (double)target);
+    if (target != 0.0f && (target < 10.0f || target > 1000.0f)) {
+        log_warning("MaxFPS=%g is not 0 and not within 10..1000, using 60", (double)target);
         target = 60.0f;
     }
-    g_period_ticks = (LONGLONG)((double)g_frequency / (double)target);
-    g_period_milliseconds = (DWORD)((g_period_ticks * 1000) / g_frequency);
-    if (g_period_milliseconds == 0) {
-        g_period_milliseconds = 1;
-    }
 
+    /* Mode is read before the target, because apply_target() consults it: in spin mode the
+     * margin is the whole period rather than the tail of it. */
     mode = ini_read_int(PLUGIN_SECTION, "Mode", MODE_HYBRID);
     if (mode < MODE_SLEEP || mode > MODE_HYBRID) {
         log_warning("Mode=%ld is not 0, 1 or 2 - using 2 (hybrid)", (long)mode);
@@ -199,13 +295,11 @@ void fps_limit_install(void)
     }
     g_mode = (int)mode;
 
-    /* 1.5 ms. Sleep(1) routinely overshoots by a millisecond or more depending on what else has
-     * asked for a finer timer, so the spin has to start further out than the error it is there
-     * to absorb. */
-    g_spin_margin = (g_frequency * 3) / 2000;
-    if (g_mode == MODE_SPIN) {
-        g_spin_margin = g_period_ticks;    /* spin the whole gap */
-    }
+    apply_target(target);
+
+    /* Opened even when the target is a cap, because the menu may hand us a different one at any
+     * point. NULL is not an error: it means nobody to talk to, and the ini value stands. */
+    g_channel = channel_open();
 
     /* Without this, Sleep(1) can be Sleep(15). Released at process exit, which for a game is the
      * only lifetime that matters. */
@@ -232,7 +326,13 @@ void fps_limit_install(void)
 
     log_info("installed: %08X -> stub at %08X -> %08X",
              (unsigned)call_site, (unsigned)stub_address, (unsigned)exe_site(FRAME_TARGET_VA));
-    log_info("  %g fps (%lld ticks/frame at %lld Hz), mode %d (%s)",
-             (double)target, (long long)g_period_ticks, (long long)g_frequency, g_mode,
-             (g_mode == MODE_SLEEP) ? "sleep" : (g_mode == MODE_SPIN) ? "spin" : "hybrid");
+    if (g_uncapped) {
+        log_info("  uncapped (MaxFPS=0), mode %d - the hook is in place and waits for nothing "
+                 "until the menu asks for a rate", g_mode);
+    } else {
+        log_info("  %g fps (%lld ticks/frame at %lld Hz), mode %d (%s)",
+                 (double)target, (long long)g_period_ticks, (long long)g_frequency, g_mode,
+                 (g_mode == MODE_SLEEP) ? "sleep" : (g_mode == MODE_SPIN) ? "spin" : "hybrid");
+    }
+    log_info("  the dev menu's frame rate slider overrides this while the game runs");
 }

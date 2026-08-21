@@ -24,7 +24,7 @@
  * We take the dinput8.dll name, so whatever used to answer to it must be given a new one. The
  * chain target is resolved in this order and the result is logged:
  *
- *   1. `ChainDll` from [loader] in open_fellowship.ini (absolute, or relative to the game folder)
+ *   1. `ChainDll` from [loader] in fix_enhancers.ini (absolute, or relative to the game folder)
  *   2. <game folder>\dinput8_orig.dll
  *   3. <system directory>\dinput8.dll
  *

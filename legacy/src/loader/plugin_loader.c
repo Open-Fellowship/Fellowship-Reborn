@@ -210,6 +210,11 @@ void plugin_loader_run_once(void)
     log_info("OpenFellowship loader");
     log_info("host %s", host_path());
     log_info("ini  %s", ini_path());
+    if (ini_using_legacy_name()) {
+        log_info("     that is the OLD name. fix_enhancers.ini is what this now looks for, and "
+                 "the old one is read only because the new one is not there. Renaming it is "
+                 "optional and loses nothing.");
+    }
 
     /* Before the ini, before the plugin list, before anything can fail: which two files is this?
      * Every bug report that starts with a log now answers that question in its first three
@@ -220,7 +225,7 @@ void plugin_loader_run_once(void)
      * legitimate way to run, but it must not look like the settings were read. */
     if (GetFileAttributesA(ini_path()) == INVALID_FILE_ATTRIBUTES) {
         log_warning("there is no configuration file at that path. Every plugin is running on its "
-                    "built-in defaults. Copy dist/open_fellowship.ini next to Fellowship.exe to "
+                    "built-in defaults. Copy dist/fix_enhancers.ini next to Fellowship.exe to "
                     "change anything.");
     }
 

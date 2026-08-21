@@ -1,6 +1,6 @@
 /* logging.h: one shared log file, one prefix per DLL.
  *
- * Every module in the process appends to <game>\open_fellowship.log. The prefix is set once by
+ * Every module in the process appends to <game>\fix_enhancers.log. The prefix is set once by
  * log_init() and written in front of every line automatically, so a call site cannot forget it
  * and two plugins cannot drift apart in how they spell their own name:
  *

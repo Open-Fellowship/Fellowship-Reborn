@@ -21,13 +21,13 @@ channel_block_t *channel_open(void)
     sprintf(name, "Local\\OpenFellowship.%lu", (unsigned long)GetCurrentProcessId());
 
     g_mapping = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0,
-                                   sizeof(channel_block_t), name);
+                                   CHANNEL_MAPPING_SIZE, name);
     if (g_mapping == NULL) {
         return NULL;
     }
 
     view = (channel_block_t *)MapViewOfFile(g_mapping, FILE_MAP_ALL_ACCESS, 0, 0,
-                                            sizeof(channel_block_t));
+                                            CHANNEL_MAPPING_SIZE);
     if (view == NULL) {
         CloseHandle(g_mapping);
         g_mapping = NULL;
@@ -40,6 +40,8 @@ channel_block_t *channel_open(void)
     if (view->magic != CHANNEL_MAGIC) {
         view->field_of_view_degrees = 0.0f;
         view->field_of_view_serial  = 0;
+        view->frame_target_fps      = 0.0f;
+        view->frame_target_serial   = 0;
         view->version               = CHANNEL_VERSION;
         view->magic                 = CHANNEL_MAGIC;
     }
@@ -87,4 +89,51 @@ bool channel_read_field_of_view(const channel_block_t *block, float *degrees)
 
     *degrees = value;
     return true;
+}
+
+void channel_publish_frame_target(channel_block_t *block, float fps)
+{
+    if (block == NULL) {
+        return;
+    }
+    block->frame_target_fps = fps;
+
+    /* Value first, serial last, exactly as above: a reader that sees a new serial is guaranteed
+     * to be looking at the value that goes with it. */
+    block->frame_target_serial = block->frame_target_serial + 1u;
+}
+
+bool channel_read_frame_target(const channel_block_t *block, float *fps)
+{
+    uint32_t before;
+    uint32_t after;
+    float    value;
+
+    if (block == NULL || fps == NULL) {
+        return false;
+    }
+    if (block->magic != CHANNEL_MAGIC || block->version != CHANNEL_VERSION) {
+        return false;
+    }
+
+    before = block->frame_target_serial;
+    value  = block->frame_target_fps;
+    after  = block->frame_target_serial;
+
+    if (before != after || before == 0u) {
+        return false;   /* torn, or nobody has ever published */
+    }
+
+    /* Exactly 0 is uncapped and is a request. Anything else has to be a rate this could have
+     * meant; a NaN fails both comparisons and lands here, which is the point of writing it as a
+     * range test rather than as its negation. */
+    if (value == 0.0f) {
+        *fps = 0.0f;
+        return true;
+    }
+    if (value >= 10.0f && value <= 1000.0f) {
+        *fps = value;
+        return true;
+    }
+    return false;
 }

@@ -9,18 +9,53 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define INI_FILE_NAME "open_fellowship.ini"
+#define INI_FILE_NAME   "fix_enhancers.ini"
+/* What the file was called before, and the whole reason there are two names here. Renaming a
+ * configuration file silently reverts everybody who already had one to the built-in defaults,
+ * and it does it without an error: every key simply stops being found. So the old name is still
+ * accepted, and only when the new one is absent - if both exist the new one wins outright rather
+ * than the two being merged, because a half-read configuration is harder to diagnose than a
+ * wrong one. */
+#define INI_LEGACY_NAME "open_fellowship.ini"
 
 static char ini_file_path[MAX_PATH];
+static bool ini_is_legacy;
 
+static bool file_exists(const char *path)
+{
+    DWORD attributes = GetFileAttributesA(path);
+
+    return attributes != INVALID_FILE_ATTRIBUTES
+           && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+}
+
+/* Resolved once. A plugin that reads twenty keys must not stat the directory twenty times, and
+ * more importantly must not change its mind halfway through because a file appeared. */
 const char *ini_path(void)
 {
     if (ini_file_path[0] == '\0') {
+        char legacy[MAX_PATH];
+
         host_image_resolve();
         snprintf(ini_file_path, sizeof(ini_file_path), "%s%s", host_directory(), INI_FILE_NAME);
         ini_file_path[sizeof(ini_file_path) - 1] = '\0';
+
+        if (!file_exists(ini_file_path)) {
+            snprintf(legacy, sizeof(legacy), "%s%s", host_directory(), INI_LEGACY_NAME);
+            legacy[sizeof(legacy) - 1] = '\0';
+            if (file_exists(legacy)) {
+                memcpy(ini_file_path, legacy, sizeof(ini_file_path));
+                ini_is_legacy = true;
+            }
+        }
     }
     return ini_file_path;
+}
+
+bool ini_using_legacy_name(void)
+{
+    (void)ini_path();      /* so the answer is never "not yet decided" */
+    return ini_is_legacy;
 }
 
 /* A sentinel nobody would type. GetPrivateProfileString cannot otherwise distinguish "the key
