@@ -1,0 +1,19 @@
+schema_version = "1.0.0"
+
+id = "fotr_riot_importer"
+version = "1.7.4"
+name = "LOTR: Fellowship of the Ring (Riot Engine)"
+tagline = "Import and re-export levels, models, textures, rigs and animations from the 2002 Fellowship PC game"
+maintainer = "Chip"
+type = "add-on"
+
+tags = ["Import-Export", "Animation"]
+
+blender_version_min = "5.0.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+[permissions]
+files = "Read game archives, write extracted PNG textures, and write edited meshes and textures back into the archives"
