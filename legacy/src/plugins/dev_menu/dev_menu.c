@@ -904,9 +904,8 @@ static void draw_player(void)
 #define FPS_ROW_SLIDER  5
 #define FPS_ROW_BUTTONS 6
 #define FPS_ROW_STATS   7
-#define FPS_ROW_DELTA   8
-#define FPS_ROW_HINT    9
-#define FPS_ROW_COUNT  10
+#define FPS_ROW_HINT    8
+#define FPS_ROW_COUNT   9
 
 #define FPS_PRESET_COUNT 4
 static const int g_fps_presets[FPS_PRESET_COUNT] = { 30, 60, 120, 144 };
@@ -1026,13 +1025,9 @@ static void draw_frame_rate(void)
     overlay_text(bx + 6, by + 3, 1, timing_saved() ? COLOUR_DIM : COLOUR_VALUE,
                  "save as default");
 
-    /* ---- what actually happened, which is the only part of this page worth believing */
+    /* ---- what the engine's own counter says */
     {
-        float    lowest  = 0.0f;
-        float    average = 0.0f;
-        float    highest = 0.0f;
-        unsigned frames  = 0;
-        float    engine  = timing_engine_fps();
+        float engine = timing_engine_fps();
 
         if (engine > 0.0f) {
             sprintf(line, "engine fps %.1f", (double)engine);
@@ -1040,23 +1035,6 @@ static void draw_frame_rate(void)
             sprintf(line, "engine fps not yet sampled");
         }
         overlay_text(x, player_row(FPS_ROW_STATS), 1, COLOUR_DIM, line);
-
-        if (timing_stats(&lowest, &average, &highest, &frames)) {
-            /* The spread is the number that says smooth or not. On a stock clock at a 60 fps cap
-             * it runs to hundreds of percent, because the two rates beat and the delta goes 31 ms
-             * then 0. With a fine clock it sits in the low single figures. */
-            double spread = (average > 0.0f)
-                            ? ((double)(highest - lowest) * 100.0 / (double)average) : 0.0;
-
-            sprintf(line, "frame delta over %u frames:  low %.2f   avg %.2f   high %.2f ms   "
-                          "spread %.0f%%",
-                    frames, (double)lowest, (double)average, (double)highest, spread);
-            overlay_text(x, player_row(FPS_ROW_DELTA), 1,
-                         (spread < 25.0) ? COLOUR_DIM : COLOUR_EDGE, line);
-        } else {
-            overlay_text(x, player_row(FPS_ROW_DELTA), 1, COLOUR_DIM,
-                         "frame delta: not enough frames yet");
-        }
     }
 
     overlay_text(x, player_row(FPS_ROW_HINT), 1, COLOUR_DIM,
@@ -2281,13 +2259,6 @@ static HRESULT STDMETHODCALLTYPE hooked_end_scene(void *device)
          * what is on screen. This is also the game's own thread, which is the only place writing
          * into a live game object is reasonable at all. */
         player_hold_size();
-
-        /* Sampled here rather than on the drawing path, so the window is a picture of the game
-         * running and not of the game running with a menu over it. The hook is not installed
-         * until the toggle key is first pressed, so the window starts filling from that moment
-         * rather than from start-up - which is fine, because it takes four seconds to fill and
-         * the only reason to press the key is to look at it. */
-        timing_sample();
 
         if (!g_visible && !show_messages) {
             return g_original_end_scene(device);

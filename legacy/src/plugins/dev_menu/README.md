@@ -666,31 +666,33 @@ for the thing and one writer for the request. Save writes `MaxFPS` into the `[fp
 of `fix_enhancers.ini`, which is another plugin's section and is deliberate: the menu is the
 player acting, not a plugin minding its own business.
 
-The two lines underneath are the reason this is on a page rather than in a config file.
-
-```
-engine fps 59.9
-frame delta over 240 frames:  low 15.98  avg 16.67  high 17.10 ms  spread 6%
-```
-
-What the game actually simulates is one float at `0x00543284`, read by every animation, physics and
-effect site in the engine, and this samples it once per frame for the last four seconds. The
-**spread** is the number that says smooth or not, and on a stock build it is unmistakable. The
-engine reads its clock with `GetTickCount`, which advances about every 15.6 ms, so at a 60 fps cap
-the two rates beat against each other at exactly 4 Hz: four times a second the delta reads 31 ms
-and then 0. The window shows a low of 0.00 against a high of 31.00 and a spread in the hundreds of
-percent. With `frame_timing` installed the same window collapses to a fraction of a millisecond
-either side of the target.
-
-The header line says which clock is running, and it asks the engine rather than the plugin:
+Two lines report rather than assert. Both are read out of the engine:
 
 ```
 clock: QueryPerformanceCounter at 100000 Hz
+engine fps 89.9
 ```
 
-That is read out of the Timer's own ticks-to-seconds constant at `0x0053EE68`. `0.001` means the
-engine is still on `GetTickCount` and `frame_timing` is not installed, whatever any log says about
-load order.
+The clock line comes from the Timer's own ticks-to-seconds constant at `0x0053EE68`. `0.001` means
+the engine is still on `GetTickCount` and `frame_timing` is not installed, whatever any log says
+about load order. The frame rate is the engine's own, from `0x00543294`, resampled every eight
+frames by `Timer::GetFramerate`.
+
+### The delta window that used to be here
+
+A third line held a 240-frame ring of the delta at `0x00543284` as low, mean, high and a spread
+percentage, and it is worth recording what it showed because it is how `frame_timing` was proven:
+
+```
+frame delta over 240 frames:  low 0.00  avg 16.67  high 31.00 ms  spread 186%    stock clock
+frame delta over 240 frames:  low 11.10 avg 11.11  high 11.12 ms  spread 0%      with the fix
+```
+
+It came out once the fix was demonstrated. A per-frame sample that nothing reads is a
+`VirtualQuery` every frame for a number nobody looks at, and if the measurement is ever wanted
+again, taking it from **outside** the process is the better shape anyway: the same address, read
+against the frame counter at `0x0054417C` so there is exactly one sample per frame and no
+aliasing against the frame rate.
 
 ## Configuration: `[dev_menu]`
 
