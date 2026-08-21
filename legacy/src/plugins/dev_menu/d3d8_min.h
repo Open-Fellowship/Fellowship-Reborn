@@ -34,12 +34,20 @@
 #define D3D8_GETTEXTURESTAGESTATE   62
 #define D3D8_SETTEXTURESTAGESTATE   63
 #define D3D8_DRAWPRIMITIVEUP        72
+
+/* DrawPrimitiveUP UNBINDS stream 0, and DrawIndexedPrimitiveUP unbinds the index buffer with it.
+ * That is documented behaviour and not a side effect anyone would guess at, so the four calls
+ * needed to put them back are here. */
+#define D3D8_SETSTREAMSOURCE        83
+#define D3D8_GETSTREAMSOURCE        84
+#define D3D8_SETINDICES             85
+#define D3D8_GETINDICES             86
 #define D3D8_GETVERTEXSHADER        77
 #define D3D8_SETVERTEXSHADER        76
 
 /* The highest index this plugin touches, and therefore how much of the vtable has to be readable
  * before any of it is believed. */
-#define D3D8_VTABLE_ENTRIES_USED    78
+#define D3D8_VTABLE_ENTRIES_USED    87
 
 /* ------------------------------------------------------------------------- the method shapes */
 
@@ -56,6 +64,13 @@ typedef HRESULT (STDMETHODCALLTYPE *d3d8_set_stage_state_t)(void *device, DWORD 
                                                             DWORD value);
 typedef HRESULT (STDMETHODCALLTYPE *d3d8_get_stage_state_t)(void *device, DWORD stage, DWORD type,
                                                             DWORD *value);
+typedef HRESULT (STDMETHODCALLTYPE *d3d8_get_stream_source_t)(void *self, UINT stream,
+                                                              void **buffer, UINT *stride);
+typedef HRESULT (STDMETHODCALLTYPE *d3d8_set_stream_source_t)(void *self, UINT stream,
+                                                              void *buffer, UINT stride);
+typedef HRESULT (STDMETHODCALLTYPE *d3d8_get_indices_t)(void *self, void **buffer, UINT *base);
+typedef HRESULT (STDMETHODCALLTYPE *d3d8_set_indices_t)(void *self, void *buffer, UINT base);
+
 typedef HRESULT (STDMETHODCALLTYPE *d3d8_draw_primitive_up_t)(void *device, DWORD primitive_type,
                                                               UINT primitive_count,
                                                               const void *vertices,

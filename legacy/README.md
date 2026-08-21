@@ -33,10 +33,38 @@ cmake --build build --config Release
 
 Everything lands in `build\dist\`, laid out exactly as it installs.
 
+Verified clean on **MSVC 19.38 (VS2022)** and **19.50 (VS2026)**, x86, `/W4 /WX`. If CMake is left
+to choose, it takes the newest Visual Studio installed; pass `-G "Visual Studio 17 2022"` to pin an
+older one.
+
 MSVC is the only supported toolchain, deliberately. The loader's entry-point stub is
 `__declspec(naked)` inline assembly and the proxy's export names come from `/EXPORT` pragmas;
 supporting a second compiler would mean a second implementation of both, and two implementations
 of the most safety-critical code in the tree is a poor trade for build convenience.
+
+### If you find MinGW-built DLLs in an install
+
+You will, in older ones. Every plugin shipped before this note was built by **MinGW GCC 13**, and
+that is worth knowing rather than hiding, because it explains something about the code.
+
+The strict flags above live inside `if(MSVC)` in `CMakeLists.txt`, so under GCC none of them
+applied. `/W4 /WX` did not exist, and constructs MSVC rejects outright went unnoticed - most
+sharply `typedef void (__thiscall *fn)(...)`, which GCC accepts in C as an extension and MSVC does
+not accept at all. The result was a tree that built cleanly every day under the toolchain the
+README said was unsupported, and had never once built under the one it said was required.
+
+That is no longer a choice anyone has to make: **MSYS2 has dropped its 32-bit `mingw32`
+environment**, so there is no i686 GCC to go back to. MSVC is now the only toolchain that can build
+this project, and as of this note it does, from clean, on both versions above.
+
+The four things that had to change are worth naming, since all four were real:
+
+| | |
+|---|---|
+| C4702 | four poll threads whose `for (;;)` never exits, so the mandatory `return` is provably unreachable. It is a code-generator warning attributed to the end of the function, so `#pragma warning(suppress)` at the return does not reach it - only a whole-function region does. `src/common/compiler.h` holds that idiom once, with the reasoning |
+| C4456 | an inner `index` shadowing the tab loop's in `dev_menu.c` |
+| `__thiscall` | not accepted on a function-pointer typedef in C. Now `__fastcall` with a dead EDX parameter, which on x86 is exact rather than approximate: `this` in ECX either way, the real arguments in the same stack slots, callee cleanup either way, and `__thiscall` never reads EDX |
+| generator | `-A Win32` alone silently selects the newest Visual Studio present |
 
 ## Why a loader and not a byte patcher
 

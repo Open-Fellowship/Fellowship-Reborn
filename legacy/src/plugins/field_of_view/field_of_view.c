@@ -1,4 +1,5 @@
 #include "field_of_view.h"
+#include "common/compiler.h"
 
 #include "common/camera.h"
 #include "common/channel.h"
@@ -50,6 +51,16 @@ static channel_block_t *g_channel;  /* dev_menu's request, when there is one */
 static double g_announced_request;  /* so a slider drag does not fill the log */
 static float  g_baseline_focal;
 static DWORD  g_interval_ms = 400;
+
+/* While dev_menu's slider is actually asking for a value, this thread has to keep up with a
+ * dragging hand rather than with a setting that changes once a session. 400 ms of that is a
+ * picture that lurches twice a second; 16 is a picture that follows the knob.
+ *
+ * It costs nothing when nobody is dragging, because the fast interval is only used while the
+ * channel holds a request. The work per tick is a camera validation and one float write. */
+#define SLIDER_INTERVAL_MS 16u
+
+static bool g_slider_active;
 static bool   g_complained;         /* one refusal message per run, not one per tick */
 
 static double to_degrees(double radians) { return radians * 180.0 / 3.14159265358979323846; }
@@ -85,6 +96,7 @@ static void complain_once(const char *what, double value)
     }
 }
 
+OF_NORETURN_THREAD_BEGIN
 static DWORD WINAPI poll_thread(LPVOID parameter)  /* never returns */
 {
     bool announced = false;
@@ -135,7 +147,9 @@ static DWORD WINAPI poll_thread(LPVOID parameter)  /* never returns */
                     double target = g_target_vertical;
                     float  requested;
 
-                    if (channel_read_field_of_view(g_channel, &requested)) {
+                    g_slider_active = channel_read_field_of_view(g_channel, &requested) != false;
+
+                    if (g_slider_active) {
                         target = (double)requested;
                         if (fabs(target - g_announced_request) > 0.5) {
                             g_announced_request = target;
@@ -166,13 +180,14 @@ static DWORD WINAPI poll_thread(LPVOID parameter)  /* never returns */
                 }
             }
         }
-        Sleep(g_interval_ms);
+        Sleep(g_slider_active ? SLIDER_INTERVAL_MS : g_interval_ms);
     }
 
     /* Not reached. The thread lives for as long as the process: there is nothing to tidy up and
      * nobody to hand a result to. */
     return 0;
 }
+OF_NORETURN_THREAD_END
 
 void field_of_view_install(void)
 {
@@ -220,5 +235,6 @@ void field_of_view_install(void)
     }
     CloseHandle(thread);
 
-    log_info("installed, re-applying every %u ms", (unsigned)g_interval_ms);
+    log_info("installed, re-applying every %u ms, and every %u while dev_menu's slider is asking",
+             (unsigned)g_interval_ms, (unsigned)SLIDER_INTERVAL_MS);
 }

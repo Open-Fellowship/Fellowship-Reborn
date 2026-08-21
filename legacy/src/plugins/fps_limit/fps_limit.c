@@ -32,6 +32,11 @@ static LONGLONG g_next_frame;     /* the counter value the next frame may begin 
 static int      g_mode = MODE_HYBRID;
 static LONGLONG g_spin_margin;    /* hybrid: stop sleeping this far out and spin instead */
 
+static DWORD    g_period_milliseconds;   /* the longest single wait this may ever perform */
+static unsigned g_resyncs;
+static unsigned g_calls;
+static LONGLONG g_installed_at;
+
 static LONGLONG now_ticks(void)
 {
     LARGE_INTEGER counter;
@@ -39,21 +44,62 @@ static LONGLONG now_ticks(void)
     return counter.QuadPart;
 }
 
+/* Said out loud the first few times and then counted in silence. A resync is normal after a level
+ * load and is a symptom worth reading when it happens every frame, so the first ones go in the log
+ * with the size of the error and the rest do not fill the file. */
+static void report_resync(LONGLONG gap)
+{
+    ++g_resyncs;
+
+    if (g_resyncs <= 3u) {
+        LONGLONG elapsed = (g_installed_at != 0)
+                               ? ((now_ticks() - g_installed_at) * 1000 / g_frequency) : 0;
+
+        log_info("resync %u: the target was %lld ms %s. The schedule restarts from now. "
+                 "(call %u, %lld ms after installing - if those two numbers say this site is "
+                 "reached far more often than the frame rate, that is the reason.)",
+                 g_resyncs,
+                 (long long)((gap < 0 ? -gap : gap) * 1000 / g_frequency),
+                 (gap < 0) ? "in the past" : "in the future",
+                 g_calls, (long long)elapsed);
+    } else if (g_resyncs == 4u) {
+        log_info("resync: happening often enough that further ones are counted, not logged");
+    }
+}
+
 /* Runs once per frame, before the engine's own frame function.
  *
- * The resync below is not an optimisation, it is the difference between a limiter and a bug. If
- * the process is suspended - alt-tab, a level load, a breakpoint - the target time falls far into
- * the past, and a limiter that simply keeps adding one period would then run unthrottled for as
- * many frames as it was behind, trying to "catch up" on time that no longer exists. When the gap
- * exceeds a few frames the schedule is abandoned and restarted from now.
+ * The resync is not an optimisation, it is the difference between a limiter and a hang, and it has
+ * to look BOTH ways.
+ *
+ * Behind is the obvious case: the process is suspended, or a level loads, the target falls into
+ * the past, and a limiter that keeps adding one period would run unthrottled for as many frames
+ * as it was behind, catching up on time that no longer exists.
+ *
+ * AHEAD is the case that cost a week on a Steam Deck. This hook is one call site, and the engine
+ * is under no obligation to reach it exactly once per drawn frame - during start-up it goes round
+ * far more often than that, with nothing being presented. Every one of those calls used to add a
+ * whole frame period to the target while barely any real time passed, so the schedule ran away
+ * into the future, one Sleep grew to several seconds, and the game sat in it with a black screen
+ * and a message loop still answering. A limiter can be late. It must never be early by more than
+ * a frame, and no single wait here may exceed one period.
  */
 static void __cdecl fps_limit_tick(void)
 {
     LONGLONG current = now_ticks();
+    LONGLONG gap;
+
+    ++g_calls;
 
     if (g_next_frame == 0) {
         g_next_frame = current + g_period_ticks;
         return;
+    }
+
+    gap = g_next_frame - current;                    /* positive: the target is in the future */
+    if (gap > g_period_ticks || gap < -(g_period_ticks * 4)) {
+        report_resync(gap);
+        g_next_frame = current + g_period_ticks;
     }
 
     for (;;) {
@@ -67,6 +113,9 @@ static void __cdecl fps_limit_tick(void)
             YieldProcessor();
         } else {
             DWORD milliseconds = (DWORD)(((remaining - g_spin_margin) * 1000) / g_frequency);
+            if (milliseconds > g_period_milliseconds) {
+                milliseconds = g_period_milliseconds;   /* one frame, whatever the arithmetic says */
+            }
             if (milliseconds > 0) {
                 Sleep(milliseconds);
             } else if (g_mode == MODE_SLEEP) {
@@ -77,10 +126,6 @@ static void __cdecl fps_limit_tick(void)
     }
 
     g_next_frame += g_period_ticks;
-
-    if (current - g_next_frame > g_period_ticks * 4) {
-        g_next_frame = current + g_period_ticks;
-    }
 }
 
 /* pushad / pushfd / call fps_limit_tick / popfd / popad / jmp <engine frame function>
@@ -142,6 +187,10 @@ void fps_limit_install(void)
         target = 60.0f;
     }
     g_period_ticks = (LONGLONG)((double)g_frequency / (double)target);
+    g_period_milliseconds = (DWORD)((g_period_ticks * 1000) / g_frequency);
+    if (g_period_milliseconds == 0) {
+        g_period_milliseconds = 1;
+    }
 
     mode = ini_read_int(PLUGIN_SECTION, "Mode", MODE_HYBRID);
     if (mode < MODE_SLEEP || mode > MODE_HYBRID) {
@@ -161,6 +210,7 @@ void fps_limit_install(void)
     /* Without this, Sleep(1) can be Sleep(15). Released at process exit, which for a game is the
      * only lifetime that matters. */
     timeBeginPeriod(1);
+    g_installed_at = now_ticks();
 
     call_site = exe_site(FRAME_CALL_VA);
 

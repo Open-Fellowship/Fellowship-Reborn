@@ -80,3 +80,14 @@ Set `Enabled=0`; nothing else depends on it.
 | `Enabled` | `0` | |
 | `VerticalFOV` | `0` | degrees. `0` = automatic: reproduce the 4:3-equivalent of whatever the game set |
 | `IntervalMs` | `400` | how often the value is re-applied |
+
+## Two speeds
+
+`IntervalMs` is how often this re-applies the field of view when nothing is driving it, and 400
+is right for that: the value only changes when a level loads or the resolution does.
+
+It is wrong by a factor of twenty-five for a slider. While dev_menu is actually asking for a
+value - the channel holds a request - this polls every **16 ms** instead, so the picture follows
+the knob rather than lurching after it twice a second. The fast interval is only used while a
+request is live, and the work per tick is one camera validation and one float write, so a session
+where nobody opens the menu is unaffected.

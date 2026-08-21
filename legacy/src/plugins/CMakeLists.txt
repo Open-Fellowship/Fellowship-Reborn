@@ -121,6 +121,14 @@ add_fellowship_plugin(text_scaling
     text_scaling.c
 )
 
+# Two bytes, and the first plugin here that finds its site by SIGNATURE rather than by address -
+# the retail rfl and the one this project targets put the same branch 0x430 apart. New Game opens
+# the game's own level list, which is a finished screen nobody ever reaches. See its README.
+add_fellowship_plugin(level_select
+    dll_main.c
+    level_select.c
+)
+
 # A DIAGNOSTIC, not a fix, and off by default. It hooks the engine's universal property getter in
 # Fellowship.exe and records which code asks for which authored value - the tool for finding the
 # in-game HUD's draw path. See HUD-FINDING.md in hud_scaling.
@@ -139,6 +147,10 @@ add_fellowship_plugin(dev_menu
     dll_main.c
     dev_menu.c
     overlay.c
+    cheats.c
+    flags.c
+    messages.c
+    player.c
 )
 target_link_libraries(dev_menu PRIVATE gdi32)
 

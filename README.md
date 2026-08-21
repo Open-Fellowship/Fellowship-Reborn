@@ -2,21 +2,56 @@
 
 A reverse engineering and preservation project for the PC version of
 *The Lord of the Rings: The Fellowship of the Ring* (Surreal Software, 2002,
-Riot Engine)..
+Riot Engine).
 
-The aim is the same as its sibling project [OpenPhantom](https://github.com/OpenPhantom/OpenPhantom):
-documented, maintainable source that preserves the original game's behaviour on
-modern systems, and a modding surface that does not require anybody to patch
-bytes by hand ever again.
+The aim is documented, maintainable source that preserves the original game's
+behaviour on modern systems, and a modding surface that does not require anybody
+to patch bytes by hand ever again.
+
+## Scope
+
+Five things, in the order they matter. Everything in this repository should be
+justifiable as one of them, and a change that is not is a change that needs a
+better reason than "it was interesting".
+
+**1. Fix the game.** The bugs that are genuinely the game's, not the hardware's.
+A stock install hangs on a black screen on NVIDIA cards; the renderer culls its
+own screen edges above 3072 pixels; a shipped level-select screen is reachable
+by nothing. These are defects with a right answer, and fixing one is finished
+work rather than a matter of taste.
+
+**2. Modern settings.** Make a 2002 game behave on 2026 hardware - frame rate,
+resolution, HUD and text scaling, field of view, and controller support. The
+game was authored for 640x480 and a fixed timestep, and most of what looks
+broken at 4K is that assumption showing through rather than anything rotten.
+
+**3. Modding.** Tools that let people build models, maps and sounds for this
+game without reverse engineering it first. The Blender extension in `editor/`
+already reads geometry, animation, levels and textures, and writes them back.
+That is also why the object model is documented rather than merely used: 397
+classes and 4,262 properties with the developers' own names on them is a modding
+surface, and it was a research artifact for about a day. Sound and the interface
+strings are the gaps.
+
+**4. Restore content.** Cut content that is still in the files, content that
+exists in the console ports and not the PC one, and a mod folder on the main
+menu that can load and unload additions without anybody editing an ini by hand.
+The engine turns out to be full of things that shipped and are unreachable -
+`level_select` is one, the 124-entry developer flag menu is another.
+
+**5. Cheats and the dev menu.** The engine's own debug tooling, put back where a
+player can reach it, plus additions in the same spirit. This is last on the list
+and it is not an afterthought: it is the part that makes the rest testable, and
+several of the findings the other four pillars rest on came out of building it.
 
 ## Status
 
 | Part | State |
 |---|---|
-| `legacy/` | **Working.** Loader plus 17 plugins, built and tested on a retail install at 3840x2160. |
+| `legacy/` | **Working.** Loader plus 18 plugins, built and tested on a retail install at 3840x2160. Covers pillars 1, 2, 4 and 5. |
 | `architecture/` | Notes only. |
-| `engine/` | Not started. |
-| `editor/` | Not started. |
+| `engine/` | Experimental, on a branch. A drop-in `Fellowship.rfl` that forwards to the retail engine, with four of its static registries served from generated code. |
+| `editor/` | **Started.** The Blender extension (models, animation, levels, textures) lives here. Pillar 3. |
 | `installer/` | Not started. |
 
 ## What `legacy/` is
@@ -33,6 +68,13 @@ everything at once. A loader and a folder of plugins fixes all three.
 
 ### What it fixes today
 
+Against the five pillars: `black_screen`, `edge_popin` and `level_select` are **1**;
+`hud_scaling`, `text_scaling`, `resolution_unlock`, `game_speed`, `fps_limit`, `windowed_res`,
+`field_of_view`, `model_lod` and `view_distance` are **2**; `level_select` and `dev_menu`'s engine
+flag page reach content that shipped and nothing else can, which is **4**; `dev_menu` and
+`fog_toggle` are **5**. Pillar **3** is not served by any plugin - it lives in `editor/`, because
+modding is a tooling problem rather than a runtime one.
+
 On by default:
 
 | | |
@@ -45,7 +87,8 @@ On by default:
 | `game_speed` | the simulation timestep, too coarse at modern frame rates |
 | `fps_limit` | frame cap |
 | `fog_toggle` | distance fog on and off while the game runs |
-| `dev_menu` | an in-game overlay with a live field-of-view slider |
+| `dev_menu` | an in-game overlay: a live field-of-view slider, the game's own cheats as buttons, and the engine's own 124-entry developer flag menu that no shipping build reaches |
+| `level_select` | New Game opens the game's own level list, a finished screen that ships in every rfl and that nothing reaches. Two bytes, found by signature |
 
 Off by default, and documented in the ini: `view_distance`, `model_lod`,
 `field_of_view`, `inventory_icons`, `cd_check`, `windowed_res`, `hud_probe`.
@@ -87,6 +130,11 @@ cmake -S . -B build -A Win32
 cmake --build build --config Release
 ```
 
+Verified clean on MSVC 19.38 (VS2022) and 19.50 (VS2026) under `/W4 /WX`. `-A Win32` on its own
+takes the newest Visual Studio installed; pin an older one with `-G "Visual Studio 17 2022"`.
+Plugins in installs predating this note were built with MinGW GCC 13, under which the strict flags
+never applied - `legacy/README.md` says what that hid and why it cannot recur.
+
 Everything lands in `build\dist\`, laid out exactly as it installs. Copy
 `dinput8.dll`, `open_fellowship.ini` and `plugins\` next to `Fellowship.exe`.
 To uninstall, delete `dinput8.dll`.
@@ -97,7 +145,7 @@ To uninstall, delete `dinput8.dll`.
 `Fellowship.rfl` is a **PE32 DLL** despite the extension, ImageBase `0x10000000`.
 
 The engine is 32-bit and every offset in this tree assumes it.
-`legacy/src/common/engine_types.h` asserts it at compile time....
+`legacy/src/common/engine_types.h` asserts it at compile time.
 
 ## Licence
 
