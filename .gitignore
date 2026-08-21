@@ -4,3 +4,6 @@ out/
 *.suo
 .vs/
 .vscode/
+
+# Personal editor workspaces.
+*.code-workspace
