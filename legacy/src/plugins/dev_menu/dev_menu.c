@@ -3,6 +3,7 @@
 #include "cheats.h"
 #include "flags.h"
 #include "messages.h"
+#include "player.h"
 #include "d3d8_min.h"
 #include "dinput8_min.h"
 #include "overlay.h"
@@ -31,7 +32,7 @@
 
 #define PANEL_X       24
 #define PANEL_Y       24
-#define PANEL_W       760
+#define PANEL_W       860
 /* The panel's height is computed rather than fixed, because FontHeight is configurable and a
  * constant here would cut the cheat buttons off at anything above the default. */
 #define PADDING       16
@@ -70,7 +71,8 @@ static float g_fov_degrees;          /* the slider's position, once the user has
 #define TAB_CAMERA   0
 #define TAB_FLAGS    1
 #define TAB_MESSAGES 2
-#define TAB_COUNT    3
+#define TAB_PLAYER   3
+#define TAB_COUNT    4
 
 static int  g_tab;
 static int  g_flag_page;
@@ -681,11 +683,25 @@ static void messages_button_rect(int *x, int *y, int *w, int *h)
     *y = PANEL_Y + PADDING + row_step() + 4;
 }
 
+static const char *const g_tab_labels[TAB_COUNT] = {
+    " camera ", " engine flags ", " messages ", " open fellowship "
+};
+
+/* Each tab is as wide as ITS OWN label, and sits after the ones before it.
+ *
+ * Every tab used to be given the width of " engine flags ", which was fine while that was the
+ * longest. " open fellowship " is longer, so its text ran out of its box and over the button
+ * beside it. Measuring per tab means adding another one can never do that again. */
 static void tab_rect(int index, int *x, int *y, int *w, int *h)
 {
-    *w = overlay_text_width(" engine flags ", 1) + 10;
+    int i;
+
+    *x = PANEL_X + PADDING;
+    for (i = 0; i < index && i < TAB_COUNT; ++i) {
+        *x += overlay_text_width(g_tab_labels[i], 1) + 10 + 8;
+    }
+    *w = overlay_text_width(g_tab_labels[index < TAB_COUNT ? index : 0], 1) + 10;
     *h = overlay_line_height() + 4;
-    *x = PANEL_X + PADDING + index * (*w + 8);
     *y = PANEL_Y + PADDING + row_step() + 4;
 }
 
@@ -711,6 +727,254 @@ static void cheat_button_rect(int index, int *bx, int *by, int *bw, int *bh)
     *by = cheats_top() + step + (index / CHEAT_COLUMNS) * (step + 4);
     *bw = width;
     *bh = overlay_line_height() + 6;
+}
+
+/* Defined further down with the rest of the input helpers, and declared here because this page is
+ * laid out above them. Released inside the box, which is what a button is - as opposed to
+ * inside(), which is a hover and fires every frame. */
+static bool clicked(int x, int y, int w, int h);
+
+/* ------------------------------------------------------------------- the open fellowship page
+ *
+ * Everything on the other three tabs asks the engine to do something it already knows how to do:
+ * the cheats are the engine's own commands, the flags are its own debug menu. This one does not.
+ * The engine has no notion of a character's size - there is no such property among the 4,262 the
+ * ObjectDef table defines, and no such debug command - so this reaches into the player's object
+ * and writes to it.
+ *
+ * That is a bigger step than anything else in this plugin, so the page shows its working: the
+ * object it found, the offset it is writing to, and the reason it is refusing when it refuses.
+ * A button that silently does nothing is the failure mode this whole tree is written against.
+ */
+#define SIZE_OPTION_COUNT 3
+
+/* Which size the user last chose. Re-applied every frame from the EndScene hook, because the
+ * engine rewrites the orientation matrix from animation and would otherwise undo it within a
+ * frame. -1 means "not chosen", which is different from Normal: Normal actively holds the matrix
+ * at unit scale, and not-chosen leaves the engine entirely alone. */
+/* Size is height, build is width on top of it. Both are held as FLOATS rather than as a chosen
+ * button, because the sliders below can land anywhere between the presets and the buttons are
+ * just quick ways to reach a value. A button lights up when the value happens to be its own. */
+static float g_size_value  = 1.0f;
+static float g_build_value = 1.0f;
+
+/* Whether something non-neutral is currently written. Restoring has to happen ONCE when the
+ * values come back to 1, not every frame afterwards - the scale vector is not something the
+ * engine rewrites, so there is nothing to keep correcting once it is back. */
+static bool  g_player_active;
+
+/* 0 none, 1 size, 2 build. Grab anywhere on a track and keep the grab until the button comes up,
+ * so a fast drag that wanders off the track vertically does not drop the knob - the same rule the
+ * field of view slider follows. */
+static int   g_player_drag;
+
+/* Named for the sliders rather than for the rows, because SIZE_MAX is a standard
+ * library macro from <stdint.h> and redefining it is a warning this tree treats as an
+ * error. */
+#define HEIGHT_LOW   0.10f
+#define HEIGHT_HIGH   4.00f
+#define WIDTH_LOW  0.25f
+#define WIDTH_HIGH  10.00f
+
+static float chosen_height(void)
+{
+    return g_size_value;
+}
+
+static float chosen_girth(void)
+{
+    return g_size_value * g_build_value;
+}
+
+/* One place decides where every row of this page sits, and the drawing and the hit testing both
+ * read it. A rectangle computed twice is a button that looks right and cannot be clicked. */
+static int player_row(int n)
+{
+    return content_top() + n * (row_step() + 6);
+}
+
+/* Laid out like the field of view slider so the two feel the same: a label, a track, and the
+ * number on the right. `row` is which row of the page the track sits on. */
+/* Close enough to have come from a reset rather than from a drag that happened to land near 1.0.
+ * Half a percent is under one pixel of travel on either track. */
+static bool is_preset(float value, float preset)
+{
+    return (float)fabs((double)(value - preset)) < 0.005f;
+}
+
+static void player_reset_rect(int row, int *bx, int *by, int *bw, int *bh)
+{
+    *bw = overlay_text_width(" reset ", 1) + 10;
+    *bh = overlay_line_height() + 6;
+    *bx = PANEL_X + panel_width() - PADDING - *bw;
+    *by = player_row(row) - 3;
+}
+
+static void player_slider_rect(int row, int *tx, int *ty, int *tw)
+{
+    int bx;
+    int by;
+    int bw;
+    int bh;
+
+    player_reset_rect(row, &bx, &by, &bw, &bh);
+    *tx = PANEL_X + PADDING + 110;
+    *ty = player_row(row) + overlay_line_height() / 2 - 3;
+    /* Up to the number, which sits just left of the reset button. Derived from the button's own
+     * rectangle rather than from a second guess at the same arithmetic. */
+    *tw = (bx - 10 - overlay_text_width("00.00", 1) - 10) - *tx;
+}
+
+static void draw_player_slider(int row, const char *label, float value, float low, float high,
+                               bool usable)
+{
+    char  line[64];
+    int   tx;
+    int   ty;
+    int   tw;
+    int   knob;
+    float fraction;
+
+    player_slider_rect(row, &tx, &ty, &tw);
+    if (tw < 20) {
+        return;
+    }
+    fraction = (clampf(value, low, high) - low) / (high - low);
+    knob     = tx + (int)(fraction * (float)(tw - 10));
+
+    overlay_text(PANEL_X + PADDING, player_row(row), 1, COLOUR_LABEL, label);
+    overlay_rect(tx, ty, tw, 6, COLOUR_TRACK);
+    overlay_rect(tx, ty, knob - tx + 10, 6, usable ? COLOUR_FILL : COLOUR_TRACK);
+    overlay_rect(knob, ty - 7, 10, 20, usable ? COLOUR_KNOB : COLOUR_DIM);
+
+    sprintf(line, "%.2f", (double)value);
+    {
+        int bx;
+        int by;
+        int bw;
+        int bh;
+
+        player_reset_rect(row, &bx, &by, &bw, &bh);
+        overlay_text(bx - 10 - overlay_text_width("00.00", 1), player_row(row), 1,
+                     usable ? COLOUR_VALUE : COLOUR_DIM, line);
+
+        /* Dim unless there is something to undo, so the button says whether it would do anything
+         * before it is pressed. */
+        overlay_rect(bx, by, bw, bh,
+                     (usable && !is_preset(value, 1.0f)) ? COLOUR_BUTTON : COLOUR_TRACK);
+        overlay_text(bx + 6, by + 3, 1,
+                     (usable && !is_preset(value, 1.0f)) ? COLOUR_VALUE : COLOUR_DIM, "reset");
+    }
+}
+
+static void draw_player(void)
+{
+    int         x      = PANEL_X + PADDING;
+    const char *why    = "";
+    uintptr_t   object = player_object(&why);
+    bool        usable = (object != 0);
+
+    overlay_text(x, player_row(0), 1, COLOUR_TITLE, "Player size");
+    if (!usable) {
+        overlay_text(x + overlay_text_width("Player size    ", 1), player_row(0), 1, COLOUR_DIM,
+                     why[0] != 0 ? why : "no player");
+    }
+
+    draw_player_slider(1, "Height", g_size_value,  HEIGHT_LOW, HEIGHT_HIGH, usable);
+    draw_player_slider(2, "Width",  g_build_value, WIDTH_LOW,  WIDTH_HIGH,  usable);
+
+    overlay_text(x, player_row(3), 1, COLOUR_DIM,
+                 "width is on top of height - the camera holds its distance either way");
+}
+
+/* Both sliders, and the buttons, all end here. Writing on every frame rather than only on change
+ * is what makes a drag smooth: the value moves with the mouse and the next frame shows it. */
+static void apply_player(void)
+{
+    const char *why = "";
+
+    if (!player_apply_size(chosen_girth(), chosen_height(), &why)) {
+        log_info("player size: %s", why);
+    }
+}
+
+static void handle_player_input(void)
+{
+    int row;
+    int bx;
+    int by;
+    int bw;
+    int bh;
+    int tx;
+    int ty;
+    int tw;
+
+    for (row = 1; row <= 2; ++row) {
+        player_reset_rect(row, &bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) {
+            if (row == 1) {
+                g_size_value = 1.0f;
+            } else {
+                g_build_value = 1.0f;
+            }
+            apply_player();
+            return;
+        }
+    }
+
+    /* Grab on the way down, anywhere on the track, and hold it until the button comes up. */
+    if (g_mouse_down && !g_mouse_was_down) {
+        for (row = 1; row <= 2; ++row) {
+            player_slider_rect(row, &tx, &ty, &tw);
+            if (inside(tx - 6, ty - 10, tw + 12, 26)) {
+                g_player_drag = row;
+                break;
+            }
+        }
+    }
+    if (!g_mouse_down) {
+        g_player_drag = 0;
+    }
+
+    if (g_player_drag != 0) {
+        float low  = (g_player_drag == 1) ? HEIGHT_LOW  : WIDTH_LOW;
+        float high = (g_player_drag == 1) ? HEIGHT_HIGH : WIDTH_HIGH;
+
+        player_slider_rect(g_player_drag, &tx, &ty, &tw);
+        if (tw > 12) {
+            float fraction = (float)(g_mouse_x - tx) / (float)(tw - 10);
+            float value    = clampf(low + fraction * (high - low), low, high);
+
+            if (g_player_drag == 1) {
+                g_size_value = value;
+            } else {
+                g_build_value = value;
+            }
+            apply_player();
+        }
+    }
+}
+
+/* Called every frame from the EndScene hook, whether or not the menu is open - a size has to
+ * survive the menu closing, and the engine rewrites the transform from animation regardless of
+ * what is on screen. */
+static void player_hold_size(void)
+{
+    const char *why = "";
+
+    if (is_preset(g_size_value, 1.0f) && is_preset(g_build_value, 1.0f)) {
+        /* Back to normal. Restore ONCE and then leave the engine alone: the scale vector is not
+         * something it rewrites, so there is nothing to keep correcting, and writing neutral
+         * values sixty times a second would be sixty pointless writes into a live object. */
+        if (g_player_active) {
+            player_apply_size(1.0f, 1.0f, &why);
+            g_player_active = false;
+        }
+        return;
+    }
+    if (player_apply_size(chosen_girth(), chosen_height(), &why)) {
+        g_player_active = true;
+    }
 }
 
 /* --------------------------------------------------------------------------- the flags page
@@ -918,7 +1182,6 @@ static void draw_cheats(int x, bool have_camera)
 
 static void draw_tabs(void)
 {
-    static const char *labels[TAB_COUNT] = { " camera ", " engine flags ", " messages " };
     int index;
 
     for (index = 0; index < TAB_COUNT; ++index) {
@@ -930,7 +1193,7 @@ static void draw_tabs(void)
         tab_rect(index, &bx, &by, &bw, &bh);
         overlay_rect(bx, by, bw, bh, (g_tab == index) ? COLOUR_FILL : COLOUR_BUTTON);
         overlay_text(bx + 5, by + 2, 1, (g_tab == index) ? COLOUR_VALUE : COLOUR_DIM,
-                     labels[index]);
+                     g_tab_labels[index]);
     }
 
     {
@@ -1368,6 +1631,11 @@ static void draw_menu(const camera_view_t *view, bool have_camera)
         return;
     }
 
+    if (g_tab == TAB_PLAYER) {
+        draw_player();
+        return;
+    }
+
     y = content_top();
 
     /* ---- the field of view row */
@@ -1661,6 +1929,11 @@ static void handle_input(bool have_camera)
         return;
     }
 
+    if (g_tab == TAB_PLAYER) {
+        handle_player_input();
+        return;
+    }
+
     if (g_tab == TAB_MESSAGES) {
         unsigned count = messages_channel_count();
         unsigned i;
@@ -1758,6 +2031,12 @@ static HRESULT STDMETHODCALLTYPE hooked_end_scene(void *device)
         d3d8_viewport_t viewport;
 
         show_messages = messages_wanted();
+
+        /* Before the early return, not after: a chosen size has to hold whether or not the menu
+         * is open, and the engine rewrites the matrix from animation every frame regardless of
+         * what is on screen. This is also the game's own thread, which is the only place writing
+         * into a live game object is reasonable at all. */
+        player_hold_size();
 
         if (!g_visible && !show_messages) {
             return g_original_end_scene(device);

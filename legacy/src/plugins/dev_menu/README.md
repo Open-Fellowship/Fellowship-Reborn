@@ -527,6 +527,132 @@ for a `memcpy`.
 The hook needs the menu to have been opened once in the session, because that is when the overlay
 hook and the font exist at all.
 
+## The open fellowship page
+
+Two sliders, each with a reset. **Height** scales the player up and down, **Width** scales it
+across on top of whatever height is set. The camera holds its distance through both and the mouse
+still moves it normally. With both at 1.00 the plugin writes once to restore and then stops
+touching the object, so an idle page costs the game nothing.
+
+Everything on the other three tabs asks the engine to do something it already knows how to do: the
+cheats are its own commands, the flags are its own debug menu. This one does not. The engine has no
+notion of a character's size, so this page reaches into the player's object and writes to it, which
+is a heavier thing than anything else in this plugin and is why every step is validated on every
+call.
+
+### Finding the player
+
+`Fellowship.rfl` has three near-identical getters at `0x1005e9d0`, `0x1005ea50` and `0x1005eb40`
+whose first `0x5a` bytes are byte for byte the same, and that shared head is the lookup:
+
+```
+MOV EAX,[0x101326cc]        the level's object manager
+MOV EBX,[EAX + 0xb8]        the local player's game object
+MOV SI,[EBX + 0xc]          its ObjectDef index, 0xffff for none
+MOV EDI,[0x101326e4]        the ObjectDef entry list
+CMP ESI,[EDI + 0xc]         against its count
+MOV ECX,[EDI + 0x4]         its entry array
+LEA EAX,[ESI + ESI*0x8]     index * 9
+LEA EAX,[ECX + EAX*0x4]     ... * 4, so a 36-byte stride
+CMP [EAX + 0x4],0x1000e     the entry's class id: Player
+```
+
+`0x1000e` is the id the ObjectDef table gives the class named `Player`, so the last line is a real
+identification rather than a hopeful cast. Every step is revalidated on every call and nothing is
+cached, because the object moves between levels and a stale pointer here is a crash.
+
+One instruction is deliberately not reproduced. The original calls `[[EDI]+0x10]` on the entry list
+before indexing it and discards the result. This only reads the class id, and calling into the
+engine to satisfy a read that is already being validated would add the risk the module exists to
+avoid.
+
+### The object's transform
+
+```
++00EC   the world position, in world units
++00F8   a packed 3x3 transform, rows at +F8 / +104 / +110
++011C   three floats, always exactly (1, 1, 1)
+```
+
+Scaling the 3x3 scales the model. There is no property for size anywhere in the 4,262 the ObjectDef
+table defines, and the debug command object at `0x544070` accepts exactly eight commands, none
+about size, so writing this matrix is the only way in.
+
+The rows are basis vectors and row 1 is the up axis: it reads `(0, 1, 0)` in every sample while
+rows 0 and 2 turn as the player turns. So row 1 carries height and the other two carry width, which
+is what makes a wide character possible rather than only a big one.
+
+There is an ambiguity here that deliberately does not matter. Whether the rows are the object's
+basis vectors or the world's is not established, and a yaw-only matrix cannot tell them apart. Both
+horizontal rows always get the same factor, so the two readings produce the same shape. It would
+only matter if width were split into separate front-to-back and side-to-side numbers, which is a
+thing to establish first rather than assume.
+
+### Why the camera does not follow
+
+The camera sits at `playerPos + playerMatrix * (0, TrackHeight, -TrackDist)`, so scaling the matrix
+scales that offset and the view zooms in and tilts down as the player shrinks.
+
+**The three floats at `+0x011C` are a camera-distance multiplier, not a model scale.** Writing them
+moves the camera and leaves the model alone, which is the opposite of what their position after a
+rotation matrix suggests. They sit permanently at `(1, 1, 1)` because nothing in the shipped game
+ever writes them. Which gives:
+
+> The camera's distance is proportional to the transform's scale multiplied by the vector at
+> `+0x011C`, per axis.
+
+Per axis matters. The `TrackDist` term rides on row 2, a horizontal row carrying width, while the
+`TrackHeight` term rides on row 1 carrying height. Two different scales, so one reciprocal cannot
+cancel both. The vector gets `(1/width, 1/height, 1/width)`, each axis the reciprocal of whatever
+scaled it. Neither write touches direction, so the mouse still swings the view around normally.
+
+This is a property of every object in the engine, not just the player.
+
+### What the value block is not
+
+`TrackDist` and `TrackHeight` are Player ordinals 77 and 78, authored properties with defaults of
+2000.0 and 500.0. Dividing them would be the obvious way to hold the camera still, and it does not
+work: the entry's value block is at `+0x08`, which is established, but its internal layout is not.
+
+| attempt | result |
+|---|---|
+| index it as `block + ordinal * 4` | `0.0` for both properties |
+| search it for the schema defaults, 2000 and 500 | neither present in 4 KB |
+| search it for any adjacent (distance, height) float pair | no pair in 2 KB |
+
+The third settles it. Because the two ordinals are adjacent, a flat four-byte layout puts their
+values four bytes apart wherever the block begins, so that search assumed nothing about the base
+and still found nothing. The block is not a flat array of floats. The accessor that would settle it
+properly is in `Fellowship.exe` at `0x44E6E0`, the one `hud_probe` hooks.
+
+### Other fields in the same object
+
+Found while looking for the transform, and recorded because they are the kind of thing somebody
+will want next:
+
+| | |
+|---|---|
+| `[+0C8] +00A0` | a rotation about X, roughly 10 degrees. `+0xC8` is the Player subobject, so this is the upper-body pitch |
+| `+0x0A78` | a yaw that swings continuously while the body's changes only when you turn. The camera |
+| ten matrices at a 0x130 stride | identical, axis-aligned. An array of bones or attachment points |
+| `[+024]`, `[+078]` | live unit quaternions. Animation data |
+
+### Limits
+
+Non-uniform scaling does not renormalise normals, so lighting on an extreme build is slightly off.
+That is inherent to the technique.
+
+Collision does not follow the render transform. A very wide character still fits through a normal
+doorway.
+
+### Safety
+
+The write happens from inside the EndScene hook, on the game's own thread in its own frame, and the
+range is checked committed and writable first. The matrix is renormalised before being scaled, so
+applying it every frame is a hold rather than a multiplication, and it survives the engine
+rewriting the matrix from animation. A row that has collapsed means this is no longer an
+orientation matrix, so the module stops rather than writing into whatever replaced it.
+
 ## Configuration: `[dev_menu]`
 
 | Key | Default | |

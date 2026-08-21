@@ -150,6 +150,7 @@ add_fellowship_plugin(dev_menu
     cheats.c
     flags.c
     messages.c
+    player.c
 )
 target_link_libraries(dev_menu PRIVATE gdi32)
 
