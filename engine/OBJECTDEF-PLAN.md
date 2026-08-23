@@ -4,7 +4,7 @@
 
 # Plan: implement `GetObjectDefInterface` in the proxy
 
-The first *system* the engine layer would own, rather than the two pure predicates it owns now.
+The first *system* the engine layer would own, beyond the two pure predicates it owns now.
 
 ## Why this one
 
@@ -15,7 +15,7 @@ The first *system* the engine layer would own, rather than the two pure predicat
   gives later work somewhere to stand.
 * **It fails visibly.** The game finds its classes at startup or it does not.
 * **It is verifiable to the same standard as the decompilation.** See below: this is the part that
-  makes it worth doing properly rather than approximately.
+  makes it worth doing properly, not approximately.
 
 ## What the interface actually is
 
@@ -34,7 +34,7 @@ load. Nothing else touches them.
 
 The table itself lives in `.data` but is **fully initialised on disk**: all 397 records, every
 pointer resolved at link time. There is no runtime construction to reproduce. This is static data
-behind a getter, which is why it is a tractable first system rather than a rewrite.
+behind a getter, so it is a tractable first system and not a rewrite.
 
 ### The structures to emit
 
@@ -64,7 +64,7 @@ the technique `decomp/tools/matchtool.py` uses for code, applied to data. Every 
 (id, ObjType, counts, type codes, defaults, constraints, flags) must match the retail `.data`
 verbatim, and the pointer fields must resolve to strings and structures that match in turn.
 
-That makes this checkable to the same standard as a matched function rather than "the game seems to
+That makes this checkable to the same standard as a matched function, not "the game seems to
 start", and it means the two unestablished fields below get carried across correctly whether or not
 anyone knows what they mean.
 
@@ -98,7 +98,7 @@ data costs nothing and avoids the question.
 Those resolve to nothing today and would resolve to nothing after this change, which is the correct
 behaviour, but it means there is a second class-id space somewhere that has never been found.
 
-## What this deliberately does not do
+## What this does not do
 
 It does not implement any *behaviour*. The registry is a lookup table; the code that walks it,
 creates objects from it and reads properties through it all stays in the retail module and keeps
@@ -109,5 +109,5 @@ temptation to follow the first consumer into the engine should be resisted until
 
 The generator and verifier are the bulk of it and are both mechanical. The risk is concentrated in
 one place: whether a faithful table is enough, or whether some consumer depends on the retail
-table's *addresses* rather than its contents. That is unknowable in advance and cheap to test, which
+table's *addresses*, not its contents. That is unknowable in advance and cheap to test, which
 is the right shape for a first system.

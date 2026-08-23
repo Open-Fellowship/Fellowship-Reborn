@@ -55,7 +55,7 @@ A mismatch prints an annotated hex diff, `..` for masked operands and `^^` under
 ```
 
 That one is `/O2` against `/O1`: `lea` versus `imul` for the same `b * 3`. Flags show up as
-plainly as this, which is the point: the Rich header cannot tell us the optimisation switches,
+plainly as this, and it earns its place: the Rich header cannot tell us the optimisation switches,
 and diffing is how they get recovered.
 
 ## It was validated before it was trusted

@@ -25,7 +25,7 @@ evaluates forwards and pays an `FXCH`, if the original *has* an `FXCH`, use that
 
 **Classes returned by value declare an explicit copy constructor**, even though nothing calls it
 and it appears nowhere in the binary. Without it the compiler builds a temporary and copies
-rather than constructing into the caller's return buffer.
+instead of constructing into the caller's return buffer.
 
 **`a + b + c` lets the compiler reassociate float arithmetic; separate `+=` or `*=` statements do not.**
 This is not only addition. `pct * 0.01 * scale` written as one expression let VC6 emit the two
@@ -40,14 +40,14 @@ r.z = m[2][1]*v.y;  r.z += m[2][2]*v.z;  r.z += m[2][0]*v.x;
 
 `/GX` was added late, after `0x1005c500` turned out to carry a C++ exception-handling frame that
 cannot be produced without it. It emits nothing at all in a function with no destructible local,
-which is why the first 34 matches never revealed it and why adding it changed none of them. If your
+so the first 34 matches never revealed it, and adding it changed none of them. If your
 function has a local object with a destructor, expect an EH prologue, three pushed words and a
 `FS:[0]` link, and note that the frame has **no real EBP**: `__CxxFrameHandler` reconstructs one as
 the registration node plus 12, so unwind funclet offsets read as *entry ESP minus n*.
 
 **Store order is literal.** VC6 at `/O2` emits stores in source order and does not group them by
 value. So the order in the disassembly *is* the order of the assignments, a bulk initialiser is
-read off directly rather than guessed at. Two or more runs of strictly **descending** offsets,
+read off directly, not guessed at. Two or more runs of strictly **descending** offsets,
 one run per distinct constant, is a chained assignment:
 
 ```cpp
@@ -146,7 +146,7 @@ which is what the original has.
 **A sparse `switch` lowers to a `SUB`/`JZ` chain, and a dense one to a binary search.**
 `SUB EAX,0x10025 / JZ ... / SUB EAX,0xc / JZ ...` is a `switch` with fall-through cases, not
 `if (a || b || c)`, the latter gives a `CMP`/`JZ` chain and different bytes. A larger switch picks a
-median value, tests it, and recurses; the case bodies are then placed by fall-through rather than in
+median value, tests it, and recurses; the case bodies are then placed by fall-through and not in
 source order.
 
 **A `SETcc` followed by a redundant `MOV EAX,<reg>` and `TEST EAX,EAX` is an inline function
@@ -207,23 +207,23 @@ value. `const T &x = f();` is worse: it materialises a second temporary.
 
 Related, and it costs attempts to discover: **VC6 will not inline a `__inline` function that returns
 a class or a reference to one** at `/O2`, even a three-store one. Only value-returning helpers
-inline, which is why the float-returning property helper above works and a `Vector3`-returning one
+inline, so the float-returning property helper above works and a `Vector3`-returning one
 does not.
 
 **A Win32 import needs `__declspec(dllimport)`, and that is not optional.** With it, a call
 compiles to `FF 15 <addr>` (six bytes, indirect through the import thunk) which is what the game
 has. Without it VC6 emits `E8 rel32` into a linker-generated jump stub: wrong instruction, wrong
-length, and everything after the first call shifts. Declare them yourself rather than including
+length, and everything after the first call shifts. Declare them yourself instead of including
 `<windows.h>`, which changes what the compiler sees:
 
 ```cpp
 extern "C" __declspec(dllimport) void * __stdcall GlobalLock(void *hMem);
 ```
 
-`dllimport` has a second effect worth knowing, because it looks like register allocation and is
+`dllimport` has a second effect, and it looks like register allocation and is
 not. It makes the thunk slot an ordinary variable, so two calls to the same import share one load
 of it (`MOV EBX,[addr]` then `CALL EBX` twice) and the `PUSH EBX`/`POP EBX` pair lands *inside*
-whichever block does the calling rather than in the prologue. That falls out of `dllimport`; do not
+whichever block does the calling, not in the prologue. That falls out of `dllimport`; do not
 try to write it.
 
 **A virtual whose `this` arrives on the stack is `__stdcall`, but check what clobbered ECX
@@ -251,7 +251,7 @@ local, and the ternary `x ? 1 : 0`, all of them peephole to the shift. Two retur
 shape that produces the `SBB` sequence.
 
 **`=` and `|=` are literal too.** A plain `MOV dword ptr [EAX],2` where the surrounding code uses
-`OR` means the source assigned rather than or-ed, even when the value is provably zero at that
+`OR` means the source assigned, not or-ed, even when the value is provably zero at that
 point and the two are equivalent. Write what the instruction says.
 
 **A call you cannot identify is still matchable.** `CALL rel32` and `CALL dword ptr [addr]` both
@@ -273,7 +273,7 @@ relocation operand was blanked on both sides. Masked bytes carry no information,
 | a temporary the original does not have | the compiler is not applying the return value optimisation, your return statement's shape is wrong |
 | one extra instruction, e.g. `FXCH` | the source is nearly right; the evaluation order is off |
 | terms grouped differently | reassociation, use `+=` |
-| everything different | your reading of the function is wrong. Re-read the disassembly rather than permuting the source |
+| everything different | your reading of the function is wrong. Re-read the disassembly instead of permuting the source |
 | identical instructions, different registers | register allocation. Not reachable from source, so stop here |
 
 ## When a match does not mean anything
@@ -284,7 +284,7 @@ it. `mov eax, <address>; ret` is six bytes, four of them a masked relocation, so
 returning *any* pointer matches it, and the match tells you nothing about whether you identified
 the right global.
 
-If the masked count is a large fraction of the size, record that rather than claiming a
+If the masked count is a large fraction of the size, record that instead of claiming a
 result. `try.py` prints both numbers.
 
 ## Signatures

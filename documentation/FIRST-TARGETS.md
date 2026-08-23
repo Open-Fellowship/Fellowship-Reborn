@@ -51,7 +51,7 @@ Vector3 &Vector3::operator=(const Vector3 &v)
 ```
 
 **MATCH, 25 bytes.** The prediction on this one was wrong and worth recording. The three floats
-are copied with *integer* `mov` rather than `fld`/`fstp`, and that was read as the signature of
+are copied with *integer* `mov` and not `fld`/`fstp`, and that was read as the signature of
 an **implicitly generated** copy-assignment operator, the guess being that the class declares
 no `operator=` at all and the compiler synthesises a memberwise copy. That was unnecessary
 caution: the hand-written body above, `x = v.x; y = v.y; z = v.z; return *this;`, produces those
@@ -200,7 +200,7 @@ with an **explicit copy constructor** declared on the class:
 Vector3(const Vector3 &o) : x(o.x), y(o.y), z(o.z) {}
 ```
 
-Two things had to be right at once, which is why neither alone ever got close.
+Two things had to be right at once, so neither alone ever got close.
 
 **The copy constructor.** Without it the compiler builds a temporary and copies it into the
 caller's return buffer. Declaring it (even though nothing ever calls it out of line, and the
@@ -221,7 +221,7 @@ ours   d9 00    …  x, y, z   ->  st(0) = z, then  d9 ca  fxch st(2)
 
 The last 6 bytes were one instruction's placement (whether `mov eax,[esp+4]` sat between the
 final `fld` and `fadd` or after both) and that fell out on its own once the source used a
-named local rather than a returned temporary. The named-local form is NRVO; the constructor
+named local, not a returned temporary. The named-local form is NRVO; the constructor
 form is RVO, and VC6 schedules the two differently.
 
 ### What was ruled out getting there

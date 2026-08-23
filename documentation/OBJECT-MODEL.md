@@ -56,7 +56,7 @@ exactly two stores followed by a return:
 with a getter at `0x1004c230` returning the address of that pair. This matters for more than
 tidiness, see below.
 
-**The id precedes the name rather than following it.** Read the record the other way round (which
+**The id comes before the name, not after.** Read the record the other way round (which
 is the obvious reading, since the name is the field that catches the eye) and the record still
 parses, the ids are still dense, and every class reference in the whole table resolves to the class
 *next door*. Nothing about the shape of the data reveals the error.
@@ -87,7 +87,7 @@ carry float bit patterns, colours carry `0x00RRGGBB`, channels default to `-1`, 
 comma-separated value list, and every resource type defaults to the same pointer into the
 zero-filled tail of `.data`, which is to say, unset. Of the high-nibble modifiers only `1` is
 established, as "list"; every property carrying it is named as a plural. The others appear on
-references and are reported raw rather than named.
+references and are reported raw, not named.
 
 ## What it does not tell you
 
@@ -101,7 +101,7 @@ cannot tell you which.
 
 So this is a vocabulary, not a layout. It means that when a decompiled function is found to touch
 the player's health, a real name (`InitialHealth`, `MaxHealth`, `CriticalHealthPerc`) exists to
-attach to it instead of an invented one. That is worth a great deal and it is not the same thing as
+attach to it instead of an invented one. That counts for a great deal, and it is not the same thing as
 knowing where those fields live.
 
 ## The Player class

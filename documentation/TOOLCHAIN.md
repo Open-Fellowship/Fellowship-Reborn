@@ -22,7 +22,7 @@ compiler fingerprint a stripped release binary carries.
 | Rich checksum | valid | valid |
 
 The Rich header's XOR key doubles as a checksum over the bytes preceding it. Both files
-recompute correctly, so both headers are intact and the decode below is trustworthy rather than
+recompute correctly, so both headers are intact and the decode below is trustworthy and not
 a plausible-looking misalignment.
 
 ## Read the rfl, not the exe
@@ -42,7 +42,7 @@ They are the protection wrapper's own code, compiled by whoever wrapped the buil
 Surreal. Counting them as game toolchain would put the answer a whole compiler generation out.
 
 The `FLT!` timestamp is the No-CD crack's tag, written over the COFF `TimeDateStamp`. That field
-sits outside the range the Rich checksum covers, which is why the header still verifies. The
+sits outside the range the Rich checksum covers, so the header still verifies. The
 rfl's timestamp was never touched and dates the build to two months before the game shipped.
 
 So the rfl is the clean read: unprotected, correctly dated, and holding the bulk of the game
@@ -128,7 +128,7 @@ c2.dll   13.00.9044.0     <- the Processor Pack's C++ back end
 
 That is an exact match for the 234 C++ objects in the rfl, and it also explains the odd prodID:
 the Processor Pack's back end self-reports as **13.00**, a VC7-lineage `C2.DLL` grafted onto a
-VC6 front end, which is why it is recorded under its own prodID instead of sharing VC6's. It was
+VC6 front end, so it is recorded under its own prodID instead of sharing VC6's. It was
 then confirmed a second time by compiling: three of the four functions in `FIRST-TARGETS.md`
 matched byte for byte on the first attempt.
 
@@ -228,7 +228,7 @@ Two gaps against the game's own Rich header, neither of which has blocked anythi
 `vs6sp5.exe` does contain compiler binaries (`link.exe` in `VS6sp54.cab`, `cl.exe`/`c1.dll`/
 `c1xx.dll` in `VS6sp55.cab`) but they are inside a **spanned** cab set that `expand` would not
 walk to completion, and that `expand -D` cannot even list. Since the linker is not on the
-critical path, this was left alone rather than solved.
+critical path, this was left alone, not solved.
 
 ## Reproducing it
 

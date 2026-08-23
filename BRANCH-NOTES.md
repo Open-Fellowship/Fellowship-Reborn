@@ -22,7 +22,7 @@ behaviour.
 
 A drop-in `Fellowship.rfl` that exports the same eleven names as the retail module, loads the
 original renamed to `Fellowship.orig.rfl`, and forwards to it. Installed on a retail copy, the
-game plays normally. That is the whole point of it: a function moves from forwarded to ours by
+game plays normally, which is the whole arrangement: a function moves from forwarded to ours by
 changing one function body, and the game keeps running the whole way.
 
 Six of the eleven exports are ours:
@@ -45,7 +45,7 @@ on a fault that turned out not to be ours (a missing `LevelList.txt`).
 
 **Be clear about what a registry is.** It is data. Each one is published by a function that is two
 stores and a return, so a faithful table *is* the implementation and there is no behaviour to
-reproduce. Serving four of them is real work and it is not engine work.
+reproduce. Serving four of them is real work, but not engine work.
 
 Still forwarded, and correctly so: `GetBaseRFLInterface` returns a C++ object with a 66-entry
 vtable, which is where the engine actually lives.
@@ -53,7 +53,7 @@ vtable, which is where the engine actually lives.
 ### `decomp/`: the verifier and the tooling
 
 Source that, compiled by VC++ 6.0 with the Processor Pack, reproduces the original's bytes
-exactly. **58 of 69 manifest entries match.** This is not the deliverable; it is how a claim about
+exactly. **58 of 69 manifest entries match.** That is not the deliverable but the way a claim about
 the engine gets proved before it is written properly.
 
 Also here, and more useful day to day:
@@ -132,5 +132,5 @@ Two things that will waste your time if you do not know them:
 whether or not the proxy is installed. Without it, installing the proxy silently broke every plugin
 that hooks the rfl: `text_scaling` went from seven hooks to zero.
 
-That change is backwards compatible and is arguably worth having on `development` regardless of
+That change is backwards compatible and would arguably earn its place on `development` regardless of
 what happens to the rest of this branch.

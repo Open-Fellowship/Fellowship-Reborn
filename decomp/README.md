@@ -3,8 +3,8 @@
 Source that, compiled by the original toolchain, produces the exact bytes the shipped game
 holds. Not equivalent code: the same code generation, instruction for instruction.
 
-**This is not the engine.** It is how the engine gets verified. A subsystem is decompiled here
-and matched byte for byte, which proves it is understood completely rather than approximately,
+**This is not the engine itself.** It is how the engine gets verified. A subsystem is decompiled here
+and matched byte for byte, which proves it is understood completely, not approximately,
 and only then is it written properly in `engine/`. Matching is the evidence; `engine/` is the
 deliverable.
 
@@ -54,7 +54,7 @@ A little under a tenth of that loose code is a different problem. `truncated` co
 exactly where a function body ends, which means the body stopped early, usually at a mid-body
 `INT3`. Those bytes belong to the function in front of them, so a size taken from Ghidra for such a
 function is short, and a "match" against a short size would be a match against part of a function.
-**No entry in `manifest.tsv` is currently affected**, which was checked rather than assumed.
+**No entry in `manifest.tsv` is currently affected**, which was checked, not assumed.
 
 The exe's `.cms_t` (SecuROM, 184,320 bytes) holds no code at rest, the census finds it entirely
 zero-filled, so it contributes nothing to any figure here.
@@ -68,7 +68,7 @@ percentage hide either.
 ## The corpus
 
 Every function in an image, exported and folded into three flat files, so a question about the
-engine is a grep rather than an afternoon:
+engine is a grep, not an afternoon:
 
 ```
 python decomp/tools/corpus.py --build rfl        # from export/rfl-all
@@ -81,7 +81,7 @@ python decomp/tools/corpus.py --calls 1004c210   # every caller of an address
 flat files, all derived from the images. The recipe is in `tools/ExportFunctions.java`.
 
 Two cautions, both of which have already bitten. The corpus only knows about functions, so a
-`--calls` that finds nothing may mean the caller is in the loose code above rather than that nothing
+`--calls` that finds nothing may mean the caller is in the loose code above, not that nothing
 calls it. And an address that looks uncalled may simply be the body behind an incremental-link
 thunk: the linker emits a five-byte `jmp` and everything calls *that*, five bytes earlier.
 
@@ -107,14 +107,14 @@ taught is below.
 ### The exe and the rfl share source
 
 Every function matched in the rfl was found byte-identical in `Fellowship.exe` as well. That is
-worth knowing before organising anything: source is **not** split by image, because one file
+to know before organising anything: source is **not** split by image, because one file
 legitimately reproduces functions in both. The `image` column in `manifest.tsv` is per function,
 not per file, which is what makes that work, and it means a function matched once can be claimed
 twice.
 
 Eleven of the entries above cost nothing beyond locating them: search the exe for the bytes of an
 already-matched rfl function, and where the hit is unique, that is the same function at a new
-address. Worth doing after any round.
+address. Do that after any round.
 
 Two caveats on that trick. A raw search only finds **relocation-free** functions:
 `Vector3::operator/=` loads the `1.0f` constant from `.rdata` and its address differs between the
@@ -126,7 +126,7 @@ applied to a search. Worth reaching for whenever a function you expect to find d
 that binary, or inlined into its callers.
 
 And a short generic body can appear more than once: `Vector3::operator=` is a 25-byte three-dword
-copy occurring four times in the exe, so it identifies nothing and was left out rather than
+copy occurring four times in the exe, so it identifies nothing and was left out and not
 guessed at.
 
 `levellist.cpp` is the first file with real relocations (string addresses, a call to the CRT,
@@ -209,12 +209,12 @@ So modules here are grouped by **inferred subsystem**, from two kinds of evidenc
   the callee is invoked on an object of the caller's class, so a class established for one
   function carries to the other. `decomp\tools\ordmap.py` does this, and
   `--check` guards it against over-claiming
-* **cross-function codegen dependencies**: proof rather than a hint; see below
+* **cross-function codegen dependencies**: proof, not a hint; see below
 
 Add a module when there is evidence of a distinct subsystem, not in anticipation of one. Empty
 folders named for subsystems we have guessed at would be inventing structure we cannot justify.
 
-**This is almost always organisation rather than constraint (but not quite always, and the
+**This is almost always organisation, not constraint (but not quite always, and the
 exception is what makes file grouping recoverable at all.** With `/Gy` every function is its
 own COMDAT, so which `.cpp` a function lives in usually has no effect on its bytes) which is why `math\vector3.cpp` matches
 12 of 12 while certainly not being the original file, under a name we made up. Layout is
@@ -225,7 +225,7 @@ call it. `Player::ShouldRegenerate` at `0x100570d0` compares two float-returning
 keeps the first result on the x87 stack across the second, ending in `FCOMPP`. VC6 only
 does that when the callee is **defined above the caller in the same translation unit**.
 With `Player::GetCriticalHealth` merely declared it spills to a stack slot and compares
-against memory instead, 76 bytes rather than 67, everything after the first call shifted.
+against memory instead, 76 bytes instead of 67, everything after the first call shifted.
 That one ruled out `double` returns, operand order, every spelling of the comparison,
 inline helpers, free versus member versus virtual callees, C with `__fastcall`, and a
 twenty-switch flag sweep before finding it.
@@ -241,7 +241,7 @@ matching image, which it is not.
 **Every name in `src\` is invented**, `Vector3`, `Matrix`, `LevelList`, `IsBackupPath`, every
 member and every parameter. Nothing in these binaries carries the originals. Names are chosen to
 describe what the code demonstrably does and nothing more; where a member's purpose is not
-established, the comment says so rather than the name implying it. Treat them as our labels, not
+established, the comment says so instead of the name implying it. Treat them as our labels, not
 as recovered fact.
 
 ## Nothing here is ever linked
@@ -292,7 +292,7 @@ patcher, and a patched one mismatches for reasons that have nothing to do with t
 
 ## The manifest
 
-`expect` is what makes this a harness rather than a script:
+`expect` is what makes this a harness, not a script:
 
 | | |
 |---|---|
@@ -338,7 +338,7 @@ Each file carries what a reader needs and raw disassembly does not:
 first**, no calls means no relocations, so nothing is masked and a match means every byte
 agreed.
 
-It is a Java script rather than Python on purpose: headless runs Java with no setup, whereas
+It is a Java script and not Python, on purpose: headless runs Java with no setup, whereas
 PyGhidra needs Ghidra launched a particular way and a pip package installed. Ghidra prints
 `Module manifest file error` warnings for any installed extensions during headless runs; they are
 harmless.
@@ -402,7 +402,7 @@ nothing is masked and a match means every byte agreed.
 
 `matchtool.py` blanks the operand at every relocation site on both sides before comparing,
 because a `call rel32` is a placeholder in a `.obj` and a resolved address in the image. What
-survives is pure code generation, and it is worth reading closely: the four functions above
+survives is pure code generation, and it repays reading closely: the four functions above
 came out of exactly this:
 
 * **An extra instruction, or one in the wrong place**, usually means the source shape is nearly

@@ -84,7 +84,7 @@ none contains them:
 
 These are gaps in the analysis, not gaps in the game. A function Ghidra misses is usually one
 nothing calls directly, reached only through a vtable or a jump table, and every one of these was
-found by the plugin work rather than by the disassembler, which is a fair measure of how much the
+found by the plugin work, not by the disassembler, which is a fair measure of how much the
 two approaches see that the other does not.
 
 They cannot be decompilation targets until they are functions. Fixing that means forcing

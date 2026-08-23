@@ -43,7 +43,7 @@ The other four getters have the same six-byte shape and return four more interfa
 **ObjType is a second registry, and it is the ObjectDef table's missing column.** Its initialiser
 is at `0x1004c290`, the same two-store shape as the ObjectDef one, publishing 19 records at
 `0x10129aa0`. The records are **8 bytes** (`{u32 id, char *name}`) not the ObjectDef 32-byte
-layout, which is why reading them that way produced ids `1, 5, 9, 0xd, 0x11` and then garbage.
+layout, so reading them that way produced ids `1, 5, 9, 0xd, 0x11` and then garbage.
 
 The nineteen categories:
 
@@ -53,7 +53,7 @@ The nineteen categories:
 
 **Every ObjectDef names one of them**, in the field at `+0x04` that
 [OBJECT-MODEL.md](OBJECT-MODEL.md) previously reported as an unknown small int. All 397 classes
-resolve, and the groupings are exact rather than merely plausible: type 3 "Player" contains one
+resolve, and the groupings are exact, not merely plausible: type 3 "Player" contains one
 class and it is `Player`; type 14 "Light Source" contains four and they are precisely the four that
 the exported `IsObjectLight` predicate tests; "Behavior" and "Root Behavior" split the behaviour
 classes; the four material classes and `Footsteps` are the whole of "Material".
@@ -95,8 +95,8 @@ these three named predicates. They were arrived at independently and they do not
 
 ## Why there are only eleven
 
-Everything else the engine does is reached through the interface structures rather than through
-exported functions, which is why `GetObjectDefInterface` has no callers inside the rfl itself, the
+Everything else the engine does is reached through the interface structures, not through
+exported functions, so `GetObjectDefInterface` has no callers inside the rfl itself, the
 host executable and the level editor call it, the DLL does not call itself. That is also why the
 export table is worth so little and so much at once: eleven names is nearly nothing, but they name
 the doors, and the vocabulary behind them, ObjectDef, ObjType, LandType, Message, is the

@@ -44,13 +44,13 @@ ordinals 0, 1 and 2 as `InitialHealth`, `MaxHealth` and `Difficulty`. Every one 
 Player property, the types are plausible, and all three are wrong.
 
 *Attributing by type fingerprint*, matching the schema's declared types against whether the result
-is dereferenced with `FLD`, works, but only when it is anchored rather than searched for. A first
+is dereferenced with `FLD`, works, but only when it is anchored, not searched for. A first
 attempt looked 24 bytes past the call, caught neighbouring floating-point code, and classified the
 same ordinal in `0x100148c0` as float at one site and integer at another. Anchored to **exactly the
 two bytes after the call**, `D9 00`, `FLD dword ptr [EAX]`; it is exact, and it is the single most
 useful constraint the tool has.
 
-So the tool applies two tests, both arithmetic rather than inference:
+So the tool applies two tests, both arithmetic, not inference:
 
 * **count**: a class must have more properties than the highest ordinal the function uses
 * **type**: an ordinal loaded with `FLD` must be declared `float` in that class
@@ -62,7 +62,7 @@ of the latter's properties are strings, and no string is loaded with `FLD`.
 Their *failures* are informative too. Eight functions now fit **no** class, and they are the 4KB to
 8KB ones. A function reading one ordinal as a float and another as an integer where no single class
 declares both that way is reading properties of **several** classes, a dispatcher. The tool says so
-rather than picking a winner.
+instead of picking a winner.
 
 **The ordinal ceiling** remains as a special case: `Player` has 166 properties and the next largest
 has 154, so any ordinal above 154 is Player and nothing else, whatever the types say.
@@ -83,7 +83,7 @@ space. Fifteen functions have ordinals that fit only `Player` or `Control Input 
 `Control Input Names` is a key-binding table read by settings screens, not by a 5,394-byte function
 performing thirty property reads. Taking that region as Player's implementation is judgement rather
 than proof, but it is well-supported judgement, and it is falsifiable: decompiling any function in
-it and finding it reads `LeftWindowsKey` rather than `MaxMana` would refute it immediately.
+it and finding it reads `LeftWindowsKey` instead of `MaxMana` would refute it immediately.
 
 | | |
 |---|---|
@@ -152,7 +152,7 @@ It is closed. `ExportFunctions.java` now has a `census` mode that accounts for e
 executable section and records each run of loose code, along with whether it begins exactly where a
 function body ends. `ordmap.py` feeds those runs back in: a run that continues a body is merged into
 it (which is also the better attribution, since the class id being tested is usually in the head
-rather than the tail) and a run standing on its own becomes a function in its own right. **Reads
+and not the tail) and a run standing on its own becomes a function in its own right. **Reads
 outside any function are now zero**, and the total went from 1,555 to 2,323.
 
 The size of the gap is in [`decomp/census.tsv`](../decomp/census.tsv): 220,016 bytes across 1,932
@@ -164,7 +164,7 @@ in EBP and emitted `PUSH EBP` instead, so that site was invisible. The scanner n
 specific shape: the ordinal push immediately preceded by a one-byte `PUSH r32`, which is a list read
 at a computed index. That is 86 more reads, taking the total to 2,409.
 
-It is deliberately that narrow. Accepting "one immediate push before the call" in general matches
+It is that narrow on purpose. Accepting "one immediate push before the call" in general matches
 far too much, and these sites do give up the element-index test, so it is worth being explicit about
 what still constrains them: the ordinal ceiling. No class has more than 166 properties, so a misread
 shows up as an impossible ordinal, and `ordmap.py --check` asserts that none appears. That is the
