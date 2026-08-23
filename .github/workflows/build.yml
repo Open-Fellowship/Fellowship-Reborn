@@ -58,8 +58,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # /analyze:WX- matters: this project builds with /WX, so without it every analysis
+      # finding becomes a fatal error instead of the advice it is meant to be.
       - name: Configure with /analyze
-        run: cmake -S legacy -B legacy/build-analyze -A Win32 -DCMAKE_C_FLAGS="/analyze"
+        run: cmake -S legacy -B legacy/build-analyze -A Win32 -DCMAKE_C_FLAGS="/analyze /analyze:WX-"
 
       - name: Build
         run: cmake --build legacy/build-analyze --config Release
