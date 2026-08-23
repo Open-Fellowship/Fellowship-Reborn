@@ -398,16 +398,26 @@ void borderless_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    /* On by default under Wine and off on Windows, because that is where the difference between
-     * "alt-tab is slow" and "the window is minimised and the game draws nothing" lives. The ini
-     * overrides either way. */
-    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", platform_is_wine())) {
-        log_info("Enabled=0, the game takes the screen exclusively as it always did");
+    /* OFF BY DEFAULT, INCLUDING UNDER WINE.
+     *
+     * It used to switch itself on under Wine, on the reasoning that exclusive full screen loses
+     * its window to the focus there and the engine draws nothing while its window is down. That
+     * reasoning still holds. What it did not account for is that dev_menu stops working on a
+     * Steam Deck when this is on: measured, reproduced, and fixed by turning this off.
+     *
+     * Both plugins reach the same device. This one rewrites the presentation parameters through
+     * CreateDevice and Reset and re-asserts the window shape four times a second; dev_menu hooks
+     * EndScene and takes the mouse through DirectInput. Which of those two interactions breaks
+     * the menu is not established, so this is off until it is, rather than on with a known
+     * failure attached.
+     *
+     * Turn it on if alt-tab or a lost window is costing you more than the menu is worth. */
+    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
         return;
     }
     if (platform_is_wine()) {
-        log_info("this is WINE %s, where exclusive full screen loses its window to the focus, "
-                 "so this is on unless the ini says otherwise", platform_wine_version());
+        log_info("this is WINE %s, where exclusive full screen loses its window to the focus",
+                 platform_wine_version());
     }
     if (!host_image_resolve()) {
         log_error("the host image could not be resolved");

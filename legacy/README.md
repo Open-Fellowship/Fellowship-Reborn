@@ -100,6 +100,11 @@ The fixes already proven by that work are being ported into plugins here. Each p
 | `windowed_res` | exe | off | sets the size of the window the game opens in. Wants the opposite of `resolution_unlock` at one site, so run one or the other |
 | `level_select` | rfl | **on** | New Game opens the game's own level list, a finished screen nobody ever reaches. Finds its site by signature |
 | `hud_probe` | exe | off | a diagnostic, not a fix: records which code reads which authored value |
+| `movie_skip` | exe | auto | Wine only. The opening movies play through a runtime Wine stubs, so the engine waits for an end that never comes. Off on Windows, where they work |
+| `borderless` | exe | off | full-screen size without taking the screen exclusively. Off because it stops `dev_menu` working under Wine, see its README |
+| `env_probe` | draws | off | a diagnostic: what platform this is, which Direct3D 8 is in the process, and what `CreateDevice` answered |
+| `frame_state` | exe | off | a diagnostic: reads the engine's frame mode word and counter, for when Direct3D is healthy and nothing is on screen |
+| `screen_test` | draws | off | a diagnostic: paints the back buffer a solid colour, to tell a black screen from a game drawing nothing |
 | `dev_menu` | draws | **on** | an in-game overlay, toggled with the key under Escape. Hooks nothing until you press it |
 | `template_plugin` | nothing | off | the loader contract's own test |
 

@@ -1,10 +1,27 @@
 # borderless
 
-**Produces:** `borderless.dll`. On under Wine, off on Windows, unless the ini says otherwise.
+**Produces:** `borderless.dll`. **Off by default**, including under Wine. See the note below.
 
 The game keeps the size it asked for and stops taking the screen exclusively.
 
+## Why it is off, including under Wine
+
+It used to switch itself on under Wine, and the reasoning for that still holds: exclusive full
+screen loses its window to the focus there, and this engine draws nothing while its window is
+down.
+
+**It stops `dev_menu` working on a Steam Deck.** Measured on hardware, reproduced, and fixed by
+turning this off. Both plugins reach the same Direct3D device: this one rewrites the presentation
+parameters through `CreateDevice` and `Reset` and re-asserts the window shape four times a second
+from a keeper thread, while `dev_menu` hooks `EndScene` and takes the mouse through DirectInput in
+exclusive mode. Which of those interactions breaks the menu is **not established**.
+
+So it waits. A plugin that is on by default with a known failure attached is worse than one that
+is off with a note explaining what to fix. Turn it on if a lost window is costing you more than
+the menu is worth.
+
 ## Why
+
 
 Exclusive full screen is a bargain with the display. The game gets the mode it asks for, and in
 exchange the window's fate belongs to the focus: lose the foreground for an instant and the
@@ -47,6 +64,6 @@ found and forwards, so this and `env_probe` chain in load order rather than figh
 
 | Key | Default | |
 |---|---|---|
-| `Enabled` | auto | absent means on under Wine and off on Windows. `1` forces it on, `0` off |
+| `Enabled` | `0` | off everywhere. `1` turns it on |
 | `Width` | `0` | 0 = the width of the desktop |
 | `Height` | `0` | 0 = the height of the desktop |
