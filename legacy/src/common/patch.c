@@ -91,7 +91,7 @@ patch_result_t patch_write_expect(uintptr_t address, const uint8_t *expected,
             return PATCH_RESULT_OK;
         }
         log_error("%08X holds %s", (unsigned)address, hex_of(found, size));
-        log_error("   expected %s - refusing to write", hex_of(expected, size));
+        log_error("   expected %s, refusing to write", hex_of(expected, size));
         return PATCH_RESULT_UNEXPECTED_BYTES;
     }
     return patch_write_bytes(address, replacement, size);
@@ -112,7 +112,7 @@ patch_result_t patch_repoint_operand(uintptr_t operand_address, uint32_t expecte
         return PATCH_RESULT_OK;
     }
     if (current != expected_old) {
-        log_error("operand at %08X points at %08X, expected %08X - refusing",
+        log_error("operand at %08X points at %08X, expected %08X, refusing",
                   (unsigned)operand_address, (unsigned)current, (unsigned)expected_old);
         return PATCH_RESULT_UNEXPECTED_BYTES;
     }
@@ -134,7 +134,7 @@ patch_result_t patch_redirect_call(uintptr_t call_address, const void *new_targe
     if (opcode != 0xE8u) {
         /* Not a call. Believing the displacement of something that is not a call is how a patch
          * lands in the middle of an unrelated instruction. */
-        log_error("%08X holds %02X, not E8 - refusing to redirect a call that is not there",
+        log_error("%08X holds %02X, not E8, refusing to redirect a call that is not there",
                   (unsigned)call_address, opcode);
         return PATCH_RESULT_UNEXPECTED_BYTES;
     }

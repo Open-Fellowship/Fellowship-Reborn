@@ -20,7 +20,7 @@ own screen edges above 3072 pixels; a shipped level-select screen is reachable
 by nothing. These are defects with a right answer, and fixing one is finished
 work rather than a matter of taste.
 
-**2. Modern settings.** Make a 2002 game behave on 2026 hardware - frame rate,
+**2. Modern settings.** Make a 2002 game behave on 2026 hardware, frame rate,
 resolution, HUD and text scaling, field of view, and controller support. The
 game was authored for 640x480 and a fixed timestep, and most of what looks
 broken at 4K is that assumption showing through rather than anything rotten.
@@ -36,7 +36,7 @@ strings are the gaps.
 **4. Restore content.** Cut content that is still in the files, content that
 exists in the console ports and not the PC one, and a mod folder on the main
 menu that can load and unload additions without anybody editing an ini by hand.
-The engine turns out to be full of things that shipped and are unreachable -
+The engine turns out to be full of things that shipped and are unreachable,
 `level_select` is one, the 124-entry developer flag menu is another.
 
 **5. Cheats and the dev menu.** The engine's own debug tooling, put back where a
@@ -72,7 +72,7 @@ Against the five pillars: `black_screen`, `edge_popin` and `level_select` are **
 `hud_scaling`, `text_scaling`, `resolution_unlock`, `game_speed`, `fps_limit`, `windowed_res`,
 `field_of_view`, `model_lod` and `view_distance` are **2**; `level_select` and `dev_menu`'s engine
 flag page reach content that shipped and nothing else can, which is **4**; `dev_menu` and
-`fog_toggle` are **5**. Pillar **3** is not served by any plugin - it lives in `editor/`, because
+`fog_toggle` are **5**. Pillar **3** is not served by any plugin; it lives in `editor/`, because
 modding is a tooling problem rather than a runtime one.
 
 On by default:

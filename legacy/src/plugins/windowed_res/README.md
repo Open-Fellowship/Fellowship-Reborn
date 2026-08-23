@@ -17,7 +17,7 @@ patcher's `ForceCustomWindowedRes` does.
 Two of the five values the patcher writes for this option put back the exact bytes
 `UnlockResolutions` changed at `0x4BC4FF`. The patcher gets away with it because both run in one
 function, in order. Here they are separate DLLs and the loader loads alphabetically, so
-`windowed_res` lands after `resolution_unlock` and wins - the same outcome, reached far less
+`windowed_res` lands after `resolution_unlock` and wins, the same outcome, reached far less
 obviously.
 
 Rather than rely on filenames, this plugin checks whether `resolution_unlock` has been there and

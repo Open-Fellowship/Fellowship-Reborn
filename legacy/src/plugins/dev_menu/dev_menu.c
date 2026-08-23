@@ -26,7 +26,7 @@
 
 #define PLUGIN_SECTION "dev_menu"
 
-/* The key immediately below Escape. VK_OEM_3 is that key on both US and UK layouts - backquote
+/* The key immediately below Escape. VK_OEM_3 is that key on both US and UK layouts, backquote
  * there, and whatever sits in that position elsewhere. The game's own cheats are F5 to F12 and
  * fog_toggle took F1, so this position is free. */
 #define DEFAULT_TOGGLE_KEY VK_OEM_3
@@ -104,7 +104,7 @@ static bool  g_dragging;
  *
  * Raw input sits underneath all of that. WM_INPUT delivers the device's own relative movement
  * whatever DirectInput has done with the cursor, so this plugin keeps its OWN pointer position,
- * accumulated from those deltas and drawn by the overlay - the system cursor is invisible and
+ * accumulated from those deltas and drawn by the overlay; the system cursor is invisible and
  * frozen, and is no longer anything to do with us.
  *
  * The window that receives it is a message-only window of our own on our own thread. Subclassing
@@ -128,8 +128,8 @@ static int           g_view_h = 1080;
 
 /* --------------------------------------------------------------------------- finding things */
 
-/* DirectInput wants a window to hang a cooperative level on. Not for coordinates - there are no
- * coordinates any more, only movement - just for the association. */
+/* DirectInput wants a window to hang a cooperative level on. Not for coordinates; there are no
+ * coordinates any more, only movement, just for the association. */
 static BOOL CALLBACK pick_window(HWND window, LPARAM parameter)
 {
     DWORD process = 0;
@@ -152,7 +152,7 @@ static BOOL CALLBACK pick_window(HWND window, LPARAM parameter)
  * swings around underneath it, which is worse than either extreme.
  *
  * So the game's own reads are silenced at the source. The executable imports exactly ONE symbol
- * from DINPUT8.dll - DirectInput8Create - and a plugin installed at the entry point runs long
+ * from DINPUT8.dll, DirectInput8Create, and a plugin installed at the entry point runs long
  * before the game calls it. Rewriting that import slot gives us the interface it is handed, the
  * interface gives us the CreateDevice call, and CreateDevice gives us the mouse device itself.
  * From there, one vtable entry decides whether the game hears anything.
@@ -160,7 +160,7 @@ static BOOL CALLBACK pick_window(HWND window, LPARAM parameter)
  * Every hook forwards. While the menu is closed the game reads its mouse exactly as it always
  * did; while it is open, the two functions that return mouse data return nothing. And the check
  * is on the DEVICE, not the vtable, because DirectInput gives every device of a class the same
- * vtable - silencing the vtable outright would take the keyboard with it, and our own mouse.
+ * vtable, silencing the vtable outright would take the keyboard with it, and our own mouse.
  */
 
 static direct_input8_create_t g_original_create;
@@ -303,7 +303,7 @@ static void install_input_intercept(void)
     void **slot = find_import_slot("DINPUT8.dll", "DirectInput8Create");
 
     if (slot == NULL) {
-        log_warning("DirectInput8Create is not imported where expected - the game will keep "
+        log_warning("DirectInput8Create is not imported where expected; the game will keep "
                     "seeing the mouse while the menu is open");
         return;
     }
@@ -388,7 +388,7 @@ static bool open_mouse(void)
     }
 
     /* Exclusive first. If the game is not holding the mouse exclusively we take it, and it stops
-     * seeing the movement while the menu is open - which is the point of a menu. If it is, we
+     * seeing the movement while the menu is open, which is the point of a menu. If it is, we
      * share, and the game keeps reacting to the same movement we do. Either way the pointer
      * works; only whether the world moves underneath it changes. */
     if (SUCCEEDED(((di8_set_coop_t)(*(void ***)device)[DI8_DEV_SETCOOPLEVEL])(
@@ -405,8 +405,8 @@ static bool open_mouse(void)
 
     g_mouse_device = device;
     log_info("mouse opened through DirectInput, %s",
-             g_mouse_exclusive ? "exclusively - the game will not see it while the menu is open"
-                               : "shared - the game still sees the same movement");
+             g_mouse_exclusive ? "exclusively; the game will not see it while the menu is open"
+                               : "shared, the game still sees the same movement");
     return true;
 }
 
@@ -585,7 +585,7 @@ static float clampf(float value, float low, float high)
     return value;
 }
 
-/* Only degrees are needed here. This plugin never turns an angle into a focal length - that is
+/* Only degrees are needed here. This plugin never turns an angle into a focal length; that is
  * field_of_view's job, and keeping the conversion in one place is the point of the channel. */
 static double to_degrees(double radians) { return radians * 180.0 / 3.14159265358979323846; }
 
@@ -733,7 +733,7 @@ static void cheat_button_rect(int index, int *bx, int *by, int *bw, int *bh)
 }
 
 /* Defined further down with the rest of the input helpers, and declared here because this page is
- * laid out above them. Released inside the box, which is what a button is - as opposed to
+ * laid out above them. Released inside the box, which is what a button is, as opposed to
  * inside(), which is a hover and fires every frame. */
 static bool clicked(int x, int y, int w, int h);
 
@@ -741,14 +741,14 @@ static bool clicked(int x, int y, int w, int h);
  *
  * Everything on the other three tabs asks the engine to do something it already knows how to do:
  * the cheats are the engine's own commands, the flags are its own debug menu. This one does not.
- * The engine has no notion of a character's size - there is no such property among the 4,262 the
- * ObjectDef table defines, and no such debug command - and it has no notion of a frame rate it
+ * The engine has no notion of a character's size; there is no such property among the 4,262 the
+ * ObjectDef table defines, and no such debug command, and it has no notion of a frame rate it
  * is supposed to aim for either.
  *
  * That is a bigger step than anything else in this plugin, so the page shows its working: the
  * object it found, the offset it is writing to, and the reason it is refusing when it refuses.
  * A button that silently does nothing is the failure mode this whole tree is written against.
- * The frame rate half follows the same rule - it shows which clock the engine is running on and
+ * The frame rate half follows the same rule; it shows which clock the engine is running on and
  * what the delta has actually been doing, rather than asking to be believed.
  */
 #define SIZE_OPTION_COUNT 3
@@ -764,12 +764,12 @@ static float g_size_value  = 1.0f;
 static float g_build_value = 1.0f;
 
 /* Whether something non-neutral is currently written. Restoring has to happen ONCE when the
- * values come back to 1, not every frame afterwards - the scale vector is not something the
+ * values come back to 1, not every frame afterwards; the scale vector is not something the
  * engine rewrites, so there is nothing to keep correcting once it is back. */
 static bool  g_player_active;
 
 /* 0 none, 1 size, 2 build. Grab anywhere on a track and keep the grab until the button comes up,
- * so a fast drag that wanders off the track vertically does not drop the knob - the same rule the
+ * so a fast drag that wanders off the track vertically does not drop the knob, the same rule the
  * field of view slider follows. */
 static int   g_player_drag;
 
@@ -889,7 +889,7 @@ static void draw_player(void)
     draw_player_slider(2, "Width",  g_build_value, WIDTH_LOW,  WIDTH_HIGH,  usable);
 
     overlay_text(x, player_row(3), 1, COLOUR_DIM,
-                 "width is on top of height - the camera holds its distance either way");
+                 "width is on top of height; the camera holds its distance either way");
 }
 
 /* ------------------------------------------------------------ the frame rate, on the same page
@@ -974,7 +974,7 @@ static void draw_frame_rate(void)
     if (rate == 0u) {
         sprintf(line, "the engine timer has not been built yet");
     } else if (rate <= 1000u) {
-        sprintf(line, "clock: GetTickCount at %u Hz - frame_timing is not installed, so the "
+        sprintf(line, "clock: GetTickCount at %u Hz, frame_timing is not installed, so the "
                       "delta below is quantised to 15.6 ms", rate);
     } else {
         sprintf(line, "clock: QueryPerformanceCounter at %u Hz", rate);
@@ -1167,7 +1167,7 @@ static void handle_player_input(void)
     }
 }
 
-/* Called every frame from the EndScene hook, whether or not the menu is open - a size has to
+/* Called every frame from the EndScene hook, whether or not the menu is open; a size has to
  * survive the menu closing, and the engine rewrites the transform from animation regardless of
  * what is on screen. */
 static void player_hold_size(void)
@@ -1209,7 +1209,7 @@ typedef struct flag_row {
     int  y;
     int  w;
     int  line;          /* height of one line: the switch sits on this */
-    bool has_picker;    /* a second line underneath with value, - and + */
+    bool has_picker;    /* a second line underneath with value,, and + */
 } flag_row_t;
 
 static flag_row_t g_rows[FLAG_MAX_ROWS];
@@ -1360,7 +1360,7 @@ static void draw_cheats(int x, bool have_camera)
     overlay_text(x, y, 1, COLOUR_TITLE, "Cheats");
     overlay_text(x + overlay_text_width("Cheats    ", 1), y, 1, COLOUR_DIM,
                  available ? "the game's own commands"
-                           : "load a level - the game has nothing to send them to");
+                           : "load a level; the game has nothing to send them to");
 
     for (index = 0; index < CHEAT_COUNT; ++index) {
         int bx;
@@ -1547,16 +1547,16 @@ static void draw_flags(void)
 
     overlay_text(bx + bw + 16 + overlay_text_width("page 0 of 0        ", 1), by + 3, 1,
                  COLOUR_DIM, overlay_overflowed()
-                             ? "overlay batch full - some rows are missing"
+                             ? "overlay batch full, some rows are missing"
                              : (g_edit_flag >= 0
-                                ? "type a number, Enter to set it - Escape also opens the game's pause menu"
+                                ? "type a number, Enter to set it, Escape also opens the game's pause menu"
                                 : "click a row to press it, as the game's own menu would"));
 }
 
 /* ------------------------------------------------------------------------- engine messages
  *
- * Its own box, at the bottom of the screen, drawn whenever "Engine Debug Messages" is not zero -
- * with the menu open or closed, because a log you can only see while a menu covers the game is
+ * Its own box, at the bottom of the screen, drawn whenever "Engine Debug Messages" is not zero,
+* with the menu open or closed, because a log you can only see while a menu covers the game is
  * not much of a log.
  */
 #define MESSAGE_PANEL_W   900
@@ -1719,7 +1719,7 @@ static void draw_messages(void)
  *
  * Flag 0 turns on the engine's OWN message display, and that display is what corrupted the
  * lighting and then took the game down: it is a dev feature this build cannot draw. Capturing
- * the text does not need it - the hooks see every message whatever the flag says - so the box is
+ * the text does not need it, the hooks see every message whatever the flag says, so the box is
  * driven from here and flag 0 is left alone.
  *
  * Belt and braces: switching the box on also puts flag 0 back to 0, so a stray click on the
@@ -1812,7 +1812,7 @@ static void draw_channels(void)
     overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
     overlay_text(bx + 4, by + 3, 1, COLOUR_VALUE, " none ");
 
-    sprintf(line, "%u channels - switched off means not recorded at all, not merely hidden", count);
+    sprintf(line, "%u channels, switched off means not recorded at all, not merely hidden", count);
     overlay_text(bx + bw + 16, by + 3, 1, COLOUR_DIM, line);
 }
 
@@ -1901,7 +1901,7 @@ static void draw_menu(const camera_view_t *view, bool have_camera)
                 g_intercepting ? "   game muted" : "   game still reading");
         overlay_text(x, y, 1, COLOUR_DIM, line);
     } else {
-        overlay_text(x, y, 1, COLOUR_DIM, "no camera yet - load a save");
+        overlay_text(x, y, 1, COLOUR_DIM, "no camera yet, load a save");
         y += step;
         overlay_text(x, y, 1, COLOUR_DIM, "the menus have none");
     }
@@ -1912,7 +1912,7 @@ static void draw_menu(const camera_view_t *view, bool have_camera)
     y = cheats_top() + row_step() + cheat_rows() * (row_step() + 4);
 
     if (overlay_overflowed()) {
-        overlay_text(x, y, 1, COLOUR_EDGE, "overlay batch full - some of this is missing");
+        overlay_text(x, y, 1, COLOUR_EDGE, "overlay batch full, some of this is missing");
     }
 
 }
@@ -2034,7 +2034,7 @@ static void handle_flags_input(void)
         }
 
         /* A typed number: the field takes the click, the steppers nudge, and the rest of the row
-         * does nothing - pressing it would run the dispatcher's default case and flatten the
+         * does nothing, pressing it would run the dispatcher's default case and flatten the
          * coordinate to 0 or 1. */
         if (flag_is_number(row->index)) {
             flag_field_rect(row, &bx, &by, &bw, &bh);
@@ -2121,7 +2121,7 @@ static void handle_input(bool have_camera)
         }
     }
 
-    /* The message box's clear button. It is not on either page - the box is its own panel - so
+    /* The message box's clear button. It is not on either page; the box is its own panel, so
      * it is checked before the page split. */
     if (messages_wanted()) {
         int bx;
@@ -2227,8 +2227,8 @@ static void handle_input(bool have_camera)
         }
     }
 
-    /* Arrow keys do the same job. Not a fallback in spirit - a slider is for finding the value
-     * and a key is for landing on it - but it is also what still works if the cursor turns out
+    /* Arrow keys do the same job. Not a fallback in spirit; a slider is for finding the value
+     * and a key is for landing on it, but it is also what still works if the cursor turns out
      * to be somewhere this plugin cannot see it. */
     if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
         g_fov_degrees = clampf(g_fov_degrees - 0.25f, FOV_MIN, FOV_MAX);
@@ -2318,7 +2318,7 @@ static bool install_hook(void)
 
     device = find_device();
     if (device == NULL) {
-        log_error("the Direct3D device could not be verified - the menu will not open. "
+        log_error("the Direct3D device could not be verified; the menu will not open. "
                   "Nothing has been changed.");
         g_hook_failed = true;
         return false;
@@ -2335,7 +2335,7 @@ static bool install_hook(void)
         g_hook_failed = true;
         return false;
     }
-    /* One aligned pointer-sized store, which is atomic on x86 - so a render thread calling
+    /* One aligned pointer-sized store, which is atomic on x86, so a render thread calling
      * EndScene at this instant gets either the old function or ours, never half of each. */
     g_vtable[D3D8_ENDSCENE] = (void *)hooked_end_scene;
     VirtualProtect(&g_vtable[D3D8_ENDSCENE], sizeof(void *), protection, &protection);
@@ -2362,7 +2362,7 @@ static DWORD WINAPI poll_thread(LPVOID parameter)
      * queue up and the pointer would never move. */
     raw_window = create_raw_window();
     if (raw_window == NULL) {
-        log_warning("raw mouse input is unavailable - the arrow keys still work, the pointer "
+        log_warning("raw mouse input is unavailable, the arrow keys still work, the pointer "
                     "will not");
     }
 
@@ -2392,7 +2392,7 @@ static DWORD WINAPI poll_thread(LPVOID parameter)
                     /* Opened here rather than at startup so that, when we do get the mouse
                      * exclusively, the game only loses it for as long as the menu is up. */
                     if (!open_mouse()) {
-                        log_warning("no mouse could be opened - the arrow keys still work");
+                        log_warning("no mouse could be opened, the arrow keys still work");
                     }
                     g_visible = true;
                 }
@@ -2469,7 +2469,7 @@ void dev_menu_install(void)
 
     g_channel = channel_open();
     if (g_channel == NULL) {
-        log_warning("the shared channel could not be opened - the sliders will have nothing to "
+        log_warning("the shared channel could not be opened; the sliders will have nothing to "
                     "drive, though the menu will still open and report");
     }
 

@@ -68,7 +68,7 @@ static LONGLONG now_ticks(void)
  *
  * The schedule is thrown away rather than adjusted. A target that has just moved says nothing
  * useful about when the next frame is due, and the resync below would have discarded it on the
- * following frame anyway - doing it here means one frame of the old rate instead of two. */
+ * following frame anyway, doing it here means one frame of the old rate instead of two. */
 static void apply_target(float fps)
 {
     g_target_fps = fps;
@@ -148,7 +148,7 @@ static void report_resync(LONGLONG gap)
                                ? ((now_ticks() - g_installed_at) * 1000 / g_frequency) : 0;
 
         log_info("resync %u: the target was %lld ms %s. The schedule restarts from now. "
-                 "(call %u, %lld ms after installing - if those two numbers say this site is "
+                 "(call %u, %lld ms after installing, if those two numbers say this site is "
                  "reached far more often than the frame rate, that is the reason.)",
                  g_resyncs,
                  (long long)((gap < 0 ? -gap : gap) * 1000 / g_frequency),
@@ -169,7 +169,7 @@ static void report_resync(LONGLONG gap)
  * as it was behind, catching up on time that no longer exists.
  *
  * AHEAD is the case that cost a week on a Steam Deck. This hook is one call site, and the engine
- * is under no obligation to reach it exactly once per drawn frame - during start-up it goes round
+ * is under no obligation to reach it exactly once per drawn frame, during start-up it goes round
  * far more often than that, with nothing being presented. Every one of those calls used to add a
  * whole frame period to the target while barely any real time passed, so the schedule ran away
  * into the future, one Sleep grew to several seconds, and the game sat in it with a black screen
@@ -275,7 +275,7 @@ void fps_limit_install(void)
     }
 
     if (!QueryPerformanceFrequency(&frequency) || frequency.QuadPart == 0) {
-        log_error("no high-resolution timer on this machine - not installing");
+        log_error("no high-resolution timer on this machine, not installing");
         return;
     }
     g_frequency = frequency.QuadPart;
@@ -290,7 +290,7 @@ void fps_limit_install(void)
      * margin is the whole period rather than the tail of it. */
     mode = ini_read_int(PLUGIN_SECTION, "Mode", MODE_HYBRID);
     if (mode < MODE_SLEEP || mode > MODE_HYBRID) {
-        log_warning("Mode=%ld is not 0, 1 or 2 - using 2 (hybrid)", (long)mode);
+        log_warning("Mode=%ld is not 0, 1 or 2, using 2 (hybrid)", (long)mode);
         mode = MODE_HYBRID;
     }
     g_mode = (int)mode;
@@ -314,7 +314,7 @@ void fps_limit_install(void)
         return;
     }
     if (build_stub(stub_address, exe_site(FRAME_TARGET_VA)) == NULL) {
-        log_error("the stub did not fit its buffer - not installing");
+        log_error("the stub did not fit its buffer, not installing");
         return;
     }
 
@@ -327,7 +327,7 @@ void fps_limit_install(void)
     log_info("installed: %08X -> stub at %08X -> %08X",
              (unsigned)call_site, (unsigned)stub_address, (unsigned)exe_site(FRAME_TARGET_VA));
     if (g_uncapped) {
-        log_info("  uncapped (MaxFPS=0), mode %d - the hook is in place and waits for nothing "
+        log_info("  uncapped (MaxFPS=0), mode %d; the hook is in place and waits for nothing "
                  "until the menu asks for a rate", g_mode);
     } else {
         log_info("  %g fps (%lld ticks/frame at %lld Hz), mode %d (%s)",

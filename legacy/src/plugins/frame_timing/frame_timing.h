@@ -14,7 +14,7 @@
  *
  *     0040D150  Timer::Tick(float *out)
  *     0040D156    call 004C12B0                ; now
- *     0040D15F    sub  ecx, edx                ; now - this->lastTick
+ *     0040D15F    sub  ecx, edx                ; now, this->lastTick
  *     0040D171    fild qword [esp+4]
  *     0040D175    fmul dword [esi+0x28]        ; timeScale
  *     0040D178    fmul dword [esi+0x10]        ; 0.001f, ticks to seconds
@@ -34,7 +34,7 @@
  *
  * QueryPerformanceCounter instead, at a configurable rate, defaulting to 100 kHz.
  *
- * Timer::Tick does not divide by a frequency - it MULTIPLIES by a ticks-to-seconds constant it
+ * Timer::Tick does not divide by a frequency, it MULTIPLIES by a ticks-to-seconds constant it
  * keeps at +0x10. So the class does not have to be rewritten, or even understood by the patch:
  * give it a finer counter and tell it what a tick is now worth, and every function in it keeps
  * working with its own arithmetic untouched. Three kinds of edit:
@@ -75,7 +75,7 @@
  * ==============================================================================================
  * SAVEGAMES
  *
- * 0040D030 writes `now - this->+4` into the save stream and 0040D0A0 reads it back, so a save
+ * 0040D030 writes `now, this->+4` into the save stream and 0040D0A0 reads it back, so a save
  * carries an elapsed tick count in whatever unit the timer was using. A save made with this
  * plugin and loaded without it, or the reverse, gets ONE wrong frame rate reading before the
  * next eight-frame sample corrects it. Game time is stored as float seconds and is unit

@@ -1,7 +1,7 @@
 /* channel.h: one small block of memory that plugins can agree on.
  *
  * Plugins are deliberately independent DLLs. Nothing loads anything else, nothing exports
- * anything to anything else, and deleting one cannot break another - that is the whole point of
+ * anything to anything else, and deleting one cannot break another; that is the whole point of
  * the layout. It is also a problem the first time two of them want the same engine field.
  *
  * `dev_menu` is that first time. Its field-of-view slider and the `field_of_view` plugin both

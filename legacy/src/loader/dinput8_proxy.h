@@ -28,7 +28,7 @@
  *   2. <game folder>\dinput8_orig.dll
  *   3. <system directory>\dinput8.dll
  *
- * If the game folder already holds a dinput8.dll - an input wrapper, an ASI loader - rename it to
+ * If the game folder already holds a dinput8.dll, an input wrapper, an ASI loader, rename it to
  * dinput8_orig.dll rather than overwriting it. Every export is forwarded to it and it keeps
  * working.
  */

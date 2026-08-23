@@ -38,7 +38,7 @@ laid out for, and nothing multiplies it by anything. There is no missing scale t
 because there was never a scale term.
 
 That explains both halves of what you see. The elements are small because their *sizes* are fixed
-pixels, and the gaps between them are wrong because the *offsets* are fixed pixels too - the ring
+pixels, and the gaps between them are wrong because the *offsets* are fixed pixels too; the ring
 sits `LBXOffset` from the bar whatever the screen is.
 
 ## The map
@@ -111,7 +111,7 @@ engine tells us what to scale.
 
 **Where the fetch happens.** The property read is `mov ecx,[obj+8] / push -1 / push <index> /
 call [vtable+8]`, and the index is relative to the group. One hook on that call, with a set of
-(group, index) pairs built from the tables, would cover all 45 - but the group identity has to be
+(group, index) pairs built from the tables, would cover all 45, but the group identity has to be
 recoverable at the call, and that is not yet established.
 
 **Whether to scale by width, height or both.** A position in x and a size in x want the width
@@ -168,7 +168,7 @@ that tractable:
 * the properties object is in `ecx` at the getter, and if it carries a pointer to its class
   descriptor then the group tables can be walked at install time and the pixel indices collected
   *per class*;
-* the property record already carries a **type** field - 2 is float, 1 is int. Scaling anything
+* the property record already carries a **type** field, 2 is float, 1 is int. Scaling anything
   whose declared type is not float is a bug by construction, and would have caught this before it
   ever ran.
 
@@ -176,4 +176,4 @@ that tractable:
 
 Breakpoint the property fetch with the index on the stack, log `(index, return address)` while the
 HUD builds, and match the return addresses against the groups. That is the same method that named
-`rfl+7A2D5` for the inventory icons - the one that worked when three theories had already failed.
+`rfl+7A2D5` for the inventory icons, the one that worked when three theories had already failed.

@@ -40,7 +40,7 @@ static bool             g_overflowed;
 
 /* --------------------------------------------------------------------------- font rasterising */
 
-/* GDI once, at install time, on our own thread - not in the draw path. The result is a table of
+/* GDI once, at install time, on our own thread, not in the draw path. The result is a table of
  * bitmasks; GDI is never touched again and no device object is created. */
 static bool rasterise(int pixel_height)
 {
@@ -345,7 +345,7 @@ void overlay_flush(void *device)
      * nothing about drawing a few quads suggests it would unbind the caller's geometry.
      *
      * The engine binds its stream once and reuses it across draws, so an overlay that left the
-     * stream unbound meant every later draw that frame ran on whatever the runtime had - which
+     * stream unbound meant every later draw that frame ran on whatever the runtime had, which
      * looked like lens flares and light sprites blowing up into white blobs, and eventually a
      * crash. Both are saved and put back.
      */

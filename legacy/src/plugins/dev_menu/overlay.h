@@ -3,7 +3,7 @@
  * NO TEXTURES, DELIBERATELY. The obvious way to draw text in Direct3D 8 is a font atlas: render
  * the glyphs into a texture, then draw one textured quad per character. That means CreateTexture,
  * a lock and an upload, texture stage state, a pool choice, and code to rebuild all of it after a
- * device Reset - a lot of surface area for a dev menu, and every bit of it a way to break the
+ * device Reset, a lot of surface area for a dev menu, and every bit of it a way to break the
  * game's own rendering on a machine nobody here can test.
  *
  * So the glyphs are rasterised ONCE with GDI into plain bitmasks, and drawn as untextured
@@ -41,7 +41,7 @@ void overlay_frame(int x, int y, int width, int height, int thickness, unsigned 
  * it touched back the way it found it. */
 void overlay_flush(void *device);
 
-/* True when the last frame overflowed the batch - shown in the menu rather than hidden, because
+/* True when the last frame overflowed the batch, shown in the menu rather than hidden, because
  * a dev tool that silently drops what it was asked to draw is worse than one that admits it. */
 bool overlay_overflowed(void);
 

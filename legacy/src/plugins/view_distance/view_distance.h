@@ -11,7 +11,7 @@
  *
  * NONE of this is a bug fix. The 2002 defaults are correct for 2002 hardware and every key here
  * trades frame rate for draw distance. They are grouped in one DLL because they are one decision
- * with one failure mode - "the world draws further and the frame rate drops" - and splitting them
+ * with one failure mode; "the world draws further and the frame rate drops", and splitting them
  * into five DLLs would mean five READMEs saying the same paragraph.
  */
 #ifndef VIEW_DISTANCE_H

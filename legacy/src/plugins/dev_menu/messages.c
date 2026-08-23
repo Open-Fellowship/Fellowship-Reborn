@@ -30,7 +30,7 @@
  *
  * Two entry points, sixty-five call sites between them. `this` goes on the stack rather than in
  * ecx and the caller cleans up, which is how MSVC compiles a member function that takes varargs,
- * and it is what makes these two hookable with plain C functions - no naked thunks, no assembler.
+ * and it is what makes these two hookable with plain C functions, no naked thunks, no assembler.
  *
  *     +0x08   print(self, const char *text)
  *     +0x20   printf(self, const char *format, ...)
@@ -354,7 +354,7 @@ static void format_safely(char *out, size_t size, const char *format, va_list ar
             continue;
         }
 
-        /* flags, width, precision - copied verbatim into the spec we hand to snprintf */
+        /* flags, width, precision, copied verbatim into the spec we hand to snprintf */
         while (*format != '\0' && length < (int)sizeof(spec) - 2 &&
                (strchr("-+ #0123456789.*", *format) != NULL)) {
             spec[length++] = *format++;
@@ -637,7 +637,7 @@ bool messages_install(void)
         !memory_is_inside_image((uintptr_t)g_vtable[SLOT_WARN], 1) ||
         !memory_is_inside_image((uintptr_t)g_vtable[SLOT_PRINTF], 1)) {
         g_failed = true;
-        log_error("the message object's vtable does not point into Fellowship.exe - not hooking");
+        log_error("the message object's vtable does not point into Fellowship.exe, not hooking");
         return false;
     }
 
@@ -649,7 +649,7 @@ bool messages_install(void)
     if (!VirtualProtect(g_vtable, (SLOT_PRINTF + 1u) * sizeof(void *), PAGE_READWRITE,
                         &protection)) {
         g_failed = true;
-        log_error("the message vtable could not be made writable - not hooking");
+        log_error("the message vtable could not be made writable, not hooking");
         return false;
     }
 
@@ -665,7 +665,7 @@ bool messages_install(void)
     VirtualProtect(g_vtable, (SLOT_PRINTF + 1u) * sizeof(void *), protection, &protection);
 
     g_installed = true;
-    log_info("engine messages: object %08X vtable %08X - stats %08X, print %08X, warn %08X, "
+    log_info("engine messages: object %08X vtable %08X, stats %08X, print %08X, warn %08X, "
              "printf %08X", (unsigned)object, (unsigned)vtable,
              (unsigned)(uintptr_t)g_original_stats, (unsigned)(uintptr_t)g_original_print,
              (unsigned)(uintptr_t)g_original_warn, (unsigned)(uintptr_t)g_original_printf);

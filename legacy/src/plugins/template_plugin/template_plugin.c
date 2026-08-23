@@ -37,7 +37,7 @@ void template_plugin_install(void)
      * catches out everybody who tries to patch the rfl from here and cannot work out why the
      * pattern never matches. */
     if (GetModuleHandleA(FELLOWSHIP_RFL_MODULE) == NULL) {
-        log_info("  %s not loaded yet - as expected at entry-point time", FELLOWSHIP_RFL_MODULE);
+        log_info("  %s not loaded yet, as expected at entry-point time", FELLOWSHIP_RFL_MODULE);
     } else {
         log_info("  %s already at %08X", FELLOWSHIP_RFL_MODULE,
                  (unsigned)(uintptr_t)GetModuleHandleA(FELLOWSHIP_RFL_MODULE));

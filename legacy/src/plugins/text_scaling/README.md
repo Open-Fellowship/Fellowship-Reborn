@@ -37,7 +37,7 @@ The second version sampled the scale onto a poll thread and had the stubs multip
 float. That removed the crash and broke the text, because **the pause menu renders the world into
 a sub-rectangle and the camera's viewport is that rectangle while the menu is drawn**. A scale
 sampled a quarter of a second earlier is the full-screen one. Measured from the screenshot: a
-capital G 17 px tall and 86 px wide - width scaled by 4.5, height not scaled at all. Squat,
+capital G 17 px tall and 86 px wide, width scaled by 4.5, height not scaled at all. Squat,
 stretched glyphs, which is the exact failure these seven hooks exist to prevent.
 
 The read is live again and the pointer is ours. `common/camera.c` validates a candidate camera
@@ -50,7 +50,7 @@ with it: a camera whose viewport height is outside 64..32768 never gets publishe
 
 **The glyph height scale is a `push 1.0f`, not a call.** The stub pushes the 1.0f anyway, so the
 stack frame stays byte-identical, then overwrites it in place with `fstp [esp+4]`. Getting this
-wrong is what made the first version of this fix render squat, stretched glyphs - and swapping it
+wrong is what made the first version of this fix render squat, stretched glyphs, and swapping it
 for a `push` of a timer-sampled float brought that same failure straight back, for a different
 reason. It is the most fragile of the seven and the one to check first when text looks wrong.
 

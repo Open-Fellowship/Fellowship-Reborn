@@ -7,7 +7,7 @@
  *
  * This is the wait. It starts one thread, polls for the module, and calls `on_loaded` once with
  * the base address the moment it appears. The callback therefore runs on that thread, not on a
- * game thread - which is acceptable here for a specific reason: the rfl is loaded during
+ * game thread, which is acceptable here for a specific reason: the rfl is loaded during
  * start-up, before the first frame is drawn, so the code being patched is not yet executing.
  * A plugin that wants to patch something already running every frame needs a different tool.
  *

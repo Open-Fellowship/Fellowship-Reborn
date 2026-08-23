@@ -1,7 +1,7 @@
 /* fps_limit.h: cap the frame rate.
  *
  * Ported from the community patcher ([Options] EnableFPSLimiter / FPSLimiterMaxFPS /
- * FPSLimiterMode) - the HOOK is ported, the limiter itself is written here rather than
+ * FPSLimiterMode); the HOOK is ported, the limiter itself is written here rather than
  * transcribed, and that distinction is deliberate. What was worth copying is where he put it:
  *
  *     0x4BCA19   call 0x404630        once per frame

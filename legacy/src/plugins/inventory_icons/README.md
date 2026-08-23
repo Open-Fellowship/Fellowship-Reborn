@@ -3,7 +3,7 @@
 **Produces:** `inventory_icons.dll`. **Off by default, and usually should stay off.**
 
 Item models in the inventory render away from their cells, toward the centre of the screen, and
-smaller - at 16:9, and only at 16:9.
+smaller, at 16:9, and only at 16:9.
 
 ## It is not a game bug
 
@@ -21,7 +21,7 @@ dYb = (H * 0.5) / tan(fovY * 0.5)
 ```
 
 The two disagree by exactly `64/48 = 4/3` at 16:9 and agree exactly at 4:3. Hence: perfect at
-640x480 and 800x600, broken at 1280x720 and 3840x2160 - the only bug in this project that is
+640x480 and 800x600, broken at 1280x720 and 3840x2160, the only bug in this project that is
 aspect-driven rather than resolution-driven.
 
 ## The measurement
@@ -33,14 +33,14 @@ icon rendered size              =  correct * 0.75
 
 Position, solved independently from two icons on each axis: 0.7477, 0.752, 0.750, 0.744. Size,
 from the key icon's length at matched scale: 77 px at 4K against 104 expected, 0.74. Position and
-size shrinking by the *same* factor is the signature of a depth error - the model placed 4/3x too
+size shrinking by the *same* factor is the signature of a depth error, the model placed 4/3x too
 far away. One scalar, not two bugs.
 
 ## The fix
 
 `dXb = dYb = focal * W / 128`, taken from the camera's **actual** focal length instead of
-recomputed from the FOV. Substituting the stock focal reduces that to `(W*0.5)/tan(fovX*0.5)` -
-the original expression - so with no FOV mod present this plugin changes nothing at all. Verified
+recomputed from the FOV. Substituting the stock focal reduces that to `(W*0.5)/tan(fovX*0.5)`,
+the original expression, so with no FOV mod present this plugin changes nothing at all. Verified
 numerically: at 640x480 the ratio new/old is 1.00000.
 
 Checked against a live dump at 4K: `dXb` 10888.861 -> 8166.645, predicted pixel X moving from
@@ -52,7 +52,7 @@ Two ways to close the disagreement, and they are not equivalent:
 
 1. **This plugin**, alongside the patcher's FOV correction.
 2. **`CameraFieldOfView=0`** in `Fellowship.ini`, which stops the rewriting entirely, plus
-   `field_of_view.dll` to get the widescreen field of view back a different way - by setting the
+   `field_of_view.dll` to get the widescreen field of view back a different way, by setting the
    focal length, which the inventory never reads.
 
 Option 2 is the better default and is why this ships off. `field_of_view`'s README has the

@@ -2,7 +2,7 @@
  *
  * A target rate that gets published to fps_limit over the channel, and a button that writes it
  * into the ini so the next launch starts there. It writes [fps_limit], which is another plugin's
- * section, and that is deliberate rather than an oversight of the rule in ini.h - the menu is the
+ * section, and that is deliberate rather than an oversight of the rule in ini.h; the menu is the
  * player acting, not a plugin minding its own business.
  *
  * It reads two numbers back out of the engine so the page can report rather than assert: the
@@ -26,7 +26,7 @@
 
 #include <stdbool.h>
 
-/* The band the slider covers. 0 is not on the track - uncapped is its own button, because a
+/* The band the slider covers. 0 is not on the track, uncapped is its own button, because a
  * slider that means "off" at one end is a slider you turn off by accident. */
 #define TIMING_FPS_LOW   30.0f
 #define TIMING_FPS_HIGH 300.0f

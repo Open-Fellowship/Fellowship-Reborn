@@ -3,7 +3,7 @@
  * The engine offers no way to ask for either. There is no authored property for a character's
  * scale anywhere in the 4,262 the ObjectDef table defines, and the debug command object accepts
  * exactly eight commands, none of which is about size. So this reads the object out of the rfl's
- * own globals and writes to it directly - which is a heavier thing to do than anything else in
+ * own globals and writes to it directly, which is a heavier thing to do than anything else in
  * this plugin, and is why every step is validated on every call.
  *
  * WHERE THE OBJECT COMES FROM
@@ -36,7 +36,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* The local player's game object, or 0 if anything failed to validate - which is the normal
+/* The local player's game object, or 0 if anything failed to validate, which is the normal
  * answer in a menu, on a loading screen, or before a level exists.
  *
  * `why` gets a word naming the first check that failed, for a one-shot diagnostic. Nothing is
@@ -50,7 +50,7 @@ uintptr_t player_object(const char **why);
  * README.md beside this file for how each was established and what is still open.
  *
  * The engine has no notion of a character's size otherwise. There is no such property among the
- * 4,262 the ObjectDef table defines - the whole schema was searched - and the debug command object
+ * 4,262 the ObjectDef table defines; the whole schema was searched, and the debug command object
  * accepts exactly eight commands, none about size. Writing this matrix is the only way in.
  *
  * KNOWN SIDE EFFECT: the camera zooms with the player, and tilts down as it closes. It sits at
@@ -58,12 +58,12 @@ uintptr_t player_object(const char **why);
  * distance and the height of that offset by the same factor.
  *
  * There is no render-only transform to scale instead. The model scales BECAUSE its world matrix is
- * computed from +0x00F8 each frame, and the camera scales for the same reason - both are
+ * computed from +0x00F8 each frame, and the camera scales for the same reason; both are
  * downstream of one source, so there is nothing upstream to scale separately.
  *
  * The two authored numbers the offset is built from cannot be reached from memory either; the
- * README records the three attempts that establish that. What CAN be corrected is the result -
- * see "holding the camera still" below.
+ * README records the three attempts that establish that. What CAN be corrected is the result,
+* see "holding the camera still" below.
  */
 
 bool player_apply_size(float girth, float height, const char **why);

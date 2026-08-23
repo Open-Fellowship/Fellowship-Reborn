@@ -128,7 +128,7 @@ bool early_trigger_arm(void)
     memcpy(trigger_state.original_bytes, (const void *)trigger_state.entry_point,
            sizeof(trigger_state.original_bytes));
 
-    /* Somebody else has already redirected the entry point - FellowshipPatcher, an ASI loader,
+    /* Somebody else has already redirected the entry point, FellowshipPatcher, an ASI loader,
      * a debugger's launch hook. Chaining onto that would mean guessing what they intend to do
      * with it; the DirectInput8Create fallback is the honest answer instead. */
     if (trigger_state.original_bytes[0] == JMP_REL32_OPCODE) {

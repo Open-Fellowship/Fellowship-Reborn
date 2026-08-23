@@ -75,7 +75,7 @@ void resolution_unlock_install(void)
     }
 
     if (applied == sizeof(sites) / sizeof(sites[0])) {
-        log_info("installed - the mode list is no longer filtered");
+        log_info("installed; the mode list is no longer filtered");
     } else {
         log_error("PARTIAL: %u of 3. Some modes will be offered and others rejected, which is "
                   "worse than either. Set Enabled=0 and restart.", (unsigned)applied);

@@ -7,7 +7,7 @@
  * absolute address in a module loaded at its preferred base. Nothing may use one directly.
  * Convert first:
  *
- *     exe_site(0x48BEF0)   ->  host_image_base() + (0x48BEF0 - 0x400000)
+ *     exe_site(0x48BEF0)   ->  host_image_base() + (0x48BEF0, 0x400000)
  *     rfl_site(base, 0x789A7)
  *
  * ==============================================================================================
@@ -62,7 +62,7 @@ static inline uintptr_t rfl_site(uintptr_t rfl_base, uint32_t rva)
  *     call dword ptr [edx+0x8c]  EndScene, index 35
  *
  * The exe imports exactly one Direct3D symbol, Direct3DCreate8, and calls +0x3C, +0x88 and +0x8C
- * on this same object - Present, BeginScene, EndScene at indices 15, 34 and 35. Three hits on
+ * on this same object, Present, BeginScene, EndScene at indices 15, 34 and 35. Three hits on
  * the published ordering at three different indices is what fixes the interface. */
 #define EXE_RENDERER_PTR        0x0054743Cu
 #define RENDERER_D3D_DEVICE     0x166u
@@ -76,7 +76,7 @@ static inline uintptr_t rfl_site(uintptr_t rfl_base, uint32_t rva)
  * instance at 0x0053EE58 is what produces them. Written up in full in plugins/frame_timing.
  *
  * Neither the delta nor the frame rate has a WRITE anywhere in the image, and that is not a
- * puzzle - both are written through pointers. UpdateTime at 0x00408F00 does `lea edi,[esi+4]`
+ * puzzle; both are written through pointers. UpdateTime at 0x00408F00 does `lea edi,[esi+4]`
  * and hands that to Timer::Tick; 0x00409000 does `add ecx,0x14` and hands that to
  * Timer::GetFramerate. Searching for a store to either address finds nothing at all.
  *

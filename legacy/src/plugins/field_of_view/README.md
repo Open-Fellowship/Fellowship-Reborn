@@ -32,7 +32,7 @@ write-up.
 
 Setting the **focal length** avoids it entirely. The inventory sets its own 20-degree field of
 view, does its geometry from that same 20 degrees, and restores the previous value through
-`GetFOV`/`SetFOV` afterwards - so the world's field of view never enters the icon calculation.
+`GetFOV`/`SetFOV` afterwards, so the world's field of view never enters the icon calculation.
 
 **Do not run this plugin and `CameraFieldOfView=-1.0` together.** Set `CameraFieldOfView=0` in
 `Fellowship.ini`. They are two answers to the same question and the patcher's answer is the one
@@ -48,7 +48,7 @@ It re-applies on a timer, because the value has to survive every level load, and
 tick where the camera's horizontal field of view reads below 40 degrees. That floor is not
 arbitrary: the inventory renders its item models through this same camera object at the item's
 own `ModelFOV`, 20 degrees for the ones measured, and writing the world's focal length over that
-would put every icon in the wrong place - the exact bug this plugin exists to avoid causing.
+would put every icon in the wrong place; the exact bug this plugin exists to avoid causing.
 
 ## The ceiling, and the crash that put it there
 
@@ -61,8 +61,8 @@ There was a floor and no ceiling, and a log from a second install showed what th
 
 `2*atan(halfW/focal)` reaching *exactly* 180 degrees means `halfW` read back astronomical, so the
 camera pointer was not NULL and what it pointed at was not a camera. 180 sailed over the
-40-degree floor, was latched as the baseline - permanently, since the baseline is sampled once
-and deliberately never re-sampled - and a focal length of 3.5e23 went into the projection matrix.
+40-degree floor, was latched as the baseline, permanently, since the baseline is sampled once
+and deliberately never re-sampled, and a focal length of 3.5e23 went into the projection matrix.
 
 Three things changed. The camera now comes from `common/camera.c`, which validates the pointer,
 the readable span, the dimensions, the halves, the focal length and the aspect ratio before any
@@ -87,7 +87,7 @@ Set `Enabled=0`; nothing else depends on it.
 is right for that: the value only changes when a level loads or the resolution does.
 
 It is wrong by a factor of twenty-five for a slider. While dev_menu is actually asking for a
-value - the channel holds a request - this polls every **16 ms** instead, so the picture follows
+value; the channel holds a request, this polls every **16 ms** instead, so the picture follows
 the knob rather than lurching after it twice a second. The fast interval is only used while a
 request is live, and the work per tick is one camera validation and one float write, so a session
 where nobody opens the menu is unaffected.

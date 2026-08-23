@@ -83,7 +83,7 @@ static unsigned  g_reanchors;
 
 /* Resolved and checked once at install, not once a frame. The Timer lives in the executable's
  * own .data, which is mapped and writable from the moment the process exists, so there is nothing
- * about it that can become true later - and VirtualQuery on every frame to re-learn that would be
+ * about it that can become true later, and VirtualQuery on every frame to re-learn that would be
  * a syscall in the one path that has to stay cheap. 0 means the watchdog is not running. */
 static uintptr_t g_timer;
 
@@ -92,7 +92,7 @@ static uintptr_t g_timer;
  * Called from engine code, in the slot GetTickCount used to occupy, so it obeys the same rules:
  * the result in EAX, EBX ESI EDI EBP left alone, and nothing left on the x87 stack. A C function
  * with no arguments returning uint32_t satisfies all three by construction, and taking no
- * arguments means __stdcall and __cdecl assemble identically - there is no stack to clean either
+ * arguments means __stdcall and __cdecl assemble identically; there is no stack to clean either
  * way. That is why there is no stub here, unlike the frame hook below.
  *
  * The arithmetic is done in two halves rather than as (delta * rate) / frequency, because the
@@ -123,8 +123,8 @@ static uint32_t __stdcall hires_ticks(void)
  *
  * A rebase would be pointless, and it is worth saying why because it was the first design.
  *
- * The engine only ever computes `now - stored`, and a common offset subtracted from both is
- * invisible to a difference - modular arithmetic sees to that whether or not either side wraps.
+ * The engine only ever computes `now, stored`, and a common offset subtracted from both is
+ * invisible to a difference, modular arithmetic sees to that whether or not either side wraps.
  * So sliding our own output down does not buy a single tick of headroom. What has to fit in
  * thirty-two bits is the SPAN: the oldest origin the Timer is still counting from, which is
  * +0x24, set at start-up, at a level load and at a savegame load. At 100 kHz that span is 11.9
@@ -239,7 +239,7 @@ static bool all_sites_match(void)
 
         expected_call(g_tick_sites[index], expected);
         if (!patch_validate_bytes(exe_site(g_tick_sites[index]), expected, sizeof(expected))) {
-            log_error("%08X does not hold a call to the tick thunk - refusing the whole set",
+            log_error("%08X does not hold a call to the tick thunk, refusing the whole set",
                       (unsigned)g_tick_sites[index]);
             return false;
         }
@@ -274,7 +274,7 @@ void frame_timing_install(void)
     }
     if (!QueryPerformanceFrequency(&frequency) || frequency.QuadPart <= 0
         || !QueryPerformanceCounter(&origin)) {
-        log_error("no high-resolution counter on this machine - not installing");
+        log_error("no high-resolution counter on this machine, not installing");
         return;
     }
 
@@ -337,16 +337,16 @@ void frame_timing_install(void)
      *
      * The Timer's own memory is checked here and never again. It is the executable's .data, which
      * is mapped and writable for the life of the process, so there is nothing about it that can
-     * become true later - and making it writable now means the re-anchor, which happens once in
+     * become true later, and making it writable now means the re-anchor, which happens once in
      * nine hours, is not the thing that discovers a protection problem. */
     stub_address = (uintptr_t)trampoline_alloc(32);
     if (stub_address == 0 || build_stub(stub_address, exe_site(FRAME_TARGET_VA)) == NULL) {
-        log_warning("could not build the watchdog stub - the counter is installed, but a single "
+        log_warning("could not build the watchdog stub; the counter is installed, but a single "
                     "level played for more than %.1f hours will jump",
                     (double)0xFFFFFFFFu / (double)g_rate / 3600.0);
     } else if (!memory_is_readable_range(exe_site(TIMER_OBJECT_VA), TIMER_SCALE_TICK + 4u)
                || !memory_make_writable(exe_site(TIMER_OBJECT_VA), TIMER_SCALE_TICK + 4u)) {
-        log_warning("the timer at %08X is not readable and writable - the counter is installed "
+        log_warning("the timer at %08X is not readable and writable; the counter is installed "
                     "without the watchdog", TIMER_OBJECT_VA);
     } else {
         result = patch_redirect_call(exe_site(FRAME_CALL_VA), (const void *)stub_address);

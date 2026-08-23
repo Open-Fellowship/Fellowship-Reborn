@@ -11,7 +11,7 @@
 #define PLUGIN_SECTION "model_lod"
 
 /* The engine walks a chain of LOD levels, stepping finer or coarser as an object's screen size
- * crosses a threshold. Rather than move the thresholds - which are per-model authored data - the
+ * crosses a threshold. Rather than move the thresholds, which are per-model authored data, the
  * two branches that decide the step are settled: always take the finer one, never the coarser.
  *
  * 0x485B97  75 54  -> 90 90   the "do not step finer" branch, removed
@@ -48,7 +48,7 @@ void model_lod_install(void)
     } else {
         /* Half of this patch is worse than none: one branch settled and the other not means the
          * engine can step coarser and never come back. Say so loudly. */
-        log_error("PARTIAL - finer %s, coarser %s. The LOD chain is now inconsistent; "
+        log_error("PARTIAL, finer %s, coarser %s. The LOD chain is now inconsistent; "
                   "set Enabled=0 and restart.",
                   patch_result_text(finer), patch_result_text(coarser));
     }

@@ -17,15 +17,15 @@
  * which places the inventory item models, computes its own geometry from the UNPATCHED 64. The
  * two then disagree by exactly 64/48 = 4/3 at 16:9, and every item model renders at 0.75x its
  * correct offset from screen centre and 0.75x its correct size. That was measured, twice, from
- * position and from size independently, and is written up in _FixEnhancers/docs/12.
+ * position and from size independently.
  *
  * So this plugin does NOT touch NUM. It sets the FOCAL LENGTH instead, which is icon-safe by
  * construction: the inventory sets its own 20-degree field of view, does its arithmetic from
  * that same 20 degrees, and restores the previous value through GetFOV/SetFOV when it is done.
  * The world's field of view never enters the icon calculation at all.
  *
- * Setting focal alone is not enough - the renderer uses projX and projY, which are only
- * recomputed inside SetViewport - so every term SetViewport derives from focal is written too.
+ * Setting focal alone is not enough; the renderer uses projX and projY, which are only
+ * recomputed inside SetViewport, so every term SetViewport derives from focal is written too.
  */
 #ifndef FIELD_OF_VIEW_H
 #define FIELD_OF_VIEW_H

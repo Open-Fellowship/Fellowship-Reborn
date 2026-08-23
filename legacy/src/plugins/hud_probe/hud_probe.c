@@ -36,7 +36,7 @@ static const uint8_t getter_expected[GETTER_SIZE] = {
 };
 
 /* A fixed table, never grown, and a cheap hash: this runs on every authored-value read in the
- * game - thousands a second - so the recording path has to be a bounded number of instructions
+ * game, thousands a second, so the recording path has to be a bounded number of instructions
  * with no allocation and no lock. Losing an entry to a hash collision costs a line of a report;
  * taking a lock here would cost the frame rate. */
 #define TABLE_SIZE 2048
@@ -165,7 +165,7 @@ static DWORD WINAPI key_thread(LPVOID parameter)
             } else {
                 memset(g_table, 0, sizeof(g_table));
                 InterlockedExchange(&g_recording, 1);
-                log_info("recording started - do the thing you want to see, then press the key "
+                log_info("recording started, do the thing you want to see, then press the key "
                          "again to write the report");
             }
         }
@@ -190,7 +190,7 @@ void hud_probe_install(void)
     /* OFF by default, on purpose. This is a diagnostic that hooks the busiest function in the
      * engine; nobody should be running it without meaning to. */
     if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
-        log_info("Enabled=0. A diagnostic, not a fix - turn it on only when hunting something.");
+        log_info("Enabled=0. A diagnostic, not a fix, turn it on only when hunting something.");
         return;
     }
     if (!host_image_resolve()) {
@@ -205,7 +205,7 @@ void hud_probe_install(void)
 
     site = exe_site(GETTER_VA);
     if (!patch_validate_bytes(site, getter_expected, GETTER_SIZE)) {
-        log_error("%08X is not the property getter on this build - not installing",
+        log_error("%08X is not the property getter on this build, not installing",
                   (unsigned)GETTER_VA);
         return;
     }

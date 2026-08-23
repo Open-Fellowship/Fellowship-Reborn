@@ -22,14 +22,14 @@
  *
  * Eight bytes, relocated whole. Between them the stub overwrites BOTH distance bases with
  * focal * W / 128, which is the value that makes the projected position land exactly on the
- * cell. Everything downstream - both distances, both offsets - derives from these two, so one
+ * cell. Everything downstream, both distances, both offsets, derives from these two, so one
  * correction fixes position and size together. */
 #define ICON_HOOK_RVA    0x7A42Du
 #define ICON_RETURN_RVA  0x7A435u
 #define ICON_HOOK_SIZE   8u
 
 /* The rfl's own global holding the camera. An RFL address, so it is relative to the rfl's base,
- * not the executable's - the one place in this project where that distinction bites. */
+ * not the executable's, the one place in this project where that distinction bites. */
 #define RFL_CAMERA_GLOBAL_RVA (RFL_INTERFACE_GLOBAL - 0x10000000u)
 
 static const uint8_t icon_hook_expected[ICON_HOOK_SIZE] = {
@@ -80,7 +80,7 @@ static void on_rfl_loaded(uintptr_t rfl_base)
     uintptr_t stub_address;
 
     if (!patch_validate_bytes(hook, icon_hook_expected, ICON_HOOK_SIZE)) {
-        log_error("rfl+%X does not hold the expected fstp/fld pair - not installing",
+        log_error("rfl+%X does not hold the expected fstp/fld pair, not installing",
                   ICON_HOOK_RVA);
         return;
     }
@@ -92,7 +92,7 @@ static void on_rfl_loaded(uintptr_t rfl_base)
     }
     if (build_stub(stub_address, rfl_site(rfl_base, ICON_RETURN_RVA),
                    rfl_base + RFL_CAMERA_GLOBAL_RVA) == NULL) {
-        log_error("the stub did not fit its buffer - not installing");
+        log_error("the stub did not fit its buffer, not installing");
         return;
     }
     if (patch_write_jump(hook, (const void *)stub_address, ICON_HOOK_SIZE)
@@ -112,7 +112,7 @@ void inventory_icons_install(void)
     /* Off by default, and the log says why rather than leaving somebody to wonder. */
     if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
         log_info("Enabled=0. Only needed alongside a FOV mod that rewrites the engine's focal "
-                 "numerator - CameraFieldOfView=-1.0 in Fellowship.ini. With a stock numerator "
+                 "numerator, CameraFieldOfView=-1.0 in Fellowship.ini. With a stock numerator "
                  "there is nothing to correct.");
         return;
     }

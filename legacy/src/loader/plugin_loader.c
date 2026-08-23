@@ -82,7 +82,7 @@ static bool collect_plugins(const char *directory, plugin_list_t *list)
  *
  * Two file sizes, logged before anything else happens, because they decide whether any of the
  * rest of this log means what it says. Every site in this project was measured against one pair
- * of files, and a plugin that declines on a different pair is behaving correctly - but a reader
+ * of files, and a plugin that declines on a different pair is behaving correctly, but a reader
  * cannot tell that apart from a plugin that is broken unless the log says which files these are.
  *
  * The sizes are read off DISK rather than from the loaded image, because Fellowship.rfl is not
@@ -158,7 +158,7 @@ static void log_which_build(void)
         log_warning("this is not the pair everything here was measured against, which is "
                     "Fellowship.exe %u and Fellowship.rfl %u. Plugins that decline below are "
                     "declining correctly. The order that gets you there: install, apply the "
-                    "official v1.1 patch, then put the 1.1 No-CD executable in - the patch "
+                    "official v1.1 patch, then put the 1.1 No-CD executable in, the patch "
                     "replaces the executable, so the No-CD goes in last.",
                     (unsigned)EXE_SIZE_SUPPORTED, (unsigned)RFL_SIZE_SUPPORTED);
     }
@@ -230,7 +230,7 @@ void plugin_loader_run_once(void)
     }
 
     if (!ini_read_bool(LOADER_SECTION, "Enabled", true)) {
-        log_warning("Enabled=0 in [%s] - no plugin is loaded, the game runs exactly as before",
+        log_warning("Enabled=0 in [%s]; no plugin is loaded, the game runs exactly as before",
                     LOADER_SECTION);
         return;
     }

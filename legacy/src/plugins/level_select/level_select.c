@@ -141,7 +141,7 @@ static void on_rfl_loaded(uintptr_t rfl_base)
     patch_result_t result;
 
     if (!code_section(rfl_base, &code, &size)) {
-        log_error("could not find the code section of Fellowship.rfl at %08X - not installing",
+        log_error("could not find the code section of Fellowship.rfl at %08X, not installing",
                   (unsigned)rfl_base);
         return;
     }
@@ -153,21 +153,21 @@ static void on_rfl_loaded(uintptr_t rfl_base)
          * here? Copies that have been through the community patcher, or that came out of a
          * release that shipped an edited rfl, land in this branch. */
         if (find_all(code, size, edited_branch, sizeof(edited_branch), &site) > 0) {
-            log_info("rfl+%05X already carries the edit - nothing to do on this copy",
+            log_info("rfl+%05X already carries the edit, nothing to do on this copy",
                      (unsigned)(site - rfl_base));
             log_info("  New Game already opens the level list here. If it does not, the missing "
                      "piece is LevelList.txt next to Fellowship.exe, which is what fills it in.");
             return;
         }
 
-        log_error("the New Game branch is not in this Fellowship.rfl - not installing. Looked "
+        log_error("the New Game branch is not in this Fellowship.rfl, not installing. Looked "
                   "for 8B 45 70 85 C0 0F 84 D6 00 00 00 across %u bytes of code.",
                   (unsigned)size);
         return;
     }
 
     if (matches > 1) {
-        log_error("that byte sequence appears %u times in this build, so it identifies nothing - "
+        log_error("that byte sequence appears %u times in this build, so it identifies nothing, "
                   "refusing to write", matches);
         return;
     }

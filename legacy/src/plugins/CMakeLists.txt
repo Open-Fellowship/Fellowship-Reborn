@@ -22,7 +22,7 @@ function(add_fellowship_plugin name)
 endfunction()
 
 
-# Not a fix. It exercises the whole contract - loaded, entry point called, ini read, log written -
+# Not a fix. It exercises the whole contract, loaded, entry point called, ini read, log written,
 # so that when a real plugin misbehaves it is possible to tell whether the loader is at fault.
 add_fellowship_plugin(template_plugin
     dll_main.c
@@ -85,7 +85,7 @@ add_fellowship_plugin(cd_check
 )
 
 # A one-dword guard, not a fix on the build here. A stock executable answers D3DFMT_P8 for 8-bit
-# textures, NVIDIA dropped paletted support, and the game hangs on a black screen at load - on
+# textures, NVIDIA dropped paletted support, and the game hangs on a black screen at load, on
 # AMD it does not. Reads before it writes and says which situation it found.
 add_fellowship_plugin(black_screen
     dll_main.c
@@ -130,7 +130,7 @@ add_fellowship_plugin(text_scaling
     text_scaling.c
 )
 
-# Two bytes, and the first plugin here that finds its site by SIGNATURE rather than by address -
+# Two bytes, and the first plugin here that finds its site by SIGNATURE rather than by address,
 # the retail rfl and the one this project targets put the same branch 0x430 apart. New Game opens
 # the game's own level list, which is a finished screen nobody ever reaches. See its README.
 add_fellowship_plugin(level_select
@@ -139,7 +139,7 @@ add_fellowship_plugin(level_select
 )
 
 # A DIAGNOSTIC, not a fix, and off by default. It hooks the engine's universal property getter in
-# Fellowship.exe and records which code asks for which authored value - the tool for finding the
+# Fellowship.exe and records which code asks for which authored value, the tool for finding the
 # in-game HUD's draw path. See HUD-FINDING.md in hud_scaling.
 add_fellowship_plugin(hud_probe
     dll_main.c
@@ -149,7 +149,7 @@ add_fellowship_plugin(hud_probe
 # ------------------------------------------------------------------------------- interactive
 #
 # The only plugin that draws. It hooks IDirect3DDevice8::EndScene through the device vtable, and
-# it does not install that hook until the toggle key is pressed for the first time - so a player
+# it does not install that hook until the toggle key is pressed for the first time, so a player
 # who never opens it is running a DLL that read an ini and started a thread. gdi32 is for
 # rasterising the font once, at that first press, on our own thread and never in the draw path.
 add_fellowship_plugin(dev_menu

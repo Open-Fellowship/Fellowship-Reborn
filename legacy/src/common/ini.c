@@ -13,7 +13,7 @@
 /* What the file was called before, and the whole reason there are two names here. Renaming a
  * configuration file silently reverts everybody who already had one to the built-in defaults,
  * and it does it without an error: every key simply stops being found. So the old name is still
- * accepted, and only when the new one is absent - if both exist the new one wins outright rather
+ * accepted, and only when the new one is absent, if both exist the new one wins outright rather
  * than the two being merged, because a half-read configuration is harder to diagnose than a
  * wrong one. */
 #define INI_LEGACY_NAME "open_fellowship.ini"
@@ -72,7 +72,7 @@ bool ini_using_legacy_name(void)
  *     LogMessages=1                ; Mirrors what the engine prints...
  *
  * comes back as "1                ; Mirrors what the engine prints...". The numeric readers get
- * away with it, because strtol and strtod stop at the space - which is why KeyCode=192 with a
+ * away with it, because strtol and strtod stop at the space, which is why KeyCode=192 with a
  * comment has always worked. The BOOLEAN reader compared the whole string against "1" and quietly
  * fell back to its default, so EVERY DOCUMENTED BOOLEAN in the shipped ini was ignored. That is
  * why LogMessages appeared to do nothing however many times it was set.
