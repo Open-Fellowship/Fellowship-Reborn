@@ -6,7 +6,7 @@
  * options screen shows.
  *
  * Three of them neutralise a rejection branch WITHOUT changing its length, by zeroing the branch
- * displacement rather than the opcode - a `jne +0x83` becomes `jne +0`, which falls through to
+ * displacement rather than the opcode; a `jne +0x83` becomes `jne +0`, which falls through to
  * the next instruction. That is a neater trick than NOPping the instruction and it is worth
  * keeping rather than "improving": the instruction boundary is untouched, so nothing downstream
  * can shift.

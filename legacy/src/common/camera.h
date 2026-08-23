@@ -11,7 +11,7 @@
  *     [field_of_view] baseline focal 76.2722, horizontal 180.000 deg
  *
  * A horizontal field of view of exactly 180 degrees means 2*atan(halfW/focal) saturated, which
- * means halfW read back as something astronomical - so the pointer was NOT null, and what it
+ * means halfW read back as something astronomical, so the pointer was NOT null, and what it
  * pointed at was NOT a camera. A stub that reads `[ebx+0x254]` off that pointer is an access
  * violation, and a plugin that writes a focal length derived from it is a corrupt projection
  * matrix. Both were observed.
@@ -60,7 +60,7 @@ bool camera_watch(unsigned interval_ms, camera_watch_callback_t on_change);
  * sub-rectangle, the camera's viewport IS that rectangle while the menu is drawn, and a stub that
  * multiplies by a number sampled a quarter of a second ago is using the wrong one.
  *
- * So the stub reads through a pointer - but never the engine's own global, which is the thing
+ * So the stub reads through a pointer, but never the engine's own global, which is the thing
  * that turned out not to be trustworthy. `slot` is OUR variable. It is zero until a camera has
  * passed every check in camera_read(), and it goes back to zero the moment one stops passing.
  * A stub that finds zero there falls through and does nothing, which is the unmodified game.

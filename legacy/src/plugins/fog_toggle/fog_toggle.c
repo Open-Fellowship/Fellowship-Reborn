@@ -144,7 +144,7 @@ void fog_toggle_install(void)
     ini_read_string(PLUGIN_SECTION, "Key", "F1", key_name, sizeof(key_name));
     g_toggle_key = resolve_key(key_name);
     if (g_toggle_key == 0) {
-        log_error("Key=%s is not one of F1 F2 F3 F4 - not installing. The game binds F5 to F12 "
+        log_error("Key=%s is not one of F1 F2 F3 F4, not installing. The game binds F5 to F12 "
                   "to its own cheats, which is why the choice is narrow.", key_name);
         return;
     }
@@ -153,7 +153,7 @@ void fog_toggle_install(void)
 
     hook = exe_site(FOG_HOOK_VA);
     if (!patch_validate_bytes(hook, fog_hook_expected, FOG_HOOK_SIZE)) {
-        log_error("%08X does not hold SetFogEnable's prologue - not installing", (unsigned)hook);
+        log_error("%08X does not hold SetFogEnable's prologue, not installing", (unsigned)hook);
         return;
     }
 

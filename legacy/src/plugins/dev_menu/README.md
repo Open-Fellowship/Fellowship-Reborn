@@ -52,7 +52,7 @@ miss, because nothing about drawing a few untextured quads suggests it would unb
 geometry.
 
 This engine binds its stream once and reuses it across draws. So every draw after the overlay's,
-in that same frame, ran with no stream bound and drew whatever the runtime happened to have -
+in that same frame, ran with no stream bound and drew whatever the runtime happened to have,
 which is exactly what a light sprite becoming a screen-filling white blob looks like.
 
 Both are saved before the draw and put back after, and the references the getters add are
@@ -282,7 +282,7 @@ from numbers into controls:
 | case | entries | what pressing it does |
 |---|---|---|
 | `0x41202A` | 67 | the default: value becomes its opposite. A plain switch |
-| `0x411FBD` | 21 | switch, **and sets flag 0x39 with it** - the statistics rows, which do not display at all without their master flag |
+| `0x411FBD` | 21 | switch, **and sets flag 0x39 with it**; the statistics rows, which do not display at all without their master flag |
 | `0x411F2E` `0x411F57` `0x411F8A` | 3 | wireframe, strips, render groups: a switch that also sets 0x0F, 0x39, 0x3D and 0x45 around it |
 | `0x411DA5` `0x411DB6` | 0, 51, 16 | cycle 0 to 2 |
 | `0x411BF2` | 1 | cycle 0 to 6 |
@@ -303,7 +303,7 @@ dispatcher and the engine decides what that means.
 
 99, 100 and 101 are X, Y and Z: the destination the **Teleport** entry (98) reads when it builds
 `tele %d %d %d`. They are the only entries here holding a number that means something in the
-world rather than a mode, and the dispatcher's default case would flatten one to 0 or 1 - which
+world rather than a mode, and the dispatcher's default case would flatten one to 0 or 1, which
 is what pressing the row used to do, throwing the coordinate away.
 
 So those three rows have a field instead of a switch. Click it and type; Enter sets it, the `-`
@@ -331,8 +331,8 @@ that order. The object is static, so those are three fixed addresses - `0x544ABC
 means what the menu shows is the number Teleport will actually use.
 
 Escape does cancel the edit, but it also opens the game's pause menu, so clicking the field again
-is the better way out. The game still sees the keystrokes while you type - the menu mutes the
-mouse, not the keyboard - which is worth knowing if a digit is bound to something in your setup.
+is the better way out. The game still sees the keystrokes while you type, the menu mutes the
+mouse, not the keyboard, which is worth knowing if a digit is bound to something in your setup.
 
 ### Seven entries hold a range
 
@@ -384,7 +384,7 @@ So the sink is borrowed. Everything the engine prints goes through one object he
 ```
 
 Sixty-five call sites between those two entries. `this` goes on the stack rather than in `ecx`
-and the caller cleans up, which is how MSVC compiles a member function taking varargs - and it is
+and the caller cleans up, which is how MSVC compiles a member function taking varargs, and it is
 what lets both be hooked with ordinary C functions, no naked thunks and no assembler.
 
 Both are replaced in the vtable, the text is kept in a ring of the last 256 lines, and the
@@ -394,7 +394,7 @@ forwarded as an already-formatted string, since C gives no portable way to pass 
 **The formatting is ours, not the CRT's.** Handing the engine's format strings to `vsnprintf` is
 not safe: they are this engine's own, several carry a leading control byte, and any conversion
 the CRT reads differently from the way the engine's own printf reads it means a value taken as a
-pointer and dereferenced. So the walk is written out here - known conversions only, one at a
+pointer and dereferenced. So the walk is written out here, known conversions only, one at a
 time, every `%s` pointer checked for readability before it is touched, and anything unrecognised
 copied through as literal text **without consuming an argument**. Guessing at an unknown
 conversion is how the rest of a line turns into garbage, or worse.
@@ -421,11 +421,11 @@ has an object to hook, long before anybody presses anything, and the box is just
 that has been filling since the game started. `CaptureMessages=0` in the ini turns the capture
 off entirely for anyone who wants nothing hooked.
 
-`LogMessages=1` is the same ring written to `open_fellowship.log` as well, and it exists for the
+`LogMessages=1` is the same ring written to `fix_enhancers.log` as well, and it exists for the
 case the box cannot serve: a machine where the screen never comes on. A box you cannot see is no
 help at all in working out why you cannot see it, and what the engine said in the seconds before
 it stopped is usually the whole answer. It is off by default because it is a great deal of text,
-and the per-frame statistics are left out of it deliberately - at sixty frames a second they would
+and the per-frame statistics are left out of it deliberately, at sixty frames a second they would
 be the entire file within a minute.
 
 ### Four slots, and slot 0 is the one that matters in game
@@ -451,8 +451,8 @@ Every statistics row the debug flags switch on goes through it, once a frame eac
 makes those flags visible at all on a build whose own display draws nothing.
 
 It also revealed that the statistics are **not events and must not be logged as such**. The
-engine prints its whole information block every frame whatever the flags say - the flags decide
-what its own display DRAWS, not what it prints - so as a scrolling list it is thousands of copies
+engine prints its whole information block every frame whatever the flags say, the flags decide
+what its own display DRAWS, not what it prints, so as a scrolling list it is thousands of copies
 of the same eight lines, and every real message is buried within a second of the game starting.
 
 So slot 0's lines go into a **live table**, keyed on the text before the colon, each row replaced
@@ -475,7 +475,7 @@ removes its row rather than leaving the last value sitting there for ever.
 Capture stays indiscriminate and the CHOOSING happens in the menu, on a third tab.
 
 Every line is filed under the text before its colon - `FPS`, `TEX`, `Waypoint`, `Behavior
-Changer`, `Loading Objects from save file` - and each of those keys becomes a channel with its
+Changer`, `Loading Objects from save file`, and each of those keys becomes a channel with its
 own switch and a count of how many times it has been seen. The box shows a line only if its
 channel is on.
 
@@ -527,18 +527,22 @@ for a `memcpy`.
 The hook needs the menu to have been opened once in the session, because that is when the overlay
 hook and the font exist at all.
 
-## The open fellowship page
+## The fix enhancers page
+
+Everything on the other three tabs asks the engine to do something it already knows how to do: the
+cheats are its own commands, the flags are its own debug menu. This one does not. The engine has no
+notion of a character's size and no notion of a frame rate it is meant to aim for, so this page is
+where the things that are ours rather than the engine's live.
+
+### Player size
 
 Two sliders, each with a reset. **Height** scales the player up and down, **Width** scales it
 across on top of whatever height is set. The camera holds its distance through both and the mouse
 still moves it normally. With both at 1.00 the plugin writes once to restore and then stops
 touching the object, so an idle page costs the game nothing.
 
-Everything on the other three tabs asks the engine to do something it already knows how to do: the
-cheats are its own commands, the flags are its own debug menu. This one does not. The engine has no
-notion of a character's size, so this page reaches into the player's object and writes to it, which
-is a heavier thing than anything else in this plugin and is why every step is validated on every
-call.
+This reaches into the player's object and writes to it, which is a heavier thing than anything else
+in this plugin and is why every step is validated on every call.
 
 ### Finding the player
 
@@ -652,6 +656,43 @@ range is checked committed and writable first. The matrix is renormalised before
 applying it every frame is a hold rather than a multiplication, and it survives the engine
 rewriting the matrix from animation. A row that has collapsed means this is no longer an
 orientation matrix, so the module stops rather than writing into whatever replaced it.
+
+### Frame rate
+
+A slider from 30 to 300, four presets, an **uncapped** toggle and a **save as default** button.
+The slider does not wait for anything itself. It publishes a target to `fps_limit` over the shared
+channel, exactly as the field of view slider publishes to `field_of_view`, so there is one writer
+for the thing and one writer for the request. Save writes `MaxFPS` into the `[fps_limit]` section
+of `fix_enhancers.ini`, which is another plugin's section and is deliberate: the menu is the
+player acting, not a plugin minding its own business.
+
+Two lines report rather than assert. Both are read out of the engine:
+
+```
+clock: QueryPerformanceCounter at 100000 Hz
+engine fps 89.9
+```
+
+The clock line comes from the Timer's own ticks-to-seconds constant at `0x0053EE68`. `0.001` means
+the engine is still on `GetTickCount` and `frame_timing` is not installed, whatever any log says
+about load order. The frame rate is the engine's own, from `0x00543294`, resampled every eight
+frames by `Timer::GetFramerate`.
+
+### The delta window that used to be here
+
+A third line held a 240-frame ring of the delta at `0x00543284` as low, mean, high and a spread
+percentage, and it is worth recording what it showed because it is how `frame_timing` was proven:
+
+```
+frame delta over 240 frames:  low 0.00  avg 16.67  high 31.00 ms  spread 186%    stock clock
+frame delta over 240 frames:  low 11.10 avg 11.11  high 11.12 ms  spread 0%      with the fix
+```
+
+It came out once the fix was demonstrated. A per-frame sample that nothing reads is a
+`VirtualQuery` every frame for a number nobody looks at, and if the measurement is ever wanted
+again, taking it from **outside** the process is the better shape anyway: the same address, read
+against the frame counter at `0x0054417C` so there is exactly one sample per frame and no
+aliasing against the frame rate.
 
 ## Configuration: `[dev_menu]`
 

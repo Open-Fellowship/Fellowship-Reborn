@@ -1,7 +1,7 @@
 /* black_screen.h: the 8-bit texture format the renderer asks the driver for.
  *
- * Ported from the community patcher, where the option is a single dword write - Fellowship.dll
- * pushes 0x43D2BC and the value 0x32 - and where, on the build this project targets, it changes
+ * Ported from the community patcher, where the option is a single dword write, Fellowship.dll
+ * pushes 0x43D2BC and the value 0x32, and where, on the build this project targets, it changes
  * nothing at all. See the README for the measurement. This plugin exists as a GUARD: it reads
  * the value first, corrects it only when a build actually holds the broken one, and says which
  * of those two happened.
@@ -21,7 +21,7 @@
  *
  * D3DFMT_P8 is 41: an 8-bit PALETTED texture. NVIDIA dropped support for it; AMD still carries
  * it. So a stock game on an NVIDIA card asks for a format the driver will not give it, fails to
- * create the texture, and hangs on a black screen at load - while the identical game on an AMD
+ * create the texture, and hangs on a black screen at load, while the identical game on an AMD
  * card starts fine. That is the bug the patcher's option is named after, and it is why it is a
  * hardware-dependent one rather than a Windows-version one.
  *

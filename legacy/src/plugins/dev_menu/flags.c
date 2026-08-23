@@ -46,15 +46,15 @@
 
 /* `__fastcall` with a dead EDX parameter, standing in for the engine's `__thiscall`.
  * MSVC does not accept `__thiscall` on a function-pointer typedef in C; the substitution is
- * exact on x86 - `this` in ECX either way, the real arguments in the same stack slots, callee
- * cleanup either way - and EDX is caller-saved and never read. See the longer note in
+ * exact on x86, `this` in ECX either way, the real arguments in the same stack slots, callee
+ * cleanup either way, and EDX is caller-saved and never read. See the longer note in
  * cheats.c. */
 typedef void (__fastcall *set_flag_fn)(void *self, void *unused_edx, int index, int32_t value);
 
 /* 99, 100 and 101 are X, Y and Z: the destination the Teleport entry (98) reads when it builds
  * "tele %d %d %d". They are the only entries here holding a number that means something in the
- * world rather than a mode, and toggling one between 0 and 1 - which is what the dispatcher's
- * default case does to them - throws the coordinate away. They get typed into instead. */
+ * world rather than a mode, and toggling one between 0 and 1, which is what the dispatcher's
+ * default case does to them, throws the coordinate away. They get typed into instead. */
 static const int g_numbers[] = { 99, 100, 101 };
 
 /* AND THEY DO NOT LIVE IN THE VALUES ARRAY.
@@ -184,7 +184,7 @@ bool flags_set(int index, int32_t value)
 
     /* Same for writing: into the object's own field, not the values array, or Teleport builds its
      * command from whatever was there before. No setter call, because there is no per-flag side
-     * effect for these - the coordinate is read straight out of the object when Teleport runs. */
+     * effect for these; the coordinate is read straight out of the object when Teleport runs. */
     {
         uint32_t field = number_address(index);
 
@@ -230,7 +230,7 @@ bool flags_set(int index, int32_t value)
  * from numbers into controls. What they do:
  *
  *   0x41202A  67 entries  the default: value = !value. A plain switch.
- *   0x411FBD  21 entries  switch, AND sets flag 0x39 with it - the statistics rows, which need
+ *   0x411FBD  21 entries  switch, AND sets flag 0x39 with it, the statistics rows, which need
  *                         their master flag on to display at all. This is why stepping one of
  *                         those by hand did nothing.
  *   0x411F2E / 0x411F57 / 0x411F8A   wireframe, strips, render groups: a switch that also sets
@@ -244,7 +244,7 @@ bool flags_set(int index, int32_t value)
  *   0x411FE2  23          hardware lighting: switches, then talks to the device
  *   0x411E4A  59          take a screenshot. An action; the value is not the point.
  *   0x411C50, 0x411C65, 0x411CB6, 0x411C7A, 0x411CD4, 0x411CE9, 0x411CFE, 0x411D13, 0x411C14
- *                         the cheats, which send a command string - the same eight this menu
+ *                         the cheats, which send a command string; the same eight this menu
  *                         already has as buttons on the other page
  *
  * So one call does the right thing for every entry, and this table is only used to LABEL them.
@@ -254,8 +254,8 @@ bool flags_set(int index, int32_t value)
 
 /* `__fastcall` with a dead EDX parameter, standing in for the engine's `__thiscall`.
  * MSVC does not accept `__thiscall` on a function-pointer typedef in C; the substitution is
- * exact on x86 - `this` in ECX either way, the real arguments in the same stack slots, callee
- * cleanup either way - and EDX is caller-saved and never read. See the longer note in
+ * exact on x86, `this` in ECX either way, the real arguments in the same stack slots, callee
+ * cleanup either way, and EDX is caller-saved and never read. See the longer note in
  * cheats.c. */
 typedef void (__fastcall *activate_fn)(void *self, void *unused_edx, int index);
 

@@ -20,7 +20,7 @@ Positions, by contrast, fit an exact affine law with zero residual - `0.25 * W +
 because that is the resolution the interface was authored against.
 
 This is a **resolution** bug, not an aspect one. At 800x600 the 315-pixel bar is already 39% of
-the width where it was 49% at 640x480 - 20% wrong, just too subtle to notice.
+the width where it was 49% at 640x480, 20% wrong, just too subtle to notice.
 
 ## The site
 
@@ -34,7 +34,7 @@ Eight bytes, relocated whole into a stub that multiplies by `viewportWidth / 640
 ## The stub reads through OUR pointer, never the engine's
 
 The first version generated a stub that loaded the engine's active-camera pointer, checked it
-against NULL, and read `[camera+0x254]` through it - once per GUI control the game builds. That
+against NULL, and read `[camera+0x254]` through it, once per GUI control the game builds. That
 is safe for exactly as long as the pointer is either NULL or a camera, and on a second install it
 was neither. From the same run's log:
 
@@ -47,16 +47,16 @@ pointer that was not NULL. A stub cannot check for that cheaply and has nowhere 
 just takes the access violation. The game crashed with this plugin enabled.
 
 The second version over-corrected: it sampled the scale onto a `float` on a poll thread and had
-the stub multiply by that. No engine pointer, no crash - and the wrong number. The pause menu
+the stub multiply by that. No engine pointer, no crash, and the wrong number. The pause menu
 renders the world into a sub-rectangle, and **the camera's viewport IS that rectangle while the
 menu is drawn**, so a value sampled a quarter of a second earlier belongs to a different
 viewport. In `text_scaling`, where the same change was made, it showed up as glyphs at stock
 height against 4.5x width: measured from the screenshot, a capital G 17 px tall and 86 px wide.
 
-So the read is live again, and the pointer is ours. `common/camera.c` polls, validates - the
+So the read is live again, and the pointer is ours. `common/camera.c` polls, validates; the
 pointer has to look like an object, meaning a vtable inside the host image whose first entry is
 also inside the host image, then the whole 0x260-byte span, the dimensions, the halves, the focal
-length, and the aspect ratio against the rectangle the camera claims to be rendering into - and
+length, and the aspect ratio against the rectangle the camera claims to be rendering into, and
 publishes the result into a variable in this DLL. It publishes zero when a camera stops
 validating, and the stub falls through unscaled on zero, which is also the right answer at the
 menus where a GUI built with a divide-by-nothing would be a crash on the title screen.

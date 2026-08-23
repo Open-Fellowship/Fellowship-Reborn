@@ -43,7 +43,7 @@
 
 /* Spelled `__fastcall` with a dead second parameter rather than `__thiscall`, which is what the
  * engine actually uses. MSVC accepts `__thiscall` on a function-pointer typedef in C++ but not in
- * C - under `/permissive-` with `C_STANDARD 11` it is not a keyword at all, and the declaration
+ * C, under `/permissive-` with `C_STANDARD 11` it is not a keyword at all, and the declaration
  * below stops parsing at the `*`. This built once because an older toolset was laxer; 19.50 is
  * not, and no pragma reopens it.
  *
@@ -54,7 +54,7 @@
  *     __fastcall (this, dead, arg)    this -> ECX, dead -> EDX, arg on the stack, callee cleans
  *
  * Same register for `this`, same stack layout for the real argument, same cleanup. EDX is
- * caller-saved and `__thiscall` never reads it, so what we put there is discarded - it is
+ * caller-saved and `__thiscall` never reads it, so what we put there is discarded; it is
  * passed as NULL to make that explicit rather than leaving a register uninitialised. */
 typedef void (__fastcall *command_fn)(void *self, void *unused_edx, const char *command);
 
@@ -100,8 +100,8 @@ bool cheat_believed_state(cheat_id_t id)
 /* WHERE THE CODE LIVES
  *
  * The first build of this refused every call, because it insisted the vtable entry be inside
- * Fellowship.exe. It is not. Nothing in the executable ever WRITES 0x544070 - twenty-three
- * instructions read it and none of them assign it - so the object is created by Fellowship.rfl,
+ * Fellowship.exe. It is not. Nothing in the executable ever WRITES 0x544070, twenty-three
+ * instructions read it and none of them assign it, so the object is created by Fellowship.rfl,
  * which is the game half of this engine, and its vtable is in the rfl's code.
  *
  * That is worth stating rather than quietly widening the check: the engine is the exe and the
@@ -148,7 +148,7 @@ static bool inside_the_game(uintptr_t address)
 
 /* Nothing here is believed twice. The pointer, the vtable, the slot and the target are each
  * checked on the way through, every time, because this runs on a click at a moment of the
- * player's choosing rather than at a point in the engine's own flow - the same rule the camera
+ * player's choosing rather than at a point in the engine's own flow, the same rule the camera
  * work landed on after an unvalidated global crashed a machine that was not this one.
  *
  * `why` gets a word naming the first check that failed, for the one-shot diagnostic below. A
@@ -171,7 +171,7 @@ static command_fn resolve_command(void **object_out, const char **why)
         return NULL;
     }
     if (object == 0) {
-        *why = "0x544070 is still NULL - the game has not built the object yet";
+        *why = "0x544070 is still NULL; the game has not built the object yet";
         return NULL;
     }
     if (!memory_is_readable_range(object, 4)) {

@@ -14,7 +14,7 @@
  * than each field being hoped for individually. */
 #define CAMERA_SPAN 0x260u
 
-/* Plausible bounds. These are deliberately generous - the job is to reject uninitialised memory
+/* Plausible bounds. These are deliberately generous; the job is to reject uninitialised memory
  * and stale pointers, not to second-guess someone's monitor. 64x64 is below the engine's own
  * 640x480 floor and 32768 is past any display that exists, so anything in between is allowed. */
 #define DIMENSION_MIN 64
@@ -131,7 +131,7 @@ bool camera_read(camera_view_t *out)
 
     /* A last cross-check no individual range can make: halfH/halfW IS the aspect ratio, so it has
      * to agree with the rectangle the camera claims to be rendering into. A camera caught half
-     * way through SetViewport - old dimensions, new halves, or the reverse - passes every test
+     * way through SetViewport, old dimensions, new halves, or the reverse, passes every test
      * above and fails this one.
      *
      * Either rectangle is accepted, because the viewport and the device disagree legitimately

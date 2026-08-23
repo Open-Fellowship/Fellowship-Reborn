@@ -23,7 +23,7 @@
 #define AUTHORED_ASPECT 0.75
 
 /* Below this, the camera is not the world camera. The inventory renders its item models through
- * the same camera object at the item's own ModelFOV - 20 degrees for the ones measured - and
+ * the same camera object at the item's own ModelFOV, 20 degrees for the ones measured, and
  * writing the world's focal length over that would put every icon in the wrong place. */
 #define WORLD_FOV_FLOOR 40.0
 
@@ -35,7 +35,7 @@
  *
  * 2*atan(halfW/focal) reaching exactly 180 degrees means halfW came back astronomical, so what
  * was being read was not a camera. The old code had a floor and no ceiling, so a saturated angle
- * sailed through, was latched as the baseline - permanently, it never re-sampled - and a focal
+ * sailed through, was latched as the baseline, permanently, it never re-sampled, and a focal
  * length of 3.5e23 went into the projection matrix. The whole span between the floor and this
  * ceiling is a real field of view; nothing outside it is. */
 #define WORLD_FOV_CEILING 170.0
@@ -90,7 +90,7 @@ static void complain_once(const char *what, double value)
 {
     if (!g_complained) {
         g_complained = true;
-        log_warning("%s (%.4f) - leaving the field of view alone. If this is the only line this "
+        log_warning("%s (%.4f), leaving the field of view alone. If this is the only line this "
                     "plugin ever prints, set Enabled=0; it means the camera on this machine is "
                     "not where the plugin expects it.", what, value);
     }
@@ -119,7 +119,7 @@ static DWORD WINAPI poll_thread(LPVOID parameter)  /* never returns */
                     /* Sampled once, from the game's own value, and never re-sampled: deriving
                      * the target from the current focal after we have already written it would
                      * compound on every tick. Which is exactly why the sample has to be
-                     * trustworthy - a bad one is permanent. */
+                     * trustworthy; a bad one is permanent. */
                     double target = g_target_vertical;
 
                     if (target <= 0.0) {
@@ -141,7 +141,7 @@ static DWORD WINAPI poll_thread(LPVOID parameter)  /* never returns */
                 {
                     /* dev_menu's slider outranks the ini and the automatic value, and only while
                      * it is asking. Release it there and this falls straight back to whatever
-                     * was chosen at install time - no restart, and no second writer: the slider
+                     * was chosen at install time, no restart, and no second writer: the slider
                      * publishes a number, this plugin remains the only thing that writes the
                      * camera. */
                     double target = g_target_vertical;
@@ -212,7 +212,7 @@ void field_of_view_install(void)
         log_info("holding the vertical field of view at %.4f deg (from the ini)",
                  g_target_vertical);
     } else if (configured != 0.0f) {
-        log_warning("VerticalFOV=%g is outside 1..179 - falling back to automatic",
+        log_warning("VerticalFOV=%g is outside 1..179, falling back to automatic",
                     (double)configured);
     }
 

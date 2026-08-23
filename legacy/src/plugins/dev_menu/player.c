@@ -28,7 +28,7 @@
 /* The game object's transform, as the position probe found it. Position and rotation were both
  * confirmed by watching them: +0x00EC changes as you walk, +0x00F8 is the yaw that turns when you
  * turn. +0x011C is three floats holding exactly (1, 1, 1) immediately after the nine of the
- * matrix - 0xF8 + 36 is 0x11C - which is where a scale belongs in a position/rotation/scale
+ * matrix, 0xF8 + 36 is 0x11C, which is where a scale belongs in a position/rotation/scale
  * layout, and it has never been seen holding anything else. */
 #define OBJECT_POSITION        0x0ECu
 #define OBJECT_TRANSFORM       0x0F8u
@@ -70,7 +70,7 @@ uintptr_t player_object(const char **why)
         return 0;
     }
     if (!memory_read_u32(rfl_site(base, RFL_OBJECT_MANAGER_RVA), &manager) || manager == 0) {
-        *why = "the object manager global is still NULL - no level yet";
+        *why = "the object manager global is still NULL, no level yet";
         return 0;
     }
     if (!memory_is_readable_range((uintptr_t)manager, MANAGER_LOCAL_PLAYER + 4u)) {
@@ -154,7 +154,7 @@ uintptr_t player_last_object(void)
  * memory.h deliberately offers no write, because almost everything in this tree that writes to
  * the game writes to CODE and goes through patch_write_*, which restores page protection
  * afterwards. This writes to a heap object instead, which is already writable, so the thing worth
- * checking is that the range really is committed and really is writable - a stale pointer that
+ * checking is that the range really is committed and really is writable; a stale pointer that
  * happened to survive the class check would otherwise fault here.
  *
  * Kept local rather than added to common/memory.h: one caller does not justify widening an API
@@ -196,7 +196,7 @@ bool player_apply_size(float girth, float height, const char **why)
     *why = "";
 
     /* Girth is height MULTIPLIED BY build, so the combinations reach further than either row
-     * suggests - Huge at 3.0 with Absurd at 8.0 is 24, which the old ceiling of 20 refused. The
+     * suggests, Huge at 3.0 with Absurd at 8.0 is 24, which the old ceiling of 20 refused. The
      * limit is a sanity guard against a corrupt read reaching this far, not a judgement about how
      * silly a hobbit is allowed to be, so it moves up rather than clamping the buttons. */
     if (!(girth > 0.05f && girth < 40.0f) || !(height > 0.05f && height < 40.0f)) {
@@ -219,22 +219,22 @@ bool player_apply_size(float girth, float height, const char **why)
         return false;
     }
 
-    /* A collapsed row means this is no longer an orientation matrix - the object was rebuilt
-     * under us - and writing into whatever replaced it is the fault this file exists to avoid. */
+    /* A collapsed row means this is no longer an orientation matrix; the object was rebuilt
+     * under us, and writing into whatever replaced it is the fault this file exists to avoid. */
     for (row = 0; row < 3; ++row) {
         if (!(dot3(m + row * 3, m + row * 3) > 1.0e-8f)) {
-            *why = "the transform is degenerate - not an orientation matrix any more";
+            *why = "the transform is degenerate, not an orientation matrix any more";
             return false;
         }
     }
 
     /* Renormalise, then scale. Reading back a matrix we already scaled would compound, and the
-     * engine rewrites this one from animation every frame anyway - so taking the rows to unit
+     * engine rewrites this one from animation every frame anyway, so taking the rows to unit
      * length first is what makes calling this every frame a hold rather than a multiplication. */
     for (row = 0; row < 3; ++row) {
         float *r      = m + row * 3;
         float  length = (float)sqrt((double)dot3(r, r));
-        /* Row 1 is the up axis - it reads (0, 1, 0) in every sample, where rows 0 and 2 turn with
+        /* Row 1 is the up axis; it reads (0, 1, 0) in every sample, where rows 0 and 2 turn with
          * the player. So row 1 takes the height and the other two take the girth. */
         float  factor = (row == 1) ? height : girth;
 
@@ -250,7 +250,7 @@ bool player_apply_size(float girth, float height, const char **why)
     /* Per axis, not one value in all three.
      *
      * Keying the whole thing to height was wrong, and wrong in the way it was predicted to be:
-     * changing only the build moved the camera. Writing the offset out explains it - the camera
+     * changing only the build moved the camera. Writing the offset out explains it; the camera
      * sits at `matrix * (0, TrackHeight, -TrackDist)`, so the DISTANCE term rides on row 2, a
      * horizontal row that carries girth, while the HEIGHT term rides on row 1 which carries
      * height. Two different scales, so one reciprocal cannot cancel both.
@@ -259,7 +259,7 @@ bool player_apply_size(float girth, float height, const char **why)
      * them. Giving each axis the reciprocal of whatever scaled it is the obvious next reading:
      * y cancels the height row, x and z cancel the two horizontal ones. If the vector turns out
      * to be uniform after all, or ordered differently, this will still be visibly wrong when
-     * girth and height differ - and right when they are equal, which is the case that already
+     * girth and height differ, and right when they are equal, which is the case that already
      * worked. */
     triple[0] = 1.0f / girth;
     triple[1] = 1.0f / height;
@@ -272,8 +272,8 @@ bool player_apply_size(float girth, float height, const char **why)
 /* Log the floats where the two positions are most likely to be, so they can be identified by
  * looking at them rather than guessed at.
  *
- * A world coordinate in this engine is large - the schema talks in world units where a tracking
- * distance is 2000 - and it changes as you walk. A rotation component never leaves [-1, 1] and a
+ * A world coordinate in this engine is large, the schema talks in world units where a tracking
+ * distance is 2000, and it changes as you walk. A rotation component never leaves [-1, 1] and a
  * flag or a counter does not look like either. Printing a window around each and reading it is
  * quicker and far more certain than another search.
  *

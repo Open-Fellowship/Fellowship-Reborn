@@ -26,13 +26,13 @@
  * Eight bytes, which is three more than a branch needs, so the pair is relocated whole.
  *
  * WIDTH, not height: this factor governs a horizontal extent. Text is the opposite case and
- * scales by height, which is why text_scaling is a separate plugin with a separate reference -
- * two different references is correct here, not an inconsistency. */
+ * scales by height, which is why text_scaling is a separate plugin with a separate reference;
+* two different references is correct here, not an inconsistency. */
 #define HUD_HOOK_RVA   0x789A7u
 #define HUD_RETURN_RVA 0x789AFu
 #define HUD_HOOK_SIZE  8u
 
-/* THE OTHER HALF OF THE SAME DECISION - INVESTIGATED, MEASURED, NOT APPLIED
+/* THE OTHER HALF OF THE SAME DECISION, INVESTIGATED, MEASURED, NOT APPLIED
  *
  * rfl+78950 sets a control's two scalars, and it has two ways of doing it:
  *
@@ -46,7 +46,7 @@
  *     }
  *
  * A control built without a template gets a pixels-per-unit of exactly 1, which never changed
- * with the resolution - so that branch looked like the reason the in-game HUD stayed small while
+ * with the resolution, so that branch looked like the reason the in-game HUD stayed small while
  * the templated slider scaled. A second hook at rfl+789BB was written, shipped and measured.
  *
  * IT CHANGED NOTHING. From the screenshots, against a 640x480 baseline:
@@ -58,8 +58,8 @@
  *
  * The circle is the same size in PIXELS at both resolutions, so it never passes through a
  * control's pixels-per-unit at all and nothing this plugin does can reach it. The in-game HUD is
- * positioned by percentage and sized in fixed texels - the same shape of bug as the inventory
- * cell art in _FixEnhancers/docs/12, and a different draw path from this one.
+ * positioned by percentage and sized in fixed texels, the same shape of bug as the inventory
+ * cell art, and a different draw path from this one.
  *
  * So the hook came back out. The finding is kept here because the branch IS unscaled and someone
  * will find it again; what is written down with it is that fixing it does not fix the HUD.
@@ -100,7 +100,7 @@ static int32_t g_reference_width = 640;
  *
  * So the stub dereferences THIS. It is our variable. It is zero until a camera has passed every
  * check in camera_read(), it returns to zero the moment one stops passing, and a stub that finds
- * zero falls through unscaled - which is also the right answer at the menus, where a GUI built
+ * zero falls through unscaled, which is also the right answer at the menus, where a GUI built
  * with a divide-by-nothing would be a crash on the title screen. */
 static volatile uintptr_t g_camera;
 
@@ -165,7 +165,7 @@ static void on_rfl_loaded(uintptr_t rfl_base)
     patch_result_t result;
 
     if (!patch_validate_bytes(hook, hud_hook_expected, HUD_HOOK_SIZE)) {
-        log_error("rfl+%X does not hold the expected fld/fstp pair - not installing",
+        log_error("rfl+%X does not hold the expected fld/fstp pair, not installing",
                   HUD_HOOK_RVA);
         return;
     }
@@ -176,7 +176,7 @@ static void on_rfl_loaded(uintptr_t rfl_base)
         return;
     }
     if (build_stub(stub_address, rfl_site(rfl_base, HUD_RETURN_RVA)) == NULL) {
-        log_error("the stub did not fit its buffer - not installing");
+        log_error("the stub did not fit its buffer, not installing");
         return;
     }
 
@@ -213,7 +213,7 @@ void hud_scaling_install(void)
     /* Started before the hook exists, so the slot is already populated by the time the first
      * GUI is built. Until then it is zero and the HUD is drawn stock. */
     if (!camera_track(250, &g_camera, on_camera)) {
-        log_error("could not start the camera watch - the HUD would never be scaled");
+        log_error("could not start the camera watch; the HUD would never be scaled");
         return;
     }
 

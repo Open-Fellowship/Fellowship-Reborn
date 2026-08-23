@@ -7,7 +7,7 @@
  * the five values it writes put back the exact bytes resolution_unlock changes at 0x4BC4FF. The
  * patcher gets away with it by applying them in order in one function. Here they are two DLLs,
  * and the loader loads alphabetically, so `windowed_res` lands after `resolution_unlock` and wins
- * - the same outcome, reached less obviously. Rather than rely on that, this plugin says so in
+ *, the same outcome, reached less obviously. Rather than rely on that, this plugin says so in
  * the log when it overwrites the other one's work.
  */
 #ifndef WINDOWED_RES_H

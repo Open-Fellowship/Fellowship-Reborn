@@ -20,7 +20,7 @@
 /* The object and its two arrays, checked now. False means the list should be drawn dead. */
 bool flags_available(void);
 
-/* The engine's own name for the flag, or NULL where the array has a hole - indices 71, 95, 96
+/* The engine's own name for the flag, or NULL where the array has a hole, indices 71, 95, 96
  * and 99 to 101 are unnamed in this build. */
 const char *flags_name(int index);
 

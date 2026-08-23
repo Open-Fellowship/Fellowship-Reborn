@@ -42,6 +42,12 @@ set(OPEN_FELLOWSHIP_OUTPUT ${CMAKE_BINARY_DIR}/dist)
 # cells.
 file(REMOVE_RECURSE ${OPEN_FELLOWSHIP_OUTPUT}/plugins)
 
+# And the configuration file under its former name, for exactly the same reason. The rename left a
+# stale open_fellowship.ini sitting in the output beside the new one, and while the loader prefers
+# the new name and would have ignored it, a release folder containing two configuration files is a
+# release that gets shipped with the wrong one edited.
+file(REMOVE ${OPEN_FELLOWSHIP_OUTPUT}/open_fellowship.ini)
+
 add_subdirectory(src/common)
 add_subdirectory(src/loader)
 add_subdirectory(src/plugins)
@@ -51,8 +57,8 @@ add_subdirectory(src/plugins)
 # CMake and partly by remembering to copy a file is a release that eventually goes out without it.
 add_custom_target(dist_config ALL
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_CURRENT_SOURCE_DIR}/dist/open_fellowship.ini
-            ${OPEN_FELLOWSHIP_OUTPUT}/open_fellowship.ini
-    COMMENT "Copying dist/open_fellowship.ini into dist/"
+            ${CMAKE_CURRENT_SOURCE_DIR}/dist/fix_enhancers.ini
+            ${OPEN_FELLOWSHIP_OUTPUT}/fix_enhancers.ini
+    COMMENT "Copying dist/fix_enhancers.ini into dist/"
     VERBATIM
 )

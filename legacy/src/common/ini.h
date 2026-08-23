@@ -1,6 +1,6 @@
 /* ini.h: generic access to the shared configuration file.
  *
- * One file, <game>\open_fellowship.ini, with one section per DLL. A plugin passes its own
+ * One file, <game>\fix_enhancers.ini, with one section per DLL. A plugin passes its own
  * section name on every call and therefore cannot read or overwrite another plugin's key by
  * accident.
  *
@@ -14,8 +14,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Full path of the configuration file, next to the host executable. Never NULL. */
+/* Full path of the configuration file, next to the host executable. Never NULL.
+ *
+ * The file is `fix_enhancers.ini`. It used to be `open_fellowship.ini`, and that name is still
+ * accepted WHEN THE NEW ONE IS ABSENT, so a rename does not silently revert an existing install
+ * to the built-in defaults. When both exist the new name wins and the old one is not read at all;
+ * merging two configuration files is harder to explain than ignoring one. */
 const char *ini_path(void);
+
+/* True when the path above resolved to the old name. The loader says so in the log, because
+ * "which of the two files am I actually editing" is not a question anyone should have to answer
+ * by comparing timestamps. */
+bool ini_using_legacy_name(void);
 
 bool    ini_read_bool (const char *section, const char *key, bool default_value);
 int32_t ini_read_int  (const char *section, const char *key, int32_t default_value);

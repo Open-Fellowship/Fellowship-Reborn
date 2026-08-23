@@ -26,19 +26,19 @@ static int32_t g_reference_height = 480;
  * The stubs read the viewport height at the moment they run, and they have to. The pause menu
  * renders the world into a sub-rectangle; the camera's viewport IS that rectangle while the menu
  * is drawn. Sampling the scale on a timer instead was tried, and it rendered the menu's glyphs
- * at stock height against 4.5x width - squat and stretched, the exact failure these seven hooks
+ * at stock height against 4.5x width, squat and stretched, the exact failure these seven hooks
  * exist to avoid. Measured from the screenshot: capital G, 17 px tall and 86 px wide.
  *
  * What must not come back is the version that read the ENGINE's camera global. That global is
  * not always NULL-or-a-camera: a crash log from a second install showed field_of_view reading a
  * horizontal field of view of 180.000 degrees through it, which only happens when the floats
  * behind it are garbage, and dereferencing that from a stub is an access violation with nothing
- * to catch it and nowhere to report it. The integer stubs had a second way to die on top -
- * `idiv` faults outright when the quotient does not fit, which a nonsense numerator guarantees.
+ * to catch it and nowhere to report it. The integer stubs had a second way to die on top,
+* `idiv` faults outright when the quotient does not fit, which a nonsense numerator guarantees.
  *
  * So the stubs dereference THIS. It is our variable, in our data section. It is zero until a
  * camera has passed every check in camera_read(), it goes back to zero the moment one stops
- * passing, and a stub that finds zero falls through unscaled - the unmodified game. The pointer
+ * passing, and a stub that finds zero falls through unscaled; the unmodified game. The pointer
  * is live; the trust is not blind.
  *
  * That validation also closes the `idiv` overflow for free: camera_read() will not publish a
@@ -103,7 +103,7 @@ static void build_scaled_call(emit_t *emit)
 }
 
 /* The glyph's HEIGHT scale is not a call: it is a hard-coded `push 1.0f`. The 1.0f is pushed
- * anyway so the stack frame stays byte-identical, then overwritten in place - which is why this
+ * anyway so the stack frame stays byte-identical, then overwritten in place, which is why this
  * one ends `fstp [esp+4]` rather than leaving a value on the FPU stack. Getting this wrong is
  * what made the first version of this fix render squat, stretched glyphs, and replacing it with
  * a `push` of a timer-sampled float brought that same failure straight back. */
@@ -288,7 +288,7 @@ void text_scaling_install(void)
     /* Started before the hooks exist, so the slot is already populated by the time the first
      * glyph is drawn. Until then it is zero and the stubs fall through unscaled. */
     if (!camera_track(250, &g_camera, on_camera)) {
-        log_error("could not start the camera watch - text would never be scaled");
+        log_error("could not start the camera watch, text would never be scaled");
         return;
     }
 

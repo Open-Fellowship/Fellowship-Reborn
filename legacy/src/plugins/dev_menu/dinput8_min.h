@@ -16,16 +16,16 @@
  *
  * DirectInput devices do not have that problem: exclusive access by one application prevents
  * other applications acquiring EXCLUSIVELY, and nothing else. So this plugin opens its own mouse,
- * non-exclusive and background, and reads relative movement from it - the same hardware the game
+ * non-exclusive and background, and reads relative movement from it; the same hardware the game
  * is reading, through the same API, without taking anything away from it.
  *
  * It tries exclusive first. If the game does not hold the mouse exclusively, we get it, and the
- * game stops seeing the movement while the menu is open - which is the behaviour you actually
+ * game stops seeing the movement while the menu is open, which is the behaviour you actually
  * want from a menu. If it does, we fall back to sharing and say so in the log.
  *
  * NOTHING HERE COMES FROM AN SDK. The GUIDs are the published, stable DirectInput values and the
  * data format is a structure the API documents; `dinput8.lib` would supply both, but declaring
- * them keeps this plugin buildable with nothing but the Windows SDK - the same reasoning as
+ * them keeps this plugin buildable with nothing but the Windows SDK, the same reasoning as
  * d3d8_min.h next door.
  */
 #ifndef DEV_MENU_DINPUT8_MIN_H

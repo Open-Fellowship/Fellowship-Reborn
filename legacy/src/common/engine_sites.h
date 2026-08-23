@@ -7,7 +7,7 @@
  * absolute address in a module loaded at its preferred base. Nothing may use one directly.
  * Convert first:
  *
- *     exe_site(0x48BEF0)   ->  host_image_base() + (0x48BEF0 - 0x400000)
+ *     exe_site(0x48BEF0)   ->  host_image_base() + (0x48BEF0, 0x400000)
  *     rfl_site(base, 0x789A7)
  *
  * ==============================================================================================
@@ -62,13 +62,37 @@ static inline uintptr_t rfl_site(uintptr_t rfl_base, uint32_t rva)
  *     call dword ptr [edx+0x8c]  EndScene, index 35
  *
  * The exe imports exactly one Direct3D symbol, Direct3DCreate8, and calls +0x3C, +0x88 and +0x8C
- * on this same object - Present, BeginScene, EndScene at indices 15, 34 and 35. Three hits on
+ * on this same object, Present, BeginScene, EndScene at indices 15, 34 and 35. Three hits on
  * the published ordering at three different indices is what fixes the interface. */
 #define EXE_RENDERER_PTR        0x0054743Cu
 #define RENDERER_D3D_DEVICE     0x166u
 
 /* The visibility distance in cells, read by seven `fld` sites. */
 #define EXE_VISIBILITY_CELLS    0x005432ACu
+
+/* ------------------------------------------------------------------------------ frame timing
+ *
+ * The engine object at 0x00543280 holds the numbers the whole game reads for time, and the Timer
+ * instance at 0x0053EE58 is what produces them. Written up in full in plugins/frame_timing.
+ *
+ * Neither the delta nor the frame rate has a WRITE anywhere in the image, and that is not a
+ * puzzle; both are written through pointers. UpdateTime at 0x00408F00 does `lea edi,[esi+4]`
+ * and hands that to Timer::Tick; 0x00409000 does `add ecx,0x14` and hands that to
+ * Timer::GetFramerate. Searching for a store to either address finds nothing at all.
+ *
+ * Read only, from this side. The delta is overwritten at the top of every frame, so writing to
+ * it achieves nothing that survives to be noticed. */
+#define EXE_FRAME_DELTA         0x00543284u   /* float, seconds, 31 read sites                */
+#define EXE_FRAME_DELTA_RECIP   0x00543288u   /* float, 1.0 / delta                           */
+#define EXE_FRAME_FPS           0x00543294u   /* float, resampled every 8 frames              */
+#define EXE_GAME_TIME           0x00543364u   /* float, seconds, 26 read sites                */
+#define EXE_MAX_FRAME_DELTA     0x00543368u   /* float, 0.1: the slowest frame the sim admits */
+
+/* The Timer's ticks-to-seconds constant. 0.001 means the engine is still on GetTickCount; any
+ * other value means frame_timing has moved it, and 1/value is the rate. Reading this is how a
+ * tool tells which clock is running without asking the plugin that changed it. */
+#define EXE_TIMER_OBJECT        0x0053EE58u
+#define TIMER_SECONDS_PER_TICK  0x010u
 
 /* ---------------------------------------------------------------------------- Fellowship.rfl */
 

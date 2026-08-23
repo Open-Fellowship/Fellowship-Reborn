@@ -75,7 +75,7 @@ void emit_jump_rel32(emit_t *emit, uintptr_t stub_address, uintptr_t target)
     int32_t displacement;
 
     /* The displacement is measured from the END of this instruction, which is five bytes on from
-     * where it starts - hence count + 5 rather than count. */
+     * where it starts, hence count + 5 rather than count. */
     displacement = (int32_t)(target - (stub_address + emit->count + 5u));
     emit_u8(emit, 0xE9);
     emit_u32(emit, (uint32_t)displacement);

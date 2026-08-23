@@ -28,7 +28,7 @@ static DWORD WINAPI watch_thread(LPVOID parameter)
              * plugin that patches on that first sighting is racing whatever the loader has left
              * to do. It bit us: with a seventeenth plugin in the folder the timing shifted by one
              * poll, text_scaling won the race by 25 ms, and one of its seven sites came back
-             * "unexpected bytes" - on the same rfl, at the same base, that had installed cleanly
+             * "unexpected bytes", on the same rfl, at the same base, that had installed cleanly
              * the run before.
              *
              * So the module has to be seen, and then still be there and unchanged a full settle

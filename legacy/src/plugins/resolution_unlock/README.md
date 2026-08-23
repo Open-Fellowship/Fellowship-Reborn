@@ -2,7 +2,7 @@
 
 **Produces:** `resolution_unlock.dll`. On by default.
 
-The options screen offers only a handful of modes - often a single 4:3 one - because the engine
+The options screen offers only a handful of modes, often a single 4:3 one, because the engine
 filters the DirectDraw mode list before showing it. This removes the filter.
 
 Ported from the community patcher's `UnlockResolutions` option, decoded out of its own installer
@@ -18,7 +18,7 @@ table rather than guessed at.
 
 The last two are worth understanding rather than "tidying up": they neutralise a branch by zeroing
 its **displacement**, not its opcode. A `jne +0x83` becomes `jne +0`, which jumps to the very next
-instruction - so the branch still executes, still takes the same number of bytes, and nothing
+instruction, so the branch still executes, still takes the same number of bytes, and nothing
 downstream shifts. NOPping the instruction would have worked too and would have been more fragile.
 
 The first one keeps the same displacement for a subtler reason: the `jmp` starts one byte later
@@ -27,7 +27,7 @@ same `0x4BC5B2`.
 
 ## What is deliberately left alone
 
-The engine checks `cmp edx, 0x280` and `cmp ebx, 0x1E0` - 640x480 - a few instructions later.
+The engine checks `cmp edx, 0x280` and `cmp ebx, 0x1E0` - 640x480, a few instructions later.
 Those stay. Modes below that were rejected for a reason and nothing here needs them.
 
 ## Configuration: `[resolution_unlock]`

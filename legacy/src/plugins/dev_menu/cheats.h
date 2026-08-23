@@ -31,7 +31,7 @@ const char *cheat_label(cheat_id_t id);
 bool cheat_is_toggle(cheat_id_t id);
 
 /* What we last sent, for the two toggles. NOT read back from the game, which offers no way to
- * ask - so it is what the menu believes, and the menu says so. */
+ * ask, so it is what the menu believes, and the menu says so. */
 bool cheat_believed_state(cheat_id_t id);
 
 /* The command object and its vtable entry, checked now. False means the button should be dead
