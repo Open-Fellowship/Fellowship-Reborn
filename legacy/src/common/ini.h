@@ -1,6 +1,6 @@
 /* ini.h: generic access to the shared configuration file.
  *
- * One file, <game>\fix_enhancers.ini, one section per DLL, so a plugin cannot touch another
+ * One file, <game>\fellowship_reborn.ini, one section per DLL, so a plugin cannot touch another
  * plugin's key by accident. This module knows nothing about what any key means; range checks and
  * validation belong to the plugin that owns the value. See README.md.
  */
@@ -12,7 +12,7 @@
 #include <stdint.h>
 
 /* Full path of the configuration file, next to the host executable. Never NULL. The old name
- * open_fellowship.ini is still accepted WHEN THE NEW ONE IS ABSENT, so a rename does not revert
+ * fellowship_reborn.ini is still accepted WHEN THE NEW ONE IS ABSENT, so a rename does not revert
  * an existing install to the built-in defaults. See README.md. */
 const char *ini_path(void);
 

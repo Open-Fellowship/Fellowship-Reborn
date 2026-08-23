@@ -1,7 +1,7 @@
 /* plugin_loader.h: load every DLL in <game>\plugins and give each one its entry point.
  *
  * The loader knows no engine addresses, patches no bytes and has no opinion about what a plugin
- * does. It enumerates in sorted order, LoadLibrary's each one, calls open_fellowship_install if
+ * does. It enumerates in sorted order, LoadLibrary's each one, calls fellowship_reborn_install if
  * present, and writes a line per plugin. A DLL without that export is loaded anyway and noted.
  *
  * ORDER ENCODES NO DEPENDENCIES, and there is NO HOOK CHAINING MECHANISM. Where two plugins hook

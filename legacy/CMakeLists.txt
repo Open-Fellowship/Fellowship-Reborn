@@ -1,4 +1,4 @@
-# OpenFellowship, legacy layer: fixes for the retail engine of
+# Fellowship Reborn, legacy layer: fixes for the retail engine of
 # The Lord of the Rings: The Fellowship of the Ring (Surreal Software, 2002).
 #
 # One loader plus one DLL per independent fix. The shared code is a STATIC library linked into
@@ -9,7 +9,7 @@
 # src/common/engine_types.h asserts it at compile time. Configure with -A Win32.
 
 cmake_minimum_required(VERSION 3.15)
-project(open_fellowship C)
+project(fellowship_reborn C)
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR
@@ -39,25 +39,26 @@ endif()
 
 # Where the built artefacts land, laid out the way they are installed: the loader beside the
 # executable, the fixes in plugins\.
-set(OPEN_FELLOWSHIP_OUTPUT ${CMAKE_BINARY_DIR}/dist)
+set(FELLOWSHIP_REBORN_OUTPUT ${CMAKE_BINARY_DIR}/dist)
 
 # Debug goes somewhere else entirely. Both configurations used to write here, so building
 # Debug after Release replaced every DLL with a build eight times the size and left 25 .pdb
 # files beside them, all of it looking exactly like something ready to copy into the game.
-set(OPEN_FELLOWSHIP_OUTPUT_DEBUG ${CMAKE_BINARY_DIR}/dist-debug)
+set(FELLOWSHIP_REBORN_OUTPUT_DEBUG ${CMAKE_BINARY_DIR}/dist-debug)
 
 # The output directory is emptied at configure time, and that is a safety property rather than
 # tidiness. CMake never deletes the output of a target that has stopped existing, so after a
 # plugin is renamed or removed its old DLL simply stays in dist\plugins, gets installed alongside
 # the new one, and the loader then applies two generations of the same patch to the same engine
 # cells.
-file(REMOVE_RECURSE ${OPEN_FELLOWSHIP_OUTPUT}/plugins)
+file(REMOVE_RECURSE ${FELLOWSHIP_REBORN_OUTPUT}/plugins)
 
 # And the configuration file under its former name, for exactly the same reason. The rename left a
-# stale open_fellowship.ini sitting in the output beside the new one, and while the loader prefers
+# stale fellowship_reborn.ini sitting in the output beside the new one, and while the loader prefers
 # the new name and would have ignored it, a release folder containing two configuration files is a
 # release that gets shipped with the wrong one edited.
-file(REMOVE ${OPEN_FELLOWSHIP_OUTPUT}/open_fellowship.ini)
+file(REMOVE ${FELLOWSHIP_REBORN_OUTPUT}/open_fellowship.ini
+            ${FELLOWSHIP_REBORN_OUTPUT}/fix_enhancers.ini)
 
 add_subdirectory(src/common)
 add_subdirectory(src/loader)
@@ -68,8 +69,8 @@ add_subdirectory(src/plugins)
 # CMake and partly by remembering to copy a file is a release that eventually goes out without it.
 add_custom_target(dist_config ALL
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_CURRENT_SOURCE_DIR}/dist/fix_enhancers.ini
-            ${OPEN_FELLOWSHIP_OUTPUT}/fix_enhancers.ini
-    COMMENT "Copying dist/fix_enhancers.ini into dist/"
+            ${CMAKE_CURRENT_SOURCE_DIR}/dist/fellowship_reborn.ini
+            ${FELLOWSHIP_REBORN_OUTPUT}/fellowship_reborn.ini
+    COMMENT "Copying dist/fellowship_reborn.ini into dist/"
     VERBATIM
 )

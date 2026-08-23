@@ -5,7 +5,7 @@
 # The include directory is src/ rather than src/common/, which is why every file in the tree
 # writes `#include "common/logging.h"` and no file counts dots to find a header.
 
-add_library(open_fellowship_common STATIC
+add_library(fellowship_reborn_common STATIC
     host_image.c
     logging.c
     ini.c
@@ -19,6 +19,6 @@ add_library(open_fellowship_common STATIC
     channel.c
 )
 
-target_include_directories(open_fellowship_common PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(fellowship_reborn_common PUBLIC ${CMAKE_SOURCE_DIR}/src)
 
-target_link_libraries(open_fellowship_common PUBLIC kernel32 user32)
+target_link_libraries(fellowship_reborn_common PUBLIC kernel32 user32)

@@ -115,7 +115,7 @@ At most 64 DLLs; beyond that the surplus is skipped and reported.
 
 ## Limitations
 
-* A DLL without an `open_fellowship_install` export is loaded anyway and noted as such, because
+* A DLL without an `fellowship_reborn_install` export is loaded anyway and noted as such, because
   an ordinary third-party DLL is a legitimate thing to put in `plugins\`.
 * Plugins are never unloaded. Hooks hold pointers into them for the life of the process, and
   there is no supported way to remove one from the middle of a chain.

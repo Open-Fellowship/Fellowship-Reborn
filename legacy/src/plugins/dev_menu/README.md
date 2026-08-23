@@ -427,7 +427,7 @@ has an object to hook, long before anybody presses anything, and the box is just
 that has been filling since the game started. `CaptureMessages=0` in the ini turns the capture
 off entirely for anyone who wants nothing hooked.
 
-`LogMessages=1` is the same ring written to `fix_enhancers.log` as well, and it exists for the
+`LogMessages=1` is the same ring written to `fellowship_reborn.log` as well, and it exists for the
 case the box cannot serve: a machine where the screen never comes on. A box you cannot see is no
 help at all in working out why you cannot see it, and what the engine said in the seconds before
 it stopped is usually the whole answer. It is off by default because it is a great deal of text,
@@ -533,7 +533,7 @@ for a `memcpy`.
 The hook needs the menu to have been opened once in the session, because that is when the overlay
 hook and the font exist at all.
 
-## The fix enhancers page
+## The Fellowship Reborn page
 
 Everything on the other three tabs asks the engine to do something it already knows how to do: the
 cheats are its own commands, the flags are its own debug menu. This one does not. The engine has
@@ -669,7 +669,7 @@ A slider from 30 to 300, four presets, an **uncapped** toggle and a **save as de
 The slider does not wait for anything itself. It publishes a target to `fps_limit` over the shared
 channel, as the field of view slider publishes to `field_of_view`, so there is one writer
 for the thing and one writer for the request. Save writes `MaxFPS` into the `[fps_limit]` section
-of `fix_enhancers.ini`, which is another plugin's section: the menu writes as the
+of `fellowship_reborn.ini`, which is another plugin's section: the menu writes as the
 player, not as a plugin minding its own business.
 
 Two lines report what the engine is doing. Both are read out of it:

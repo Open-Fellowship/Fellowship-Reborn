@@ -18,7 +18,7 @@
 void messages_set_enabled(bool enabled);
 bool messages_enabled(void);
 
-/* Mirrors every captured line into fix_enhancers.log as well as the ring.
+/* Mirrors every captured line into fellowship_reborn.log as well as the ring.
  *
  * The ring is for reading on screen, which is no use at all on a machine that never draws
  * anything, and a game that stops drawing is the case where what the engine said last matters

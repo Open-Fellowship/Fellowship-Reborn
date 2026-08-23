@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 _Static_assert(sizeof(void *) == 4,
-               "OpenFellowship targets a 32-bit game. Configure with: cmake -S . -B build -A Win32");
+               "Fellowship Reborn targets a 32-bit game. Configure with: cmake -S . -B build -A Win32");
 _Static_assert(sizeof(float) == 4, "engine floats are IEEE 754 single precision");
 
 /* Fellowship.exe, No-CD, 2,133,459 bytes. Both bases are the PREFERRED bases from the PE

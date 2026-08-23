@@ -1,4 +1,4 @@
-/* timing.h: the frame rate control on the fix enhancers page.
+/* timing.h: the frame rate control on the Fellowship Reborn page.
  *
  * Publishes a target to fps_limit over the channel, and writes it into the ini on request. It
  * writes [fps_limit], another plugin's section, which is the menu acting as the player rather

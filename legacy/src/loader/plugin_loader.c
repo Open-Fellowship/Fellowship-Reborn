@@ -17,7 +17,7 @@
 #define DEFAULT_PLUGIN_DIRECTORY "plugins"
 #define MAX_PLUGINS              64
 
-typedef void (__cdecl *open_fellowship_install_fn_t)(void);
+typedef void (__cdecl *fellowship_reborn_install_fn_t)(void);
 
 static bool loader_has_run;
 
@@ -148,7 +148,7 @@ static void load_one(const char *directory, const char *name)
 {
     char                         path[MAX_PATH];
     HMODULE                      module;
-    open_fellowship_install_fn_t install;
+    fellowship_reborn_install_fn_t install;
 
     snprintf(path, sizeof(path), "%s\\%s", directory, name);
     path[sizeof(path) - 1] = '\0';
@@ -159,16 +159,16 @@ static void load_one(const char *directory, const char *name)
         return;
     }
 
-    install = (open_fellowship_install_fn_t)(void *)
-              GetProcAddress(module, OPEN_FELLOWSHIP_ENTRY_NAME);
+    install = (fellowship_reborn_install_fn_t)(void *)
+              GetProcAddress(module, FELLOWSHIP_REBORN_ENTRY_NAME);
     if (install == NULL) {
         log_info("plugin %-28s loaded at %08X, no %s export, left to its own DllMain",
-                 name, (unsigned)(uintptr_t)module, OPEN_FELLOWSHIP_ENTRY_NAME);
+                 name, (unsigned)(uintptr_t)module, FELLOWSHIP_REBORN_ENTRY_NAME);
         return;
     }
 
     log_info("plugin %-28s loaded at %08X, calling %s",
-             name, (unsigned)(uintptr_t)module, OPEN_FELLOWSHIP_ENTRY_NAME);
+             name, (unsigned)(uintptr_t)module, FELLOWSHIP_REBORN_ENTRY_NAME);
     install();
 }
 
@@ -188,11 +188,11 @@ void plugin_loader_run_once(void)
     host_image_resolve();
     log_init("loader", true);
 
-    log_info("OpenFellowship loader");
+    log_info("Fellowship Reborn loader");
     log_info("host %s", host_path());
     log_info("ini  %s", ini_path());
     if (ini_using_legacy_name()) {
-        log_info("     that is the OLD name. fix_enhancers.ini is what this now looks for, and "
+        log_info("     that is the OLD name. fellowship_reborn.ini is what this now looks for, and "
                  "the old one is read only because the new one is not there. Renaming it is "
                  "optional and loses nothing.");
     }
@@ -206,7 +206,7 @@ void plugin_loader_run_once(void)
      * legitimate way to run, but it must not look like the settings were read. */
     if (GetFileAttributesA(ini_path()) == INVALID_FILE_ATTRIBUTES) {
         log_warning("there is no configuration file at that path. Every plugin is running on its "
-                    "built-in defaults. Copy dist/fix_enhancers.ini next to Fellowship.exe to "
+                    "built-in defaults. Copy dist/fellowship_reborn.ini next to Fellowship.exe to "
                     "change anything.");
     }
 

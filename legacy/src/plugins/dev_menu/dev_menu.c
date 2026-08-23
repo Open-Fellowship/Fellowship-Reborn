@@ -73,7 +73,7 @@ static float g_fov_degrees;          /* the slider's position, once the user has
 #define TAB_FLAGS    1
 #define TAB_MESSAGES 2
 /* This was TAB_PLAYER while the page held only the size sliders. It now holds anything of ours
- * that the engine has no notion of, which is what "fix enhancers" names. */
+ * that the engine has no notion of, which is what "Fellowship Reborn" names. */
 #define TAB_FIXES    3
 #define TAB_COUNT    4
 
@@ -476,7 +476,7 @@ static void *find_device(void)
 
 /* --------------------------------------------------------------------------------- raw input */
 
-#define RAW_WINDOW_CLASS "OpenFellowshipDevMenuInput"
+#define RAW_WINDOW_CLASS "FellowshipRebornDevMenuInput"
 
 static LRESULT CALLBACK raw_window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 {
@@ -665,7 +665,7 @@ static void messages_button_rect(int *x, int *y, int *w, int *h)
 }
 
 static const char *const g_tab_labels[TAB_COUNT] = {
-    " camera ", " engine flags ", " messages ", " fix enhancers "
+    " camera ", " engine flags ", " messages ", " Fellowship Reborn "
 };
 
 /* Each tab is as wide as ITS OWN label, and sits after the ones before it.
@@ -994,7 +994,7 @@ static void draw_frame_rate(void)
     }
 
     overlay_text(x, player_row(FPS_ROW_HINT), 1, COLOUR_DIM,
-                 "the slider drives fps_limit; save writes MaxFPS into fix_enhancers.ini");
+                 "the slider drives fps_limit; save writes MaxFPS into fellowship_reborn.ini");
 }
 
 static void handle_frame_rate_input(void)
@@ -1773,7 +1773,7 @@ static void draw_menu(const camera_view_t *view, bool have_camera)
     overlay_rect(PANEL_X, PANEL_Y, panel_width(), panel_height(), COLOUR_PANEL);
     overlay_frame(PANEL_X, PANEL_Y, panel_width(), panel_height(), 1, COLOUR_EDGE);
 
-    overlay_text(x, y, 1, COLOUR_TITLE, "OpenFellowship  -  dev menu");
+    overlay_text(x, y, 1, COLOUR_TITLE, "Fellowship Reborn  -  dev menu");
     overlay_text(PANEL_X + panel_width() - PADDING - overlay_text_width("` to close", 1), y, 1,
                  COLOUR_DIM, "` to close");
 
