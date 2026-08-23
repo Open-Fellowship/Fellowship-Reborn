@@ -4,7 +4,7 @@ A drop-in replacement for `Fellowship.rfl` that forwards every call to the retai
 
 It changes nothing about how the game plays, and that is the point. It establishes the seam. Once
 the host is talking to this DLL instead of the retail one, a function moves from *forwarded* to
-*reimplemented* by changing one function body — and the game keeps running the whole way. There is
+*reimplemented* by changing one function body, and the game keeps running the whole way. There is
 never a point where the project has half an engine and no way to test it.
 
 This is the phase-one skeleton that [OpenJones3D](https://github.com/smlu/OpenJones3D) describes:
@@ -15,7 +15,7 @@ stop needing the original at all.
 
 `Fellowship.rfl` is a DLL with exactly **eleven exports**, and everything the executable gets from
 the engine arrives through them. They return interface structures rather than being called
-piecemeal, so the boundary between host and engine is unusually narrow — one file, eleven names.
+piecemeal, so the boundary between host and engine is unusually narrow, one file, eleven names.
 
 It is also the half that matters. The game logic lives in the rfl: the ObjectDef registry, the
 property system, the Player class, the behaviours. The exe is the renderer, input and window host,
@@ -40,14 +40,14 @@ refusal at startup.
     cmake -S engine -B engine/build -A Win32
     cmake --build engine/build --config Release
 
-32-bit only — this DLL loads the retail 32-bit module into its own process. Static CRT, so it needs
+32-bit only, this DLL loads the retail 32-bit module into its own process. Static CRT, so it needs
 no redistributable in a 2002 game folder.
 
 ## Verifying it is a faithful stand-in
 
 The export table must match the retail module exactly: same names, same ordinals, undecorated. Two
-of the ordinals are not in the order the names suggest — `IsObjectMoveNode` is 7 and
-`IsObjectPortal` is 8 — which is the kind of thing that would break silently if a host imported by
+of the ordinals are not in the order the names suggest, `IsObjectMoveNode` is 7 and
+`IsObjectPortal` is 8, which is the kind of thing that would break silently if a host imported by
 ordinal.
 
 ```
@@ -69,21 +69,21 @@ PY
 ## Moving a function across
 
 1. Write it in a module beside `predicates.c`, named for its subsystem.
-2. Delete the forwarding body in `proxy.c` — the linker will take yours.
+2. Delete the forwarding body in `proxy.c`; the linker will take yours.
 3. Rebuild, run the game, confirm nothing changed.
 
 **Prefer functions that were matched byte for byte first.** `decomp/manifest.tsv` lists them, and a
 reimplementation seeded from verified source is a much stronger claim than one written to look
-right. The two predicates already here are pure — no state, no globals, no calls — so if the game
+right. The two predicates already here are pure (no state, no globals, no calls) so if the game
 misbehaves after installing this, the cause is the proxy mechanism rather than them.
 
 ## What is implemented
 
 | export | |
 |---|---|
-| `IsObjectPortal` | **ours** — from `decomp/src/objectdef/predicates.cpp`, matched, 0 relocations |
-| `IsObjectMoveNode` | **ours** — same |
-| `IsObjectLight` | forwarded — matched, but calls two functions inside the retail image that are not reachable by name |
+| `IsObjectPortal` | **ours**, from `decomp/src/objectdef/predicates.cpp`, matched, 0 relocations |
+| `IsObjectMoveNode` | **ours**, same |
+| `IsObjectLight` | forwarded, matched, but calls two functions inside the retail image that are not reachable by name |
 | `GetBaseRFLInterface` | forwarded |
 | `GetLandTypeInterface` | **ours** - `objectdef/landtype_table.c`, 192 records. Switchable: `LandTypes=0` |
 | `GetMessageInterface` | **ours** - `objectdef/message_table.c`, 54 records. Switchable: `Messages=0` |
@@ -151,7 +151,7 @@ walking their paths, and the cause was a missing `LevelList.txt` in the install.
 ## Not yet established
 
 How the host finds the module. `Fellowship.exe` has no static import of the engine and contains no
-`.rfl` string, so the name is built rather than spelled out — most likely from the executable's own
+`.rfl` string, so the name is built rather than spelled out, most likely from the executable's own
 path, since the retail pair share a stem. The exe does hold `RiotDllType` and `RiotDllGetID` as
 `GetProcAddress` strings and a `SOFTWARE\Surreal\Riot Engine` registry key, so there may be a
 configured path involved as well. **This has not been confirmed by reading the loading code**, and

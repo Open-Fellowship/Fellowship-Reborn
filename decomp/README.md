@@ -1,7 +1,7 @@
 # decomp
 
 Source that, compiled by the original toolchain, produces the exact bytes the shipped game
-holds. Not equivalent code — the same code generation, instruction for instruction.
+holds. Not equivalent code: the same code generation, instruction for instruction.
 
 **This is not the engine.** It is how the engine gets verified. A subsystem is decompiled here
 and matched byte for byte, which proves it is understood completely rather than approximately,
@@ -109,7 +109,7 @@ taught is below.
 Every function matched in the rfl was found byte-identical in `Fellowship.exe` as well. That is
 worth knowing before organising anything: source is **not** split by image, because one file
 legitimately reproduces functions in both. The `image` column in `manifest.tsv` is per function,
-not per file, which is what makes that work — and it means a function matched once can be claimed
+not per file, which is what makes that work, and it means a function matched once can be claimed
 twice.
 
 Eleven of the entries above cost nothing beyond locating them: search the exe for the bytes of an
@@ -119,18 +119,18 @@ address. Worth doing after any round.
 Two caveats on that trick. A raw search only finds **relocation-free** functions:
 `Vector3::operator/=` loads the `1.0f` constant from `.rdata` and its address differs between the
 images, so the bytes differ even though the code is identical. Masking that one operand and
-searching again found it immediately, at `0x00449600` — the same masking `matchtool.py` does, just
+searching again found it immediately, at `0x00449600`, the same masking `matchtool.py` does, just
 applied to a search. Worth reaching for whenever a function you expect to find does not turn up.
 
-`Vector3::Normalized` is absent from the exe even masked, so it really is not there — unused in
+`Vector3::Normalized` is absent from the exe even masked, so it really is not there, unused in
 that binary, or inlined into its callers.
 
 And a short generic body can appear more than once: `Vector3::operator=` is a 25-byte three-dword
 copy occurring four times in the exe, so it identifies nothing and was left out rather than
 guessed at.
 
-`levellist.cpp` is the first file with real relocations — string addresses, a call to the CRT,
-and five Win32 imports — so the relocation masking is now proven against the game itself and not
+`levellist.cpp` is the first file with real relocations (string addresses, a call to the CRT,
+and five Win32 imports) so the relocation masking is now proven against the game itself and not
 only against a synthetic test.
 
 Six of those ten matched on the first attempt, once the two conventions the class follows were
@@ -138,7 +138,7 @@ known. They are worth stating plainly, because they generalise to everything els
 does with floats:
 
 * **A function returning a `Vector3` by value uses a named local, assigned in reverse member
-  order** — `r.z`, then `r.y`, then `r.x`. This is forced by the x87 stack: all three components
+  order**, `r.z`, then `r.y`, then `r.x`. This is forced by the x87 stack: all three components
   are computed before any is stored, and `FSTP` pops from the top, so storing x first means
   pushing x last.
 * **The class declares an explicit copy constructor.** Nothing calls it out of line and it
@@ -152,7 +152,7 @@ something the stack layout cannot tell you:
   value.** A named local is the return buffer under RVO, nothing can alias it, and the compiler
   keeps the values in FPU registers. A reference it cannot prove unaliased forces
   memory-to-memory moves, and a plain float copy then becomes an integer move. `Matrix::GetColumn`
-  is `void GetColumn(Vector3 &out, int i)`, and only the instruction selection says so — a hidden
+  is `void GetColumn(Vector3 &out, int i)`, and only the instruction selection says so: a hidden
   return pointer at `[esp+4]` and an out-parameter at `[esp+4]` have identical stack layouts.
 * **`a + b + c` lets the compiler reassociate; separate `+=` statements do not.** VC6 reassociates
   float addition at `/O2`, so a single expression gives it a free choice and it does not always
@@ -282,7 +282,7 @@ machine this was developed on:
 
 | | |
 |---|---|
-| `VC6` | the portable toolchain — `bin\`, `include\`, `lib\`. See `documentation/TOOLCHAIN.md` |
+| `VC6` | the portable toolchain, `bin\`, `include\`, `lib\`. See `documentation/TOOLCHAIN.md` |
 | `RFL` | a **pristine** `Fellowship.rfl` |
 | `EXE` | a **pristine** `Fellowship.exe` |
 
@@ -387,7 +387,7 @@ functions are almost a side effect.
 
 ## Adding a function
 
-1. Find its address and its real length in Ghidra — length **excluding** trailing padding.
+1. Find its address and its real length in Ghidra, the length **excluding** trailing padding.
    Padding in these images is `90`, not `cc`.
 2. Add a `todo` line to `manifest.tsv`. The symbol is the decorated name; if you are unsure of
    the mangling, `python tools\matchtool.py obj build\<name>.obj` lists what is really there,
@@ -402,7 +402,7 @@ nothing is masked and a match means every byte agreed.
 
 `matchtool.py` blanks the operand at every relocation site on both sides before comparing,
 because a `call rel32` is a placeholder in a `.obj` and a resolved address in the image. What
-survives is pure code generation, and it is worth reading closely — the four functions above
+survives is pure code generation, and it is worth reading closely: the four functions above
 came out of exactly this:
 
 * **An extra instruction, or one in the wrong place**, usually means the source shape is nearly

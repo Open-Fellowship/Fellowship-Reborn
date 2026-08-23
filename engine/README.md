@@ -10,7 +10,7 @@ throughout.
 ## The approach, and why it changed
 
 This layer was originally going to wait for `decomp/` to prove the engine byte for byte. That is
-still the most rigorous way to know a reading is right, and it stays in use — but it is not a route
+still the most rigorous way to know a reading is right, and it stays in use, but it is not a route
 to a playable game. After a concentrated effort `decomp/` stands at 58 matched functions of roughly
 9,300, about 0.3%. Byte-matching is a *proof technique*, not the deliverable.
 
@@ -20,7 +20,7 @@ against the retail module by running it, not by comparing bytes. The model is
 starting with thunks into the original and replacing them incrementally.
 
 `decomp/` continues, but as a verifier rather than a producer. When a function's behaviour is
-subtle or load-bearing, matching it byte for byte is still the cheapest way to be sure — and it has
+subtle or load-bearing, matching it byte for byte is still the cheapest way to be sure, and it has
 repeatedly earned that. In one session it caught a calling convention that was `__thiscall` and not
 `__stdcall`, a return type that was not `void`, a compiler flag missing from the whole project, a
 member that had to be `volatile`, and three separate cases where properties were attributed to the
@@ -32,10 +32,10 @@ reimplementation, and been quietly wrong.**
 Not starting from nothing, which is why the estimate is years rather than a decade:
 
 * **The object model.** All 397 game object classes and their 4,262 properties, by the developers'
-  own names, with types and defaults — see [OBJECT-MODEL.md](../documentation/OBJECT-MODEL.md).
+  own names, with types and defaults, see [OBJECT-MODEL.md](../documentation/OBJECT-MODEL.md).
 * **The property mechanism.** Authored data is addressed by schema ordinal through one virtual
   accessor; [ORDINAL-MAP.md](../documentation/ORDINAL-MAP.md) locates all 2,323 reads in the rfl.
-* **Real names for the engine's own entry points**, from the rfl's export table —
+* **Real names for the engine's own entry points**, from the rfl's export table: 
   [RFL-EXPORTS.md](../documentation/RFL-EXPORTS.md).
 * **58 functions verified byte for byte**, listed in `decomp/manifest.tsv`. These seed the
   reimplementation rather than being discarded.
@@ -55,6 +55,6 @@ anticipation.
 ## Relationship to runtime/
 
 `runtime/` patches the retail engine from outside and is what makes the game playable today. This
-layer replaces the engine from inside. They are independent by design — nothing here links against
-`runtime/`'s shared library — because the two have opposite lifetimes: `runtime/` becomes unnecessary
+layer replaces the engine from inside. They are independent by design, nothing here links against
+`runtime/`'s shared library, because the two have opposite lifetimes: `runtime/` becomes unnecessary
 exactly as this layer becomes complete.

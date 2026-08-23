@@ -21,7 +21,7 @@ r.z = ...;   r.y = ...;   r.x = ...;   return r;
 
 The x87 stack forces it: all components are computed before any is stored, and `FSTP` pops from
 the top, so storing x first means pushing x last. Writing `return Vector3(a, b, c)` instead
-evaluates forwards and pays an `FXCH` — if the original *has* an `FXCH`, use that form instead.
+evaluates forwards and pays an `FXCH`, if the original *has* an `FXCH`, use that form instead.
 
 **Classes returned by value declare an explicit copy constructor**, even though nothing calls it
 and it appears nowhere in the binary. Without it the compiler builds a temporary and copies
@@ -46,7 +46,7 @@ function has a local object with a destructor, expect an EH prologue - three pus
 the registration node plus 12, so unwind funclet offsets read as *entry ESP minus n*.
 
 **Store order is literal.** VC6 at `/O2` emits stores in source order and does not group them by
-value. So the order in the disassembly *is* the order of the assignments — a bulk initialiser is
+value. So the order in the disassembly *is* the order of the assignments, a bulk initialiser is
 read off directly rather than guessed at. Two or more runs of strictly **descending** offsets,
 one run per distinct constant, is a chained assignment:
 
@@ -265,14 +265,14 @@ happens to the result.
 ## Reading a mismatch
 
 `try.py` prints the original above your bytes with `^^` under the differences and `..` where a
-relocation operand was blanked on both sides. Masked bytes carry no information — ignore them.
+relocation operand was blanked on both sides. Masked bytes carry no information, ignore them.
 
 | what you see | what it means |
 |---|---|
 | integer `MOV` where you have `FLD`/`FSTP` | the destination is a **reference**, not a return value. The function takes an out-parameter. A hidden return pointer and an out-parameter have identical stack layouts, so only the instruction selection tells you |
-| a temporary the original does not have | the compiler is not applying the return value optimisation — your return statement's shape is wrong |
+| a temporary the original does not have | the compiler is not applying the return value optimisation, your return statement's shape is wrong |
 | one extra instruction, e.g. `FXCH` | the source is nearly right; the evaluation order is off |
-| terms grouped differently | reassociation — use `+=` |
+| terms grouped differently | reassociation, use `+=` |
 | everything different | your reading of the function is wrong. Re-read the disassembly rather than permuting the source |
 | identical instructions, different registers | register allocation. Not reachable from source, so stop here |
 
@@ -280,7 +280,7 @@ relocation operand was blanked on both sides. Masked bytes carry no information 
 
 `matchtool` blanks relocated operands on both sides, which is what makes a comparison meaningful
 for a function full of calls. But in a very small function the relocations can be nearly all of
-it. `mov eax, <address>; ret` is six bytes, four of them a masked relocation — so *any* source
+it. `mov eax, <address>; ret` is six bytes, four of them a masked relocation, so *any* source
 returning *any* pointer matches it, and the match tells you nothing about whether you identified
 the right global.
 
@@ -295,4 +295,4 @@ Recover them from the disassembly, not from Ghidra's guess:
 * bare `RET` with arguments on the stack → `__cdecl`, so a free function or a static
 * `RET 8` with `[esp+4]` written through at the end → either a by-value return (hidden pointer)
   or an out-parameter. Integer `MOV`s mean out-parameter; see the table above
-* a `const` method mangles differently — if the symbol is not found, try the other one
+* a `const` method mangles differently, so if the symbol is not found try the other one

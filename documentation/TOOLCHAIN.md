@@ -70,7 +70,7 @@ corroborated independently by the Optional Header's `MajorLinkerVersion`, a docu
 which reads `6.00` in both files.
 
 The compiler split is the interesting part. The 110 C objects came from the stock 12.0 back end;
-the 234 C++ objects, the bulk of the game, came from build 9044 — the updated `C2.DLL` the
+the 234 C++ objects, the bulk of the game, came from build 9044, the updated `C2.DLL` the
 Processor Pack installs. A VC6 install *with the PP applied* produces exactly that split. A
 stock VC6 install cannot.
 
@@ -82,7 +82,7 @@ The exe's entry point at `0x50477e` is a textbook VC6 `mainCRTStartup`, not the 
 `__tmainCRTStartup` template:
 
 * `__set_app_type(2)`, then `_adjust_fdiv` (the Pentium FDIV workaround, still referenced)
-* `initterm(&DAT_0052e670, &DAT_0052e674)` — the `.CRT$XI*` C initialisers — called **before**
+* `initterm(&DAT_0052e670, &DAT_0052e674)`: the `.CRT$XI*` C initialisers, called **before**
   `__getmainargs`, and a second `initterm(&DAT_0052e000, &DAT_0052e66c)` for the `.CRT$XC*` C++
   initialisers called **after**. That split and ordering is VC6's `crt0dat.c`.
 * the SEH frame is set up through `except_handler3`, not `_except_handler4_common`, so there is
@@ -100,14 +100,14 @@ particular is a VC4/5/6-only x87 helper that later compilers inline.
 | Compiler | VC++ 6.0 **with the Processor Pack** |
 | Linker | 6.00, build 8447 |
 | CRT | `/MD`, `MSVCRT.DLL` |
-| Buffer checks | none — `/GS` did not exist |
+| Buffer checks | none, `/GS` did not exist |
 | Architecture | 32-bit, `IMAGE_BASE` `0x400000` (exe) / `0x10000000` (rfl) |
 | Assembler | MASM 6.13 for the 30 hand-written objects |
 
 Optimisation flags are **not** settled by any of this. The Rich header records which tool ran,
 never which switches it ran under. `/O2` versus `/Ox`, the inlining level, and whether
 `/GL`-style whole-program work was on all have to be recovered by compiling candidates and
-diffing output against the original — which is the normal way this is done, and the reason
+diffing output against the original, which is the normal way this is done, and the reason
 getting the compiler itself right first is worth the effort.
 
 ## What is not settled
@@ -151,7 +151,7 @@ offset coincide, so no translation is needed:
 
 | value | | |
 |---|---|---|
-| **41** | `D3DFMT_P8` | pristine — never patched |
+| **41** | `D3DFMT_P8` | pristine, never patched |
 | 50 | `D3DFMT_L8` | already through the file patcher |
 
 That is cheaper and more certain than a hash comparison against an unknown copy, and it is the
@@ -168,9 +168,9 @@ Measured across the copies on the development machine:
 ```
 
 **The rfl needs checking separately, and has no such one-dword test.** The two rfl copies differ
-by 349 bytes. The patched one carries seven `e9 xx xx xx xx` + `90` detours in `.text` — at
+by 349 bytes. The patched one carries seven `e9 xx xx xx xx` + `90` detours in `.text` (at
 `0x10063ca0`, `0x10064779`, `0x100648b2`, `0x100648c8`, `0x10064917`, `0x10064a0b`, `0x10064b2a`
-and `0x100789a7` — jumping into stubs written at `0x100ec140`-`0x100ec32d`, which the pristine
+and `0x100789a7`) jumping into stubs written at `0x100ec140`-`0x100ec32d`, which the pristine
 copy leaves as zeros. That is the zero-slack technique `runtime/README.md` describes, so the
 direction is never ambiguous: **real code becoming `e9 …` + NOP padding is the patch**, and a
 zeroed slack region is the pristine state. Hash against the reference above instead of guessing.
@@ -186,7 +186,7 @@ is another reason the rfl, which has neither, is the better reference of the two
 ## The toolchain, without installing anything
 
 VC6 does not need to be installed. It is `cl.exe` plus three DLLs, driven by three environment
-variables, and the VS6 install media stores everything **loose and uncompressed** — no cabs to
+variables, and the VS6 install media stores everything **loose and uncompressed**: no cabs to
 unpack for the compiler itself.
 
 ```
@@ -198,14 +198,14 @@ vc6-portable\
     lib\        from  <CD1>\VC98\LIB\
 ```
 
-71 MB in total. Set `PATH` to `bin`, `INCLUDE` to `include`, `LIB` to `lib` — nothing touches the
+71 MB in total. Set `PATH` to `bin`, `INCLUDE` to `include`, `LIB` to `lib`, nothing touches the
 registry, and it can sit next to the repo or on a stick. `decomp\build.py` takes the
 directory in `%VC6%` and does exactly this.
 
 The Processor Pack (`vcpp5.exe`) and SP5 (`vs6sp5.exe`) are IExpress/WEXTRACT self-extractors
 wrapping a CAB. They can be opened without running them: locate the embedded CAB by its `MSCF`
 header, carve it out using the `cbCabinet` length in that header, and hand it to Windows'
-`expand`. Validate the whole header before trusting an `MSCF` hit — the stub's own data contains
+`expand`. Validate the whole header before trusting an `MSCF` hit: the stub's own data contains
 false positives.
 
 The assembled result, and what it means:
@@ -213,20 +213,20 @@ The assembled result, and what it means:
 | | version | |
 |---|---|---|
 | `CL.EXE`, `C1.DLL`, `C1XX.DLL` | 12.00.8168 | front end, from the CD |
-| **`C2.DLL`** | **13.00.9044** | **back end, from the Processor Pack — the one that matters** |
+| **`C2.DLL`** | **13.00.9044** | **back end, from the Processor Pack, the one that matters** |
 | `LINK.EXE`, `MSPDB60.DLL` | 6.00.8168 | from the CD |
 
 Two gaps against the game's own Rich header, neither of which has blocked anything:
 
-* the game's linker is **8447**, this is 8168. **The linker never runs during function matching** —
+* the game's linker is **8447**, this is 8168. **The linker never runs during function matching**,
   `matchtool.py` compares a `.obj` against the image, so `link.exe` is not involved. It would
   only matter if the whole image were relinked, and it accounts for one object in the rfl.
 * the game's C front end is **8047**, older than this 8168. It has not mattered so far: the back
   end decides code generation, and the matches confirm it. If a C file ever refuses to match
   while its C++ neighbours do, this is the first thing to suspect.
 
-`vs6sp5.exe` does contain compiler binaries — `link.exe` in `VS6sp54.cab`, `cl.exe`/`c1.dll`/
-`c1xx.dll` in `VS6sp55.cab` — but they are inside a **spanned** cab set that `expand` would not
+`vs6sp5.exe` does contain compiler binaries (`link.exe` in `VS6sp54.cab`, `cl.exe`/`c1.dll`/
+`c1xx.dll` in `VS6sp55.cab`) but they are inside a **spanned** cab set that `expand` would not
 walk to completion, and that `expand -D` cannot even list. Since the linker is not on the
 critical path, this was left alone rather than solved.
 
@@ -241,6 +241,6 @@ No third-party packages. Takes any number of PE paths, PE32 or PE32+.
 The checksum logic was validated before it was trusted here: it reports *valid* on
 `System32\notepad.exe`, `SysWOW64\notepad.exe` and `System32\winver.exe`, all known-good
 Microsoft builds. That check is worth re-running after any edit to the parser, because a wrong
-checksum seed produces confident-looking entries that are silently garbage — which is how the
+checksum seed produces confident-looking entries that are silently garbage, which is how the
 first run of this tool reported the exe's header as tampered with when it was not.
 

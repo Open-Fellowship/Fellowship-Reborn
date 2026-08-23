@@ -156,7 +156,7 @@ the confirmation from the Processor Pack's own `C2.DLL`, and how to assemble the
 without installing anything.
 
 `decomp/` is where that gets used: source which, compiled by that toolchain, reproduces the
-original's bytes exactly. It is not the engine — it is how `engine/` gets verified. A subsystem
+original's bytes exactly. That is not the engine itself, but how `engine/` gets verified. A subsystem
 is matched byte for byte to prove it is understood completely, and only then written properly.
 58 functions match today, including the whole `Vector3` class; `python decomp/build.py` re-checks
 them all and reports coverage against an honest denominator.

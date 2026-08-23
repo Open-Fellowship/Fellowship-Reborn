@@ -1,7 +1,7 @@
 # Byte-for-byte matching
 
 The goal: C source that, compiled by the original toolchain, produces the exact bytes the
-shipped image holds. Not equivalent code — the same code generation, instruction for instruction.
+shipped image holds. Not equivalent code: the same code generation, instruction for instruction.
 
 `TOOLCHAIN.md` establishes which compiler. This is the harness that proves a candidate matches.
 The tool is `decomp/tools/matchtool.py`, driven by `decomp/build.py`; `decomp/README.md` covers
@@ -43,7 +43,7 @@ matchtool.py compare <pe> <va> <objfile> <symbol> the real thing
 candidate compiler switches.
 
 A leading underscore is tried automatically, so `leaf_add` finds the `_leaf_add` that cdecl
-actually emits. C++ names have to be given decorated — `matchtool.py obj <objfile>` with no
+actually emits. C++ names have to be given decorated, `matchtool.py obj <objfile>` with no
 symbol lists what is really in there.
 
 A mismatch prints an annotated hex diff, `..` for masked operands and `^^` under differing bytes:
@@ -55,7 +55,7 @@ A mismatch prints an annotated hex diff, `..` for masked operands and `^^` under
 ```
 
 That one is `/O2` against `/O1`: `lea` versus `imul` for the same `b * 3`. Flags show up as
-plainly as this, which is the point — the Rich header cannot tell us the optimisation switches,
+plainly as this, which is the point: the Rich header cannot tell us the optimisation switches,
 and diffing is how they get recovered.
 
 ## It was validated before it was trusted
@@ -78,7 +78,7 @@ Worth re-running after any edit to the parser. These were run by hand against ob
 `cl /nologo /c /O2 /Gy`.
 
 That validation was done before VC6 was available, and it paid for itself. When the real
-toolchain arrived, three of the first four functions matched immediately — which was believable
+toolchain arrived, three of the first four functions matched immediately, which was believable
 precisely because the harness had already been shown to say MISMATCH when it should.
 
 ## Status
@@ -93,6 +93,5 @@ a genuine 2002 timestamp, and the bulk of the game logic.
 | Matched | 4 of 4 in `decomp/src/vector3.cpp`. `FIRST-TARGETS.md` |
 | Harness | `decomp/build.py`, manifest-driven. `decomp/README.md` |
 
-Function boundaries still come from Ghidra, and lengths must exclude the trailing padding —
-which is `90` in these images, not `cc`.
+Function boundaries still come from Ghidra, and lengths must exclude the trailing padding, which is `90` in these images, not `cc`.
 
