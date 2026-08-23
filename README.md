@@ -1,48 +1,15 @@
-# OpenFellowship
+# Fellowship Reborn
 
-A reverse engineering and preservation project for the PC version of
-*The Lord of the Rings: The Fellowship of the Ring* (Surreal Software, 2002,
-Riot Engine).
-
-The aim is documented, maintainable source that preserves the original game's
-behaviour on modern systems, and a modding surface that does not require anybody
-to patch bytes by hand ever again.
+This is a reverse engineering and preservation project for the PC version of
+*The Lord of the Rings: The Fellowship of the Ring*.
 
 ## Scope
 
-Five things, in the order they matter. Everything in this repository should be
-justifiable as one of them, and a change that is not is a change that needs a
-better reason than "it was interesting".
-
-**1. Fix the game.** The bugs that are genuinely the game's, not the hardware's.
-A stock install hangs on a black screen on NVIDIA cards; the renderer culls its
-own screen edges above 3072 pixels; a shipped level-select screen is reachable
-by nothing. These are defects with a right answer, and fixing one is finished
-work rather than a matter of taste.
-
-**2. Modern settings.** Make a 2002 game behave on 2026 hardware - frame rate,
-resolution, HUD and text scaling, field of view, and controller support. The
-game was authored for 640x480 and a fixed timestep, and most of what looks
-broken at 4K is that assumption showing through rather than anything rotten.
-
-**3. Modding.** Tools that let people build models, maps and sounds for this
-game without reverse engineering it first. The Blender extension in `editor/`
-already reads geometry, animation, levels and textures, and writes them back.
-That is also why the object model is documented rather than merely used: 397
-classes and 4,262 properties with the developers' own names on them is a modding
-surface, and it was a research artifact for about a day. Sound and the interface
-strings are the gaps.
-
-**4. Restore content.** Cut content that is still in the files, content that
-exists in the console ports and not the PC one, and a mod folder on the main
-menu that can load and unload additions without anybody editing an ini by hand.
-The engine turns out to be full of things that shipped and are unreachable -
-`level_select` is one, the 124-entry developer flag menu is another.
-
-**5. Cheats and the dev menu.** The engine's own debug tooling, put back where a
-player can reach it, plus additions in the same spirit. This is last on the list
-and it is not an afterthought: it is the part that makes the rest testable, and
-several of the findings the other four pillars rest on came out of building it.
+The aim of this project can be found summarised below: 
+- To fix the game up to a standard where it works on modern hardware/systems and OS's (Windows, Linux), add modern improvements such as modern Resolution/Aspect Ratio support, corrected HUD, higher FPS support, higher FOV support, better windowed mode support and much more.
+- Include mod tools for use in Blender via plugins where users can create their own modifications to the game and do much more with characters, props, environments etc.
+- Restore the content from the various ports back into the PC port to make Fellowship a complete game as it was meant to be.
+- Restore the developer menu for the game and add in some new features.
 
 ## Status
 
