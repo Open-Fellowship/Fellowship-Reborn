@@ -57,7 +57,7 @@ add_fellowship_plugin(fog_toggle
 )
 
 # Sets the focal length rather than the engine's focal NUMERATOR, which is what keeps the
-# inventory icons where they belong. See its README, and docs/12 in _FixEnhancers.
+# inventory icons where they belong. See its README for the measurement.
 add_fellowship_plugin(field_of_view
     dll_main.c
     field_of_view.c

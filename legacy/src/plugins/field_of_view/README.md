@@ -26,9 +26,29 @@ The community patcher (`Fellowship.dll`, `CameraFieldOfView=-1.0`) does the same
 `NUM` to `64.0 / (0.75 * W/H)` at three sites. That is a correct correction, and it breaks the
 inventory: `Fellowship.rfl+7A2D5` places the item models using its own copy of the arithmetic,
 hard-assuming the unpatched `64`. The two disagree by exactly `64/48 = 4/3` at 16:9, and every
-item icon lands at 0.75x its correct offset from screen centre, at 0.75x its correct size. That
-was measured from position and from size independently; `_FixEnhancers/docs/12` is the full
-write-up.
+item icon lands at 0.75x its correct offset from screen centre, at 0.75x its correct size.
+
+That was measured twice, from position and from size independently, on PNG captures:
+
+| | |
+|---|---|
+| position, solved from two icons on each axis | 0.7477, 0.752, 0.750, 0.744 |
+| size, from the key icon at matched scale | 77 px at 4K against 104 expected, so 0.74 |
+
+Position and size shrinking by the *same* factor is the signature of a depth error rather than
+two separate bugs: the model is placed 4/3x too far away.
+
+The number that fixes it in place is the focal length itself. It read `272.2215`, and
+
+```
+focal * tan(fov/2) = 48.0000     exactly, at both fov 20 and fov 70
+```
+
+The engine computes `focal = NUM / tan(fov * pi/360)` with `NUM` a qword at `0x520A90`, which is
+`64.0` in an unpatched file. 64 is `halfW`, because the engine's virtual screen is always 128
+units wide, which is also why the authored field of view is horizontal. The patcher rewrites that
+operand at `0x4A4DEE`, `0x4A55DE` and `0x4A5630` to its own qword holding `64.0 / (0.75 * W/H)`,
+which is 64 at 4:3 and 48 at 16:9. Hence the 4/3.
 
 Setting the **focal length** avoids it entirely. The inventory sets its own 20-degree field of
 view, does its geometry from that same 20 degrees, and restores the previous value through

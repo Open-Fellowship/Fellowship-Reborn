@@ -3,8 +3,8 @@
  * ==============================================================================================
  * THESE ARE PREFERRED-BASE ADDRESSES, NOT RUNTIME ONES
  *
- * Every constant here is written the way the byte-patch tooling in _FixEnhancers speaks: an
- * absolute address in a module loaded at its preferred base. Nothing may use one directly.
+ * Every constant here is an absolute address in a module loaded at its preferred base, which is
+ * how the byte-patch tooling this grew out of expressed them. Nothing may use one directly.
  * Convert first:
  *
  *     exe_site(0x48BEF0)   ->  host_image_base() + (0x48BEF0, 0x400000)

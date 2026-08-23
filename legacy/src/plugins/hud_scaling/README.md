@@ -100,7 +100,7 @@ width tracks the screen because it is natively a percentage of it, 16.3% at 640,
 not because anything scaled it.
 
 The in-game HUD is **positioned by percentage and sized in fixed texels**, which is the same
-shape of bug as the inventory cell art in `_FixEnhancers/docs/12`, on a different draw path from
+shape of bug as the inventory cell art, on a different draw path from
 this one. Solving the circle's centre across both resolutions gives the affine law with the fixed
 pixel term that makes the spacing read wrong:
 

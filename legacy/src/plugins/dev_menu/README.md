@@ -354,7 +354,8 @@ previous page's rectangles for one frame.
 
 Worth knowing before hunting a flag that appears to do nothing: several are PS2-era leftovers
 this build never reads. They still toggle, because the default case toggles everything; nothing
-looks at the result. `_FixEnhancers/docs/02` names 10, 11, 12 and 14 among them.
+looks at the result. Flags 10, 11, 12 and 14, which the engine names Render Objects, Render
+Instance Objects, Render Layers and Enable Distance Cull, are among them.
 
 The page shows 48 flags at a time, in two columns, with the row count following the window
 height. The vertex batch in `overlay.c` was raised from 8,000 quads to 48,000 for this: a page of

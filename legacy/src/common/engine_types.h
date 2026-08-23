@@ -20,7 +20,8 @@ _Static_assert(sizeof(float) == 4, "engine floats are IEEE 754 single precision"
 /* Fellowship.exe, No-CD, 2,133,459 bytes. Both bases are the PREFERRED bases from the PE
  * headers; nothing in this tree may assume the module actually landed there. Ask
  * host_image_base() or GetModuleHandle instead. They are here because the byte-patch tooling in
- * _FixEnhancers speaks in absolute addresses and the arithmetic to convert has to live
+ * The byte-patch work this grew out of spoke in absolute addresses, and the arithmetic to convert
+ * has to live
  * somewhere obvious. */
 #define FELLOWSHIP_EXE_PREFERRED_BASE ((uintptr_t)0x00400000u)
 #define FELLOWSHIP_RFL_PREFERRED_BASE ((uintptr_t)0x10000000u)

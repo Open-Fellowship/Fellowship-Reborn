@@ -1,6 +1,6 @@
 # env_probe
 
-**Produces:** `env_probe.dll`. **A diagnostic. It changes nothing.** On by default.
+**Produces:** `env_probe.dll`. **A diagnostic. It changes nothing.** Off by default.
 
 A black screen on somebody else's machine is otherwise a conversation of guesses. The log says
 every plugin installed, the game says nothing at all, and the two facts that would settle it are
@@ -149,4 +149,4 @@ The device that comes back has two of its own entries replaced the same way, `Re
 
 | Key | Default | |
 |---|---|---|
-| `Enabled` | `1` | on by default: the machine that needs it is always somebody else's |
+| `Enabled` | `0` | a diagnostic. Turn it on when a machine you cannot see is misbehaving, then off again |

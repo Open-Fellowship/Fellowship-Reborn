@@ -61,7 +61,7 @@ per independent fix in `plugins\`. Nothing is decompiled and nothing is
 recompiled; the original executable is patched in memory at run time.
 
 This replaces the file-patching approach it grew out of. Every fix so far
-(`_FixEnhancers`) rewrote bytes inside `Fellowship.exe` and `Fellowship.rfl`,
+rewrote bytes inside `Fellowship.exe` and `Fellowship.rfl`,
 which works but means a fix cannot be turned off without restoring a backup,
 two fixes cannot be shipped independently, and a game update invalidates
 everything at once. A loader and a folder of plugins fixes all three.

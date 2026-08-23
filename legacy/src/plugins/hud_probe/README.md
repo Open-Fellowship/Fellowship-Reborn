@@ -24,8 +24,11 @@ in the menus and the HUD alike, is fetched through **one function**, and that fu
 That location is not in the file anywhere you can read it: it is a vtable entry, reached as
 `call dword ptr [vtable+8]`. It was found by breakpointing the one call site already known,
 `rfl+789A4`, the control class asking for property `0x1C`, and reading the entry it dispatched
-through. `_FixEnhancers/tools/Fellowship_GETTER_Hunt.CT` is that breakpoint, kept for the next
-time a vtable needs naming.
+through.
+
+To repeat it: break on `rfl+789A4`, step into the `call dword ptr [vtable+8]`, and the address
+that lands in the instruction pointer is the getter. That is the whole method, and it is worth
+knowing because it is how any vtable entry in this engine gets a name.
 
 ## Why this is a DLL and not a Cheat Engine script
 

@@ -107,8 +107,9 @@ working.
 ## Load order
 
 Alphabetical, so the sequence is reproducible rather than dependent on the file system.
-**Order encodes no dependencies:** no plugin calls into another, and where two of them detour the
-same engine function, `common/detour.c` chains them so the result is identical either way.
+**Order encodes no dependencies:** no plugin calls into another. Where two of them hook the same
+Direct3D vtable slot they chain by convention, each saving the pointer it found and calling
+through it, so order decides which runs first and nothing enforces that they agree.
 
 At most 64 DLLs; beyond that the surplus is skipped and reported.
 
@@ -116,8 +117,8 @@ At most 64 DLLs; beyond that the surplus is skipped and reported.
 
 * A DLL without an `open_fellowship_install` export is loaded anyway and noted as such. That is
   deliberate: an ordinary third-party DLL is a legitimate thing to put in `plugins\`.
-* Plugins are never unloaded. The detour chain holds pointers into them for the life of the
-  process, and there is no supported way to remove a link from the middle of that chain.
+* Plugins are never unloaded. Hooks hold pointers into them for the life of the process, and
+  there is no supported way to remove one from the middle of a chain.
 * If something has already redirected the host's entry point, `FellowshipPatcher`, an ASI
   loader, a debugger, the early trigger declines rather than guessing what that other thing
   intended, and the `DirectInput8Create` fallback becomes the only trigger.

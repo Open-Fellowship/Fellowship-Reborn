@@ -68,7 +68,7 @@ The four things that had to change are worth naming, since all four were real:
 
 ## Why a loader and not a byte patcher
 
-This replaces the approach it grew out of. The `_FixEnhancers` work rewrote bytes inside
+This replaces the approach it grew out of. The earlier byte-patch tooling rewrote bytes inside
 `Fellowship.exe` and `Fellowship.rfl` directly. That works, and several non-trivial fixes came out
 of it, but it has three costs a loader does not:
 
@@ -76,9 +76,8 @@ of it, but it has three costs a loader does not:
 * two fixes cannot be shipped, tested or blamed independently;
 * one changed game file invalidates every patch at once.
 
-The fixes already proven by that work are being ported into plugins here. The engineering write-ups
-that justify each one live in `_FixEnhancers/docs` and are the reference for what each plugin has
-to reproduce.
+The fixes already proven by that work are being ported into plugins here. Each plugin's own
+`README.md` carries the measurement that justifies it.
 
 ## The plugins
 
@@ -131,9 +130,8 @@ site, but both are needed before this tree has many more plugins in it.
 
 ## From byte patches to plugins
 
-Every fix here was first proved as a direct byte patch on `Fellowship.exe` or `Fellowship.rfl`,
-and those patchers are still in `_FixEnhancers/patches` with the write-ups that justify them in
-`_FixEnhancers/docs`. Two things changed on the way in:
+Every fix here was first proved as a direct byte patch on `Fellowship.exe` or `Fellowship.rfl`.
+Two things changed on the way in:
 
 **Constants moved out of the game.** The byte patches had to find unused space inside `.text`,
 the zero region at `0x51B302`, the slack past the rfl's VirtualSize, to hold a float or a stub.
@@ -152,6 +150,6 @@ Two things are already in most installations of this game and both must keep wor
   slot instead. See `src/loader/dinput8_proxy.h` for why.
 * **`Fellowship.dll` + `FellowshipPatcher.exe`**, the community patcher. It rewrites operands
   inside the executable at run time, including the field-of-view numerator at `0x520A90`
-  (`0x4A4DEE`, `0x4A55DE`, `0x4A5630`). Any plugin touching the camera has to know that; the
-  inventory-icon investigation in `_FixEnhancers/docs/12` is the worked example of what happens
-  when two patches disagree about the same constant.
+  (`0x4A4DEE`, `0x4A55DE`, `0x4A5630`). Any plugin touching the camera has to know that, and
+  `field_of_view/README.md` is the worked example of what happens when two patches disagree about
+  the same constant.
