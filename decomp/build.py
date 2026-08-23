@@ -41,7 +41,7 @@ FLAGS = "/O2 /Gy /GX"
 
 SRC = os.path.join(HERE, "src")
 # Kept separate from try.py's build\obj\, so an integration run cannot land on
-# an object a worker is part-way through writing.
+# an object something else is part-way through writing.
 OBJ = os.environ.get("DECOMP_OBJDIR", os.path.join(HERE, "build", "all"))
 
 

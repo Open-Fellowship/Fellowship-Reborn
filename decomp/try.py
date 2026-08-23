@@ -13,9 +13,9 @@ The second form looks image, size and symbol up in manifest.tsv, for functions
 that are already listed. The first is for a function you are adding; it
 defaults to the rfl, so pass --image exe for one in Fellowship.exe.
 
-Objects are written to build\\obj\\<source-stem>.obj, so two people or agents
+Objects are written to build\\obj\\<source-stem>.obj, so two people
 working on different source files never collide. Two working on the *same*
-source file will, which is why a source file belongs to one worker at a time.
+source file will, which is why a source file belongs to one person at a time.
 
 Exit status is 0 on a match and 1 otherwise, so it drops straight into a loop.
 """

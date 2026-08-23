@@ -16,7 +16,7 @@ python build.py --status
 
 Progress is **computed from `manifest.tsv`, never written into source files.** A count at the top
 of a `.cpp` goes stale the moment anything changes, duplicates what the manifest already knows,
-and puts two workers in contention over a line neither of them owns. The manifest is the single
+and puts two people in contention over a line neither of them owns. The manifest is the single
 record; everything else is derived from it.
 
 Two numbers get reported, because they answer different questions and only one of them is honest
@@ -100,9 +100,9 @@ thunk: the linker emits a five-byte `jmp` and everything calls *that*, five byte
 
 **33 of 35**, across both binaries.
 
-The five `core\` and `matrix3` entries came from the first parallel batch - five agents, one
-function each, all five matched, and every claim was re-verified here before it went into the
-manifest. What that batch cost and what it taught is below.
+The five `core\` and `matrix3` entries were done as one round of five leaf functions, all five
+matched, and every claim was re-verified here before it went into the manifest. What that round
+taught is below.
 
 ### The exe and the rfl share source
 
@@ -114,7 +114,7 @@ twice.
 
 Eleven of the entries above cost nothing beyond locating them: search the exe for the bytes of an
 already-matched rfl function, and where the hit is unique, that is the same function at a new
-address. Worth doing after any batch.
+address. Worth doing after any round.
 
 Two caveats on that trick. A raw search only finds **relocation-free** functions:
 `Vector3::operator/=` loads the `1.0f` constant from `.rdata` and its address differs between the
@@ -168,7 +168,7 @@ were wrong on the way.
 manifest.tsv       one line per function: image, address, size, source, expected result, symbol
 build.py           compiles every source and checks every function - the integration check
 try.py             compiles one source and checks one function - the working loop
-WORKER-BRIEF.md    what to hand somebody, or something, taking one function
+CONVENTIONS.md     what the original compiler does, established by matching
 src\
     math\          vector3.h/.cpp, matrix.h/.cpp
     level\         levellist.cpp
@@ -179,7 +179,7 @@ tools\
 build\
     all\           objects from build.py, mirroring src\
     obj\           objects from try.py, mirroring src\ - kept apart so an integration
-                   run cannot read an object a worker is part-way through writing
+                   run cannot read an object another is part-way through writing
 ```
 
 Paths in `manifest.tsv` are relative to `src\` and may name a subdirectory. Both build scripts
@@ -226,7 +226,7 @@ keeps the first result on the x87 stack across the second, ending in `FCOMPP`. V
 does that when the callee is **defined above the caller in the same translation unit**.
 With `Player::GetCriticalHealth` merely declared it spills to a stack slot and compares
 against memory instead - 76 bytes rather than 67, everything after the first call shifted.
-A worker ruled out `double` returns, operand order, every spelling of the comparison,
+That one ruled out `double` returns, operand order, every spelling of the comparison,
 inline helpers, free versus member versus virtual callees, C with `__fastcall`, and a
 twenty-switch flag sweep before finding it.
 
@@ -302,12 +302,12 @@ patcher, and a patched one mismatches for reasons that have nothing to do with t
 So adding a function means adding a `todo` line and working until `build.py` reports it as newly
 matching. Nothing has to be edited in the build script itself.
 
-## Exporting a batch to work on
+## Exporting a range to work on
 
 `tools\ExportFunctions.java` is a Ghidra **headless** script. It writes one JSON file per
 function plus an `index.json`, so the decompilation work itself never has to touch Ghidra: no
-MCP server, no GUI, nothing to drop out mid-session, and several people or agents can work from
-the same export at once.
+GUI and nothing to drop out mid-session, and several people can work from the same export at
+once.
 
 ```
 set G=<ghidra>\support\analyzeHeadless.bat
@@ -340,70 +340,50 @@ agreed.
 
 It is a Java script rather than Python on purpose: headless runs Java with no setup, whereas
 PyGhidra needs Ghidra launched a particular way and a pip package installed. Ghidra prints
-`Module manifest file error` warnings for the GhidraMCP extension during headless runs; they are
+`Module manifest file error` warnings for any installed extensions during headless runs; they are
 harmless.
 
-## Running a batch in parallel
+## Dividing the work
 
-The work divides cleanly because the pass/fail is mechanical — a worker either produces matching
+The work divides cleanly because the pass/fail is mechanical: a function either produces matching
 bytes or it does not, so nothing needs reviewing for plausibility.
 
 ```
 tools\ExportFunctions.java   ->  export the range, once
-WORKER-BRIEF.md              ->  hand to each worker verbatim
-try.py                       ->  the worker's loop, one function
-build.py                     ->  integration, run by the coordinator only
+CONVENTIONS.md               ->  what the compiler does, read this first
+try.py                       ->  the working loop, one function
+build.py                     ->  integration, run once over everything
 ```
 
-**Scout before fanning out.** The expensive part is discovering a codebase convention, and one
-discovery unblocks dozens of functions. Running workers on an unexplored class buys parallel
-copies of the same confusion. Do two or three functions of a new class by hand first; once those
-match, the rest usually match on the first attempt.
+**Scout before spreading out.** The expensive part is discovering a codebase convention, and one
+discovery unblocks dozens of functions. Starting on an unexplored class just produces several
+copies of the same confusion. Do two or three functions of a new class first; once those match,
+the rest usually match on the first attempt.
 
-**One source file per worker.** `try.py` writes to `build\obj\<source-stem>.obj`, so different
-source files never collide. The same source file from two workers will. `build.py` writes to
-`build\all\`, so an integration run cannot land on an object a worker is mid-way through.
+**One source file at a time.** `try.py` writes to `build\obj\<source-stem>.obj`, so different
+source files never collide, but the same source file worked on twice will. `build.py` writes to
+`build\all\`, so an integration run cannot land on an object something else is mid-way through.
 
 **Prefer leaf functions.** `index.json` flags them. No calls means no relocations, so nothing is
 masked and a match means every byte agreed.
 
-### Keeping the cost sane
+**Stop after about eight attempts.** A function that has not matched by then is usually stuck on
+something source cannot reach, and further attempts buy nothing. Wall clock scales with attempts
+almost exactly, so that cap is a time cap as well.
 
-Token spend scales with worker count and with how long each is allowed to grind, and the second
-of those is the one that runs away. The controls, in order of effect:
+**Export a tight range.** Each function's JSON is read in full, and a 26 KB record for a
+500-byte function is real cost.
 
-| | |
-|---|---|
-| **cap the iterations** | the brief says stop after 8 attempts. A function that has not matched by then is usually stuck on something source cannot reach, and attempts 9 to 30 buy nothing. This matters more than batch size |
-| **batch 4 to 8** | not twenty. Enough to be worth the setup, small enough to read the results properly |
-| **export a tight range** | each worker reads its function's JSON, and a 26 KB record for a 500-byte function is real cost |
-| **leaf functions first** | they match first try far more often, so they cost a fraction of a hard one |
-| **scout first** | see above; this is the difference between a batch that mostly matches and one that mostly flails |
+### What the first round taught
 
-### What the first batch actually cost
+Five leaf functions of 33 to 42 bytes, one at a time. All five matched, most on the first or
+second attempt, and the hardest took six.
 
-Five agents, one leaf function each, 33 to 42 bytes, run in parallel. **All five matched.**
-
-| | attempts | tokens | wall clock |
-|---|---|---|---|
-| `0x10004ea0` constructor | 1 | 30k | 36s |
-| `0x10005190` virtual predicate | 1 | 32k | 54s |
-| `0x100051c0` handle resolve | 2 | 34k | 78s |
-| `0x100047a0` matrix identity | 3 | 35k | 84s |
-| `0x10004690` strided-array apply | 6 | 44k | 197s |
-
-**About 175k tokens for five functions**, so budget roughly 35k each and expect the hard one to
-cost 50% more than the easy one. Twenty workers is therefore a ~700k proposition, which is the
-number to think about before scaling up rather than after.
-
-Wall clock scales with attempts almost exactly, so the 8-attempt cap is also a time cap. Nothing
-in this batch reached it.
-
-Worth noting what it bought beyond the five functions: **six new conventions**, all now in
-`WORKER-BRIEF.md`, and several of them general enough to apply across both images - literal store
-order, branch polarity, struct packing in the addressing mode, the `DEC`/`JS` loop guard,
-pointer-to-member for `__thiscall` callbacks, and vtable slot placement. The conventions are the
-compounding asset; the functions are almost a side effect.
+What it bought beyond the five functions was **six new conventions**, now in `CONVENTIONS.md`,
+several of them general enough to apply across both images: literal store order, branch polarity,
+struct packing in the addressing mode, the `DEC`/`JS` loop guard, pointer-to-member for
+`__thiscall` callbacks, and vtable slot placement. The conventions are the compounding asset; the
+functions are almost a side effect.
 
 ## Adding a function
 

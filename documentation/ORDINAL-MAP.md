@@ -95,7 +95,7 @@ it and finding it reads `LeftWindowsKey` rather than `MaxMana` would refute it i
 
 That is the answer to "how big is the Player class", and it is a far smaller number than the
 property count suggested. **35,923 bytes in 102 functions**, of which 63 are under 200 bytes -
-comfortably worker-sized, and the same size class as everything matched so far. The three functions
+a comfortable size to take on, and the same size class as everything matched so far. The three functions
 the ceiling names outright are `0x1005a1c0` (704 bytes, ordinal 165), `0x1005ddc0` (1,186 bytes,
 ordinal 159) and `0x10060c90` (5,394 bytes, thirty reads including ordinal 165).
 

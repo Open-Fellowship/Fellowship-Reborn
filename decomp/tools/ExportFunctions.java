@@ -1,6 +1,6 @@
 // ExportFunctions.java - Ghidra headless script.
 //
-// Dumps everything a decompilation worker needs for a range of functions, so
+// Dumps everything needed to match a range of functions, so
 // the work itself never has to touch Ghidra: one JSON file per function plus an
 // index. Java rather than Python deliberately - headless runs Java scripts with
 // no extra setup, whereas PyGhidra needs Ghidra launched a particular way and a
