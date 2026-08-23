@@ -24,6 +24,12 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 if(MSVC)
     # Warnings are errors. Integer truncation, pointer truncation and signed/unsigned conversions
     # are precisely the mistakes that stay invisible here until the game crashes.
+    #
+    # /GS- turns off stack security cookies. These DLLs are dropped into a 2002 game and several
+    # of them emit and execute their own code; a /GS cookie check that fails calls
+    # __report_gsfailure and terminates the process, which is the opposite of how everything else
+    # here fails, by validating, declining and writing a line. The tree does compile cleanly with
+    # /GS, so revisiting this is a play-test rather than a build.
     add_compile_options(/W4 /WX /GS- /permissive-)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS WIN32_LEAN_AND_MEAN)
     # Static CRT: these DLLs are dropped into a 2002 game folder and must not need a
