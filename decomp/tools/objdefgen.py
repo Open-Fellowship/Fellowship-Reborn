@@ -500,7 +500,7 @@ def which_cl():
     hits = sorted(glob.glob(pat))
     if hits:
         return hits[-1]
-    raise SystemExit("no 32-bit cl.exe found - run from a VS developer prompt")
+    raise SystemExit("no 32-bit cl.exe found; run from a VS developer command prompt")
 
 
 def main(argv):
