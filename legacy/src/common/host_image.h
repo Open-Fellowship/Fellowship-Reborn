@@ -1,12 +1,6 @@
-/* host_image.h: the geometry and the location of the process that hosts us.
- *
- * One responsibility: answer "where is the main executable, where is its code section, and which
- * directory did it come from". Everything that scans, range-checks or writes engine memory needs
- * those answers, and nothing else in `common` should be computing them a second time.
- *
- * host_image_resolve() is idempotent and must be called before any other function here returns
- * anything useful. The loader does that once, from DllMain, because it only reads PE headers
- * that are already mapped and is therefore safe under the loader lock.
+/* host_image.h: where the host executable is, where its code section is, and which directory
+ * it came from. host_image_resolve() is idempotent and must be called before anything else here
+ * returns anything useful. See README.md.
  */
 #ifndef COMMON_HOST_IMAGE_H
 #define COMMON_HOST_IMAGE_H

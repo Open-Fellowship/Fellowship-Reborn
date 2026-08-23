@@ -16,9 +16,8 @@
 
 #define PLUGIN_SECTION "frame_timing"
 
-/* The thunk every clock read in the engine goes through, and the fourteen that belong to the
- * Timer class. Only these fourteen move: the other forty-six callers of the thunk are loading
- * timeouts and progress bars that must keep counting in milliseconds. */
+/* The Timer's fourteen clock reads. Only these move; the thunk has forty-six other
+ * callers that must keep counting in milliseconds. See README.md. */
 #define TICK_THUNK_VA 0x004C12B0u
 
 static const uint32_t g_tick_sites[] = {
@@ -35,15 +34,6 @@ static const uint32_t g_tick_sites[] = {
 };
 #define TICK_SITE_COUNT (sizeof(g_tick_sites) / sizeof(g_tick_sites[0]))
 
-/* The two constants that say what a tick is worth, in both directions.
- *
- * SECONDS_PER_TICK_IMM is the immediate inside the constructor rather than the field it writes:
- *
- *     0040CF1D   C7 46 10 6F 12 83 3A   mov dword ptr [esi+0x10], 0x3A83126F   ; 0.001f
- *
- * Patching the field at 0x0053EE68 directly would mean winning a race with the constructor,
- * which runs from 0x00403CC4 during start-up. Patching the immediate means the constructor
- * installs our value for us, whenever it happens to run. */
 #define SECONDS_PER_TICK_IMM 0x0040CF20u
 #define TICKS_PER_SECOND_VA  0x0051C774u
 
@@ -60,20 +50,13 @@ static const uint32_t g_tick_sites[] = {
 #define TIMER_TIME_BASE    0x20u   /* float, seconds at the last time-scale change         */
 #define TIMER_SCALE_TICK   0x24u   /* origin the accumulator counts from                   */
 
-/* The once-per-frame call this plugin borrows for its watchdog. fps_limit already owns
- * 0x004BCA19, and this has to run between whole frames rather than inside Tick, so it takes the
- * engine's own call to UpdateTime instead. */
 #define FRAME_CALL_VA   0x004046CEu
 #define FRAME_TARGET_VA 0x00408F00u
 
-/* Rate limits. Below 1 kHz this is not an improvement on GetTickCount, and above 1 MHz the
- * thirty-two bit span is under an hour and a half, which is not a frame rate fix, it is a fault
- * with a delay on it. */
 #define RATE_MIN        1000u
 #define RATE_MAX     1000000u
 #define RATE_DEFAULT  100000u
 
-/* Re-anchor with a quarter of the span still in hand. See the comment on the watchdog. */
 #define REANCHOR_AT 0xC0000000u
 
 static LONGLONG  g_qpc_frequency;
@@ -81,25 +64,8 @@ static LONGLONG  g_qpc_origin;
 static uint32_t  g_rate = RATE_DEFAULT;
 static unsigned  g_reanchors;
 
-/* Resolved and checked once at install, not once a frame. The Timer lives in the executable's
- * own .data, which is mapped and writable from the moment the process exists, so there is nothing
- * about it that can become true later, and VirtualQuery on every frame to re-learn that would be
- * a syscall in the one path that has to stay cheap. 0 means the watchdog is not running. */
 static uintptr_t g_timer;
 
-/* ---------------------------------------------------------------------------- the counter
- *
- * Called from engine code, in the slot GetTickCount used to occupy, so it obeys the same rules:
- * the result in EAX, EBX ESI EDI EBP left alone, and nothing left on the x87 stack. A C function
- * with no arguments returning uint32_t satisfies all three by construction, and taking no
- * arguments means __stdcall and __cdecl assemble identically; there is no stack to clean either
- * way. That is why there is no stub here, unlike the frame hook below.
- *
- * The arithmetic is done in two halves rather than as (delta * rate) / frequency, because the
- * single-expression form overflows a 64-bit product after a few weeks of uptime on a fast
- * counter. Splitting it costs one extra divide and can never overflow: the remainder is smaller
- * than the frequency, so the second product is bounded by frequency * rate.
- */
 static uint32_t __stdcall hires_ticks(void)
 {
     LARGE_INTEGER      counter;
@@ -119,25 +85,6 @@ static uint32_t __stdcall hires_ticks(void)
     return (uint32_t)(whole + part);
 }
 
-/* ------------------------------------------------------------------------------ the watchdog
- *
- * A rebase would be pointless, and it is worth saying why because it was the first design.
- *
- * The engine only ever computes `now, stored`, and a common offset subtracted from both is
- * invisible to a difference, modular arithmetic sees to that whether or not either side wraps.
- * So sliding our own output down does not buy a single tick of headroom. What has to fit in
- * thirty-two bits is the SPAN: the oldest origin the Timer is still counting from, which is
- * +0x24, set at start-up, at a level load and at a savegame load. At 100 kHz that span is 11.9
- * hours of one uninterrupted level.
- *
- * So instead of moving our numbers, this moves the engine's origin, exactly the way the engine
- * moves it itself in SetTimeScale at 0x0040D220: carry the accumulated seconds at +0x1C into the
- * time base at +0x20 and start counting again from now. The accumulator comes out at the same
- * value it went in, so nothing on screen can tell it happened.
- *
- * The frame rate sample gets the same treatment. Its countdown is reloaded rather than left
- * alone, so that the next sample is eight frames away instead of zero seconds wide.
- */
 static void reanchor(uintptr_t timer, uint32_t now)
 {
     float    current = 0.0f;
@@ -172,8 +119,6 @@ static void __cdecl frame_timing_frame(void)
         return;
     }
 
-    /* Two loads and a compare, every frame, for the rest of the session. Everything expensive
-     * about this check was done once at install. */
     origin = *(const volatile uint32_t *)(g_timer + TIMER_SCALE_TICK);
     now    = hires_ticks();
 
@@ -182,12 +127,6 @@ static void __cdecl frame_timing_frame(void)
     }
 }
 
-/* pushad / pushfd / call frame_timing_frame / popfd / popad / jmp UpdateTime
- *
- * The engine loads ECX with the engine object at 0x004046C9, one instruction before the call
- * being diverted, so every register has to come back exactly as it went in. The tail jump leaves
- * the stack as the engine built it, so UpdateTime returns to 0x004046D3 by itself and its
- * calling convention never has to be known. */
 static void *build_stub(uintptr_t stub_address, uintptr_t original)
 {
     uint8_t buffer[32];
@@ -211,9 +150,6 @@ static void *build_stub(uintptr_t stub_address, uintptr_t original)
     return (void *)stub_address;
 }
 
-/* The five bytes a call site must currently hold. rel32 is a difference between two addresses in
- * the same image, so it is the same whether the module sits at its preferred base or not, and
- * can be computed from the preferred addresses alone. */
 static void expected_call(uint32_t site_va, uint8_t out[5])
 {
     uint32_t relative = TICK_THUNK_VA - (site_va + 5u);
@@ -225,11 +161,6 @@ static void expected_call(uint32_t site_va, uint8_t out[5])
     out[4] = (uint8_t)((relative >> 24) & 0xFFu);
 }
 
-/* Every site is checked before any site is written.
- *
- * A partial application is worse here than no application at all: the Timer would be reading
- * some of its origins in milliseconds and the rest in hundred-thousandths, and the differences
- * it takes between them would be nonsense rather than merely coarse. So this refuses as a set. */
 static bool all_sites_match(void)
 {
     size_t index;

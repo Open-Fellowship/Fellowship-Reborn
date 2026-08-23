@@ -54,10 +54,6 @@ static HWND               g_window;
 static int g_width;
 static int g_height;
 
-/* The size the GAME asked for, which is the size its viewport will be and therefore the size the
- * window has to be. Forcing a bigger back buffer than the game's own mode leaves it drawing into
- * one corner of a surface it never clears; the rest stays black, which is exactly what it looked
- * like from the outside. */
 static int g_back_width;
 static int g_back_height;
 
@@ -327,11 +323,6 @@ static void *WINAPI hooked_direct3d_create8(UINT sdk_version)
     return d3d8;
 }
 
-/* ------------------------------------------------------------------------------ the import slot
- *
- * The game calls Direct3DCreate8 exactly once, so the import slot is the only place that is
- * reliably true of. Several plugins may hook the same slot; each keeps whatever it found and
- * forwards to it, so they chain in load order rather than fight. */
 static void **find_import_slot(const char *dll_name, const char *symbol)
 {
     uintptr_t                base = host_image_base();
@@ -398,20 +389,9 @@ void borderless_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    /* OFF BY DEFAULT, INCLUDING UNDER WINE.
-     *
-     * It used to switch itself on under Wine, on the reasoning that exclusive full screen loses
-     * its window to the focus there and the engine draws nothing while its window is down. That
-     * reasoning still holds. What it did not account for is that dev_menu stops working on a
-     * Steam Deck when this is on: measured, reproduced, and fixed by turning this off.
-     *
-     * Both plugins reach the same device. This one rewrites the presentation parameters through
-     * CreateDevice and Reset and re-asserts the window shape four times a second; dev_menu hooks
-     * EndScene and takes the mouse through DirectInput. Which of those two interactions breaks
-     * the menu is not established, so this is off until it is, rather than on with a known
-     * failure attached.
-     *
-     * Turn it on if alt-tab or a lost window is costing you more than the menu is worth. */
+    /* OFF BY DEFAULT, INCLUDING UNDER WINE: this stops dev_menu working on a Steam Deck.
+     * Measured and reproduced. Which of the two plugins' interactions breaks the menu is not
+     * established, so do not flip this default until it is. See README.md. */
     if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
         return;
     }

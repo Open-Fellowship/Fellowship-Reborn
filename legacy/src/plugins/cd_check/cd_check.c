@@ -26,16 +26,9 @@ void cd_check_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    /* NO SWITCH. This used to carry an `Enabled` key that defaulted to off, on the reasoning that
-     * a No-CD executable does not need the patch and one more patch is one more thing that can be
-     * wrong. Both halves of that turned out to be the wrong worry.
-     *
-     * patch_redirect_call verifies the opcode is E8 before it writes, so on a copy where this
-     * call is not there any more the plugin declines and says so. There is nothing for a switch
-     * to protect against that the validation does not already handle, and a key that exists only
-     * to disarm a patch invites turning off the one that was working.
-     *
-     * A plugin is still switched off the way every plugin is: delete its DLL from plugins\. */
+    /* No Enabled key, and do not add one: a key whose only purpose is to disarm a patch
+     * invites turning off the one that was working. patch_redirect_call already declines when
+     * the call site is not there. See README.md. */
     if (!host_image_resolve()) {
         log_error("the host image could not be resolved; refusing to touch anything");
         return;

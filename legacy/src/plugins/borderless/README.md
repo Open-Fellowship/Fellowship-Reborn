@@ -37,11 +37,11 @@ the focus a moment after a mode change, it is the difference between a game and 
 `#32769` is the desktop. `-32000,-32000` is where a minimised window lives.
 
 A windowed device makes no such bargain. Nothing minimises it, nothing takes a display mode away
-from it, and alt-tab is instant rather than a mode change in each direction.
+from it, and alt-tab is instant, not a mode change in each direction.
 
 ## What it does
 
-Two interceptions, at COM vtable positions rather than addresses in this game, so this is correct
+Two interceptions, at COM vtable positions and not addresses in this game, so this is correct
 against wined3d, DXVK and the retail Microsoft runtime alike:
 
 | | |
@@ -49,16 +49,22 @@ against wined3d, DXVK and the retail Microsoft runtime alike:
 | `IDirect3D8::CreateDevice`, slot 15 | rewrite the parameters before the device exists |
 | `IDirect3DDevice8::Reset`, slot 14 | and again every time the game changes mode |
 
-In both, `Windowed` becomes true, the back buffer becomes the size of the desktop, and the refresh
-rate is cleared, because a refresh rate on a windowed device is refused rather than ignored. The
-window itself is then restyled: `WS_POPUP`, no caption, no frame, positioned at the origin at the
-size of the screen.
+In both, `Windowed` becomes true and the refresh rate and presentation interval are cleared,
+because a refresh rate on a windowed device is refused, not ignored. **The back buffer keeps
+the size the game asked for.** The window itself is then restyled: `WS_POPUP`, no caption, no
+frame, positioned at the origin at the size of the screen.
+
+The size is the game's business and only the exclusive mode is this plugin's. The first
+version overrode the back buffer to the size of the screen, and that was a bug: the engine's
+viewport stays the size of the mode it chose, so everything it draws lands in one corner of a
+larger surface and the rest is never written to. From outside that is a mostly black screen
+with the game in the top left.
 
 The game is told nothing. It asked for 1280x800 and it gets a 1280x800 back buffer filling the
 screen, which is what it wanted in the first place.
 
 `Direct3DCreate8` is hooked at the import slot, and each plugin that hooks it keeps whatever it
-found and forwards, so this and `env_probe` chain in load order rather than fight over it.
+found and forwards, so this and `env_probe` chain in load order instead of fighting over it.
 
 ## Configuration: `[borderless]`
 

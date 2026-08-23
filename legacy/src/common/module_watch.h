@@ -1,18 +1,9 @@
 /* module_watch.h: run something when Fellowship.rfl finally exists.
  *
- * The loader calls a plugin at the host's ENTRY POINT, which is before the CRT has run and long
- * before the game has loaded its game-code DLL. A plugin that patches Fellowship.exe can work
- * immediately; a plugin that patches Fellowship.rfl cannot, because at install time
- * GetModuleHandleA("Fellowship.rfl") returns NULL.
- *
- * This is the wait. It starts one thread, polls for the module, and calls `on_loaded` once with
- * the base address the moment it appears. The callback therefore runs on that thread, not on a
- * game thread, which is acceptable here for a specific reason: the rfl is loaded during
- * start-up, before the first frame is drawn, so the code being patched is not yet executing.
- * A plugin that wants to patch something already running every frame needs a different tool.
- *
- * Polling rather than hooking LoadLibrary, because the honest comparison is not "poll versus
- * elegant", it is "poll versus one more inline hook installed before the CRT has initialised".
+ * A plugin patching the rfl cannot work at install time, because GetModuleHandleA returns NULL
+ * for it then. This polls, and calls back once on its own thread, which is acceptable only
+ * because the rfl loads before the first frame is drawn. A plugin patching something already
+ * running every frame needs a different tool. See README.md.
  */
 #ifndef COMMON_MODULE_WATCH_H
 #define COMMON_MODULE_WATCH_H

@@ -12,8 +12,8 @@ worth being explicit about: **the hook is ported, the limiter is not.**
 ```
 
 The patcher redirects that call's displacement to a function of its own, does the waiting, and
-then **tail-jumps** to `0x404630` rather than calling it. That is the part worth keeping. A `jmp`
-leaves the stack exactly as the engine built it, so the original function returns straight to
+then **tail-jumps** to `0x404630`; it does not call it. That is the part to keep. A `jmp`
+leaves the stack as the engine built it, so the original function returns straight to
 `0x4BCA1E` on its own and neither its calling convention nor its argument count ever has to be
 known. Detouring its prologue instead would have required both.
 
@@ -46,13 +46,13 @@ further out than the error it exists to absorb.
 
 **The schedule resyncs in both directions, and the second direction is not optional.**
 
-Behind is the obvious case. If the process is suspended by alt-tab, a level load or a debugger, the
-target ends up far in the past, and a limiter that just kept adding one period would run
+Behind is the obvious case. If the process is suspended by alt-tab, a level load or a debugger,
+the target ends up far in the past, and a limiter that just kept adding one period would run
 completely unthrottled for as many frames as it was behind, catching up on time that no longer
 exists. Four frames of lateness abandons the schedule and restarts it from now.
 
 **Ahead is the case that hung a Steam Deck.** The line at the top of this file says "once per
-frame" and that is where the bug lived. It is once per frame *while the game is drawing*. During
+frame". The bug lived there. It is once per frame *while the game is drawing*. During
 start-up the engine reaches that call site far more often than it presents anything, and every one
 of those calls added a whole frame period to the target while almost no real time passed. The
 schedule ran away into the future, the computed sleep grew from milliseconds to seconds, and the
@@ -67,12 +67,11 @@ It was found by `env_probe` suspending the stalled thread and writing down where
 ```
 
 So the target may now never be more than one period ahead of the clock, and no single wait may
-exceed one period whatever the arithmetic says. A limiter is allowed to be late. It is not allowed
-to be early.
+exceed one period whatever the arithmetic says. A limiter is allowed to be late, never early.
 
 The first three resyncs are logged with the size of the error, the call count and the time since
 install, because a resync on every call means this site is being reached far more often than the
-frame rate, and that is worth reading rather than silently absorbing.
+frame rate, and that should be read, not silently absorbed.
 
 `timeBeginPeriod(1)` is called at install, because without it `Sleep(1)` can be `Sleep(15)`.
 
@@ -83,7 +82,7 @@ over the ini value whenever one has been published. Same arrangement as `field_o
 field of view slider: one writer for the engine, one writer for the request, and a plugin whose
 partner is not installed reads a block nobody ever writes to.
 
-It is polled once a frame from the top of the hook rather than pushed, because the menu runs on
+It is polled once a frame from the top of the hook, not pushed, because the menu runs on
 the game's thread inside `EndScene` and this runs on the same thread at the top of the frame.
 There is no moment where a push would be cheaper, and a poll needs no agreement about who is
 allowed to call whom. While the serial has not moved the poll is one aligned load.
@@ -102,6 +101,13 @@ Three plugins, three different problems.
 | `fps_limit` | stops the frame time being 800 microseconds in the first place |
 
 Run all three.
+
+## Why the log waits
+
+A drag of the menu slider publishes a new value on every frame it moves, and the first
+version logged each one: about four hundred lines for one sweep of the track. Every rate was
+correct and the log was useless, which amounts to the same thing as being wrong. The change
+is applied immediately and only the log line waits for the value to stop moving.
 
 ## Configuration: `[fps_limit]`
 

@@ -2,7 +2,7 @@
 
 Notes on how the Riot Engine is put together, independent of any one fix.
 
-The pieces worth reading first:
+Start here:
 
 * **The virtual screen.** The engine lays out in a space that is always 128
   units wide. `camera+0x228` (`halfW`) is 64.0 at every resolution;
@@ -25,4 +25,4 @@ The pieces worth reading first:
 * **The camera is not where it looks.** `camera.md` has the measurements: the
   camera object holds no world position, the engine renders camera relative
   because of float precision at 400,000-unit coordinates, and culling follows
-  the field of view rather than the frustum planes.
+  the field of view, not the frustum planes.

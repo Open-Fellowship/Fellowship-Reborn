@@ -10,20 +10,6 @@
 
 #define PLUGIN_SECTION "resolution_unlock"
 
-/* Every site verified against Fellowship.exe, No-CD, 2,133,459 bytes.
- *
- *   0x4BC4FF   0F 84 AD 00 00 00   je 0x4BC5B2
- *              -> 90 E9 AD 00 00 00   nop ; jmp 0x4BC5B2
- *
- *      The displacement is unchanged and still correct: the jmp now starts one byte later and
- *      is one byte shorter, so 0x4BC500+5+0xAD is the same 0x4BC5B2 the je reached.
- *
- *   0x4BC61C   0F 85 83 00 00 00   jne 0x4BC6A5
- *              -> displacement 0, so it falls through to 0x4BC622
- *
- *   0x4BC62D   7A 78               jp 0x4BC6A7
- *              -> displacement 0, so it falls through to 0x4BC62F
- */
 typedef struct site {
     const char *name;
     uint32_t    preferred_va;

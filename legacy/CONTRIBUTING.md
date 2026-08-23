@@ -11,7 +11,7 @@ private to the DLL: another plugin having resolved the host image does nothing f
 There is no hook chaining mechanism. Where two plugins hook the same Direct3D vtable slot they
 chain by convention, each saving the pointer it found and calling through it, so installation
 order decides which runs first. Three plugins share `CreateDevice` that way today. It works
-because nothing is ever uninstalled, and it is not something to rely on: save what you find and
+because nothing is ever uninstalled. Do not rely on it: save what you find and
 call through it.
 
 ## Starting one
@@ -33,17 +33,17 @@ loader lock, image fully mapped, before the CRT has run.
 ## Rules that were learned the expensive way
 
 **Addresses today, signatures later.** Sites are found by absolute address, written at the
-preferred base and converted by `exe_site` or `rfl_site`. That is deliberate: signature scanning
+preferred base and converted by `exe_site` or `rfl_site`. That is a choice: signature scanning
 is worth building when a second build exists to test it against, and worth nothing before then.
 `level_select` is the exception and shows the direction, because the retail rfl and the targeted
 one put the same branch `0x430` apart.
 
-Write new sites so they can migrate. Read an address out of a matched operand rather than
+Write new sites so they can migrate. Read an address out of a matched operand instead of
 embedding it twice, and do not hand-roll a scanner inside a plugin.
 
-**Validate before writing.** Read the current value and refuse when it is not what you expected.
-That check is also what makes a patch idempotent: a second run finds the new value, not the old
-one, and declines.
+**Validate before writing.** Read the current value and refuse when the bytes are not what you
+expected. That check is also what makes a patch idempotent: a second run finds the new value, not
+the old one, and declines.
 
 **Write the whole word, not a byte of it.** Poking one byte of a little-endian immediate is how
 you turn a limit you meant to lower into one you raised.

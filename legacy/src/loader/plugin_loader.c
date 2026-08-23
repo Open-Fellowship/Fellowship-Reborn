@@ -78,26 +78,6 @@ static bool collect_plugins(const char *directory, plugin_list_t *list)
     return true;
 }
 
-/* ------------------------------------------------------------------------------- which build
- *
- * Two file sizes, logged before anything else happens, because they decide whether any of the
- * rest of this log means what it says. Every site in this project was measured against one pair
- * of files, and a plugin that declines on a different pair is behaving correctly, but a reader
- * cannot tell that apart from a plugin that is broken unless the log says which files these are.
- *
- * The sizes are read off DISK rather than from the loaded image, because Fellowship.rfl is not
- * loaded yet at this point and will not be for several seconds.
- *
- * The retail values are recorded here so that the two builds anyone actually has are both named
- * rather than one of them being "unexpected":
- *
- *     Fellowship.exe   2,133,459   the No-CD executable, what this project targets
- *                      2,137,555   retail, SafeDisc. Its code is encrypted on disk, so every
- *                                  byte check made at the entry point fails.
- *     Fellowship.rfl   1,372,160   the v1.1 game, what this project targets
- *                      1,306,624   pre-1.1. Different addresses; eight of the nine rfl sites
- *                                  used here are not in that build at all.
- */
 #define EXE_SIZE_SUPPORTED   2133459u
 #define EXE_SIZE_RETAIL_CD   2137555u
 #define RFL_SIZE_SUPPORTED   1372160u
@@ -196,7 +176,8 @@ void plugin_loader_run_once(void)
 {
     char          configured[MAX_PATH];
     char          directory[MAX_PATH];
-    plugin_list_t list;
+    /* static: 64 * MAX_PATH is 16 KB, which is a lot of stack for a function that runs once. */
+    static plugin_list_t list;
     size_t        index;
 
     if (loader_has_run) {

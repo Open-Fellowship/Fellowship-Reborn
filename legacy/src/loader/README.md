@@ -54,7 +54,7 @@ E8 rel32        call restore_and_load
 FF 25 imm32     jmp dword ptr [saved entry point]
 ```
 
-The final branch is indirect, through the saved address rather than relative to the stub, so it
+The final branch is indirect, through the saved address and not relative to the stub, so it
 stays correct however the linker places it.
 
 ## Configuration: `[loader]`
@@ -77,7 +77,7 @@ Which two files this is, read off disk before anything else runs:
 
 Every site in this project was measured against that pair. A plugin that declines on a different
 pair is behaving correctly, and this is what lets a reader tell that apart from a plugin that is
-broken. The two other builds anyone actually has are named rather than called unexpected:
+broken. The two other builds anyone actually has are named, not called unexpected:
 
 | | | |
 |---|---|---|
@@ -88,7 +88,7 @@ Anything else gets "not a build this project has been measured against". A misma
 gets the order that fixes it: install, apply the official v1.1 patch, then put the 1.1 No-CD
 executable in. The No-CD goes last, because the patch replaces the executable.
 
-The rfl's size is read from the file rather than from the loaded module, because at this point
+The rfl's size is read from the file and not from the loaded module, because at this point
 the game has not loaded it yet and will not for several seconds.
 
 ## The chain
@@ -101,12 +101,12 @@ order, each step logged:
 3. `<system directory>\dinput8.dll`
 
 **If your game folder already has a `dinput8.dll`**, an input wrapper, an ASI loader, rename it
-to `dinput8_orig.dll` rather than overwriting it. Every export is forwarded to it and it keeps
+to `dinput8_orig.dll`; do not overwrite it. Every export is forwarded to it and it keeps
 working.
 
 ## Load order
 
-Alphabetical, so the sequence is reproducible rather than dependent on the file system.
+Alphabetical, so the sequence is reproducible and does not depend on the file system.
 **Order encodes no dependencies:** no plugin calls into another. Where two of them hook the same
 Direct3D vtable slot they chain by convention, each saving the pointer it found and calling
 through it, so order decides which runs first and nothing enforces that they agree.
@@ -115,12 +115,12 @@ At most 64 DLLs; beyond that the surplus is skipped and reported.
 
 ## Limitations
 
-* A DLL without an `open_fellowship_install` export is loaded anyway and noted as such. That is
-  deliberate: an ordinary third-party DLL is a legitimate thing to put in `plugins\`.
+* A DLL without an `open_fellowship_install` export is loaded anyway and noted as such, because
+  an ordinary third-party DLL is a legitimate thing to put in `plugins\`.
 * Plugins are never unloaded. Hooks hold pointers into them for the life of the process, and
   there is no supported way to remove one from the middle of a chain.
 * If something has already redirected the host's entry point, `FellowshipPatcher`, an ASI
-  loader, a debugger, the early trigger declines rather than guessing what that other thing
+  loader, a debugger, the early trigger declines and does not guess what that other thing
   intended, and the `DirectInput8Create` fallback becomes the only trigger.
 
 ## Testing status

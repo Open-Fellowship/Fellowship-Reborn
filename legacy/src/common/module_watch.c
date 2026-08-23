@@ -22,18 +22,10 @@ static DWORD WINAPI watch_thread(LPVOID parameter)
     for (;;) {
         module = GetModuleHandleA(request->module_name);
         if (module != NULL) {
-            /* SEEN ONCE IS NOT READY.
-             *
-             * GetModuleHandleA answers as soon as the module is in the loader's list, and a
-             * plugin that patches on that first sighting is racing whatever the loader has left
-             * to do. It bit us: with a seventeenth plugin in the folder the timing shifted by one
-             * poll, text_scaling won the race by 25 ms, and one of its seven sites came back
-             * "unexpected bytes", on the same rfl, at the same base, that had installed cleanly
-             * the run before.
-             *
-             * So the module has to be seen, and then still be there and unchanged a full settle
-             * later. Two hundred milliseconds during a five-second load costs nothing and closes
-             * the window that produced a PARTIAL install. */
+            /* SEEN ONCE IS NOT READY. GetModuleHandleA answers as soon as the module is in
+             * the loader's list, and patching on that first sighting races whatever the loader
+             * has left to do. It cost one PARTIAL install. The module must be seen and then
+             * still be there, unchanged, a full settle later. See README.md. */
             Sleep(SETTLE_MS);
             if (GetModuleHandleA(request->module_name) != module) {
                 continue;

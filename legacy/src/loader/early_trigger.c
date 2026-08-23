@@ -52,24 +52,10 @@ static void __cdecl restore_and_load(void)
     plugin_loader_run_once();
 }
 
-/* ---------------------------------------------------------------------------------------------
- * The stub the entry point is redirected to.
- *
- * It must preserve every register and every flag, because it runs in place of the first
- * instruction of a program that has not started yet and has made no promises about what is live.
- *
- * Six instructions, fifteen bytes:
- *
- *     60              pushad
- *     9C              pushfd
- *     E8 rel32        call restore_and_load
- *     9D              popfd
- *     61              popad
- *     FF 25 imm32     jmp dword ptr [trigger_state.entry_point]
- *
- * The final branch is INDIRECT, through the saved address rather than relative to here, so it
- * stays correct however the linker places this function.
- * ------------------------------------------------------------------------------------------- */
+/* The stub the entry point is redirected to. It MUST preserve every register and every flag: it
+ * runs in place of the first instruction of a program that has not started and has promised
+ * nothing about what is live. The final branch is INDIRECT, through the saved address, so it
+ * stays correct however the linker places this function. See README.md. */
 static void __declspec(naked) entry_point_stub(void)
 {
     __asm {

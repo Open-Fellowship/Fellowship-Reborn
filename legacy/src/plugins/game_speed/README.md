@@ -5,10 +5,12 @@
 One float in `.rdata` at `0x51C764`, `0.002` becoming `0.0001`. Ported from the community
 patcher's `FixGameSpeedTiedToFPS`.
 
+As bytes that is `0x3B03126F` becoming `0x38D1B717`.
+
 ## What the constant is
 
-This README used to say it was the simulation's fixed timestep. It is not one, and there is no
-fixed timestep anywhere in this engine. Every consumer of frame time multiplies by the delta at
+This README used to say it was the simulation's fixed timestep. There is no fixed timestep
+anywhere in this engine. Every consumer of frame time multiplies by the delta at
 `0x00543284` directly, plain Euler, thirty-one call sites of `v -= g*dt` and `p += v*dt`.
 
 `0x51C764` is the lower clamp the engine applies to that delta once per frame, inside
@@ -34,13 +36,13 @@ smaller and the symptom goes away.
 It treats the consequence. `frame_timing` removes the cause, by giving the Timer a counter that
 can measure a frame at all, after which the delta is real and this floor almost never fires.
 
-Both are worth having. With a fine clock the floor is what still catches a frame that is
-genuinely faster than it, which above about 500 fps is a real case rather than a measurement
+Both are useful. With a fine clock the floor is what still catches a frame that is
+genuinely faster than it, which above about 500 fps is a real case, not a measurement
 artefact.
 
 Because the target is `.rdata` and not code, this is the simplest patch in the whole tree: one
 float, no instruction boundary to respect and no length to match. It is also the only one where
-the value is worth experimenting with, which is why it is exposed rather than hard-coded.
+the value is worth experimenting with, so it is exposed and not hard-coded.
 
 ## Configuration: `[game_speed]`
 

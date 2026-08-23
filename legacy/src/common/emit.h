@@ -1,14 +1,8 @@
 /* emit.h: assemble a short stub, byte by byte, without counting offsets by hand.
  *
- * Several fixes in this project splice into the MIDDLE of an engine function rather than its
- * prologue, so they cannot use a conventional detour: the relocated instructions, the new
- * arithmetic and the jump back all have to be laid out together. That layout was originally done
- * in Python, where a list index stood in for an address. In C it wants a helper, because the
- * failure mode of getting it wrong by one byte is a jump into the middle of an instruction.
- *
- * The two things this buys: `emit_label` / `emit_patch_rel8` fix up a short branch after the
- * fact instead of requiring the author to know the distance in advance, and `emit_overflowed`
- * makes running out of buffer a checkable condition rather than a silent stack smash.
+ * For fixes that splice into the MIDDLE of an engine function, where the relocated instructions,
+ * the new arithmetic and the jump back have to be laid out together. Getting it wrong by one
+ * byte is a jump into the middle of an instruction. See README.md.
  */
 #ifndef COMMON_EMIT_H
 #define COMMON_EMIT_H

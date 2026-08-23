@@ -3,8 +3,8 @@
 ## The first rule
 
 **Verify the bytes before you write them.** Every patch reads what is currently
-at the site and refuses if it is not what was expected. That is what makes a
-patch idempotent, and it is what lets a different build of the game decline
+at the site and refuses if the bytes are not what was expected. That is what
+makes a patch idempotent, and what lets a different build of the game decline
 cleanly instead of being corrupted.
 
 `common/patch.c` provides the forms that do this: `patch_write_expect`,
@@ -19,7 +19,7 @@ never guesses, and it never writes anyway.
 
 Sites are currently found by **absolute address**, written as preferred-base
 addresses and converted at run time by `exe_site` and `rfl_site`. This is a
-deliberate position, not an oversight, and `common/engine_sites.h` states it:
+chosen position, not an oversight, and `common/engine_sites.h` states it:
 signature scanning is worth building when there is a second build to test it
 against, and worth nothing before then.
 
@@ -30,13 +30,13 @@ against those two files.
 `level_select` is the exception that shows the direction: it finds its site by
 signature, because the retail rfl and the targeted one put the same branch
 `0x430` apart. Write new sites so they can migrate: read an address out of a
-matched operand rather than embedding it twice, and do not hand-roll a scanner
+matched operand instead of embedding it twice, and do not hand-roll a scanner
 inside a plugin.
 
 ## Measure before you patch
 
-Every fix here that went in on a plausible theory rather than a measurement had
-to be reverted. If you cannot state the law your fix implements as an equation
+Every fix here that went in on a plausible theory, with no measurement behind
+it, had to be reverted. If you cannot state the law your fix implements as an equation
 with numbers on both sides, the fix is not ready.
 
 Say which claim you are making. Compiled, run in game, and measured are three
@@ -46,7 +46,7 @@ last two.
 ## Style
 
 C11, MSVC, 32-bit only, `/W4 /WX`. Each file opens with a comment saying what it
-is for and, where the answer is not obvious, why it exists at all rather than
+is for and, where the answer is not obvious, why it exists at all, not
 what it does line by line.
 
 Every hardcoded address, offset, opcode and unusual constant needs its
@@ -65,6 +65,6 @@ and calls through it, so installation order decides the order they run in and
 nothing enforces that they cooperate. Three plugins currently share
 `CreateDevice` this way, and `env_probe` and `screen_test` share `Present`.
 
-That works because nothing is ever uninstalled. It is not a mechanism, and a
+That works because nothing is ever uninstalled. No mechanism enforces it, and a
 plugin that assumes the pointer it saved is the real Direct3D function will be
 wrong. If you add a hook, save what you find and call through it.

@@ -1,9 +1,4 @@
-/* dll_main.c: the entry point, and nothing else.
- *
- * DllMain does no work. The loader calls open_fellowship_install AFTER LoadLibrary has returned,
- * which is outside the loader lock and with the host image fully mapped, and that is the only
- * place a plugin may scan, read files or load anything.
- */
+/* dll_main.c: the entry point, and nothing else. The contract is in common/plugin_entry.h. */
 #include "frame_timing.h"
 
 #include "common/plugin_entry.h"

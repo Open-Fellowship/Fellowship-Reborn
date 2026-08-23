@@ -10,12 +10,6 @@
 
 #define PLUGIN_SECTION "model_lod"
 
-/* The engine walks a chain of LOD levels, stepping finer or coarser as an object's screen size
- * crosses a threshold. Rather than move the thresholds, which are per-model authored data, the
- * two branches that decide the step are settled: always take the finer one, never the coarser.
- *
- * 0x485B97  75 54  -> 90 90   the "do not step finer" branch, removed
- * 0x485C46  7A     -> EB      the "step coarser" conditional, made unconditional the other way */
 void model_lod_install(void)
 {
     static const uint8_t finer_expected[2]   = { 0x75, 0x54 };

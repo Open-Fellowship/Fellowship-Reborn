@@ -53,13 +53,8 @@ static bool dimension_ok(int32_t value)
     return value >= DIMENSION_MIN && value <= DIMENSION_MAX;
 }
 
-/* The first dword of an object with virtual functions is its vtable pointer, and a vtable both
- * lives in the host image and holds addresses in the host image. Two indirections, both checked.
- *
- * Checking against one known vtable address would be stronger, and is wrong: the engine has more
- * than one camera class and only one of them was ever dumped. "Points at a table of code
- * addresses inside Fellowship.exe" is the strongest claim that is true of all of them, and it
- * already rejects every value uninitialised memory is likely to hold. */
+/* Two indirections, both checked. Checking against one known vtable address would be stronger
+ * and is wrong: the engine has more than one camera class. See README.md. */
 static bool looks_like_an_object(uintptr_t object)
 {
     uint32_t vtable;
@@ -129,14 +124,9 @@ bool camera_read(camera_view_t *out)
         return false;
     }
 
-    /* A last cross-check no individual range can make: halfH/halfW IS the aspect ratio, so it has
-     * to agree with the rectangle the camera claims to be rendering into. A camera caught half
-     * way through SetViewport, old dimensions, new halves, or the reverse, passes every test
-     * above and fails this one.
-     *
-     * Either rectangle is accepted, because the viewport and the device disagree legitimately
-     * whenever the game renders into a sub-rect, and a factor of two of slack is left in on top:
-     * this is here to reject garbage, not to police a rounding difference. */
+    /* halfH/halfW IS the aspect ratio, so it must agree with the rectangle the camera claims
+     * to render into. This catches a camera read half way through SetViewport, which passes
+     * every other test. Either rectangle is accepted, with slack. See README.md. */
     if (!aspect_agrees(&view, view.viewport_width, view.viewport_height)
         && !aspect_agrees(&view, view.device_width, view.device_height)) {
         return false;

@@ -7,10 +7,10 @@ down because most of it cost a night to learn and none of it is guessable.
 ## What is fixed
 
 `movie_skip` switches itself **on under Wine and off on Windows**: `platform_is_wine()` asks
-`ntdll` for `wine_get_version`, which Windows does not export, so it is a fact rather than a
+`ntdll` for `wine_get_version`, which Windows does not export, so it is a fact, not a
 guess. The ini overrides either way. The other two fixes are right on every platform.
 
-### `movie_skip` - the engine waits for ever on a movie Wine cannot play
+### `movie_skip`: the engine waits for ever on a movie Wine cannot play
 
 The opening sequence goes through **`WMVCore.DLL`**, the Windows Media Format runtime, which Wine
 only stubs. The engine sets a "a movie is playing" flag, stops drawing, and waits for an end that
@@ -26,7 +26,7 @@ Symptom: **exactly ten frames presented and then nothing**, identically on every
 healthy device, a correct window and a message loop still answering. Three bytes at `0x47BA29`
 end it; the mechanism is in "The main menu: solved" below.
 
-### `fps_limit` - the limiter ran away into the future
+### `fps_limit`: the limiter ran away into the future
 
 The frame limiter only ever looked one way. Falling *behind* is the obvious case and was handled.
 Running *ahead* was not: the hook is one call site, and the engine is under no obligation to reach
@@ -41,7 +41,7 @@ few resyncs with the call count, so a site reached far more often than the frame
 `GetPrivateProfileString` returns everything after the `=`, comment and all. The numeric readers
 survived it because `strtol` stops at the first space. The boolean reader compared the whole
 string against `"1"` and silently fell back to its default, so **every documented boolean in the
-shipped ini was ignored**, which is why `LogMessages=1` did nothing for a week of runs. Fixed in
+shipped ini was ignored**, so `LogMessages=1` did nothing for a week of runs. Fixed in
 `common/ini.c`.
 
 ## The main menu: solved
@@ -73,7 +73,7 @@ Confirmed on the Steam Deck: with `movie_skip` v2 the game reaches the main menu
 
 ## The instruments
 
-The diagnostics that found all of this - `env_probe`, `frame_state`, `screen_test` - and the
+The diagnostics that found all of this (`env_probe`, `frame_state`, `screen_test`) and the
 `borderless` experiment are on this branch and nowhere else. `steamdeck-experimental` carries the
 fixes alone; this is that branch plus these four, kept for the next time the screen is the thing
 that is broken. Nothing here is required by the fixes.

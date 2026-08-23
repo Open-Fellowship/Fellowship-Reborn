@@ -1,13 +1,10 @@
 /* flags.h: the engine's own developer flags, all 124 of them.
  *
- * Fellowship.exe carries a complete debug menu that no shipping build's UI reaches. It is not a
- * leftover string table: the entries are registered at run time with names, the values live in an
- * array the renderer and the object system actually read, and there is a setter that performs
- * each flag's side effects. Wireframe, full bright, bounding volumes, occlusion, engine stats,
- * screenshots, cache dumps.
+ * Fellowship.exe registers them at run time with names, into an array the renderer and the object
+ * system actually read, behind a setter that performs each flag's side effects.
  *
- * This module is the access, not the interface. It reads names and values and asks the engine to
- * change one; where they appear on screen is dev_menu.c's business.
+ * This module is the access, not the interface. Where they appear on screen is dev_menu.c's
+ * business. See README.md.
  */
 #ifndef DEV_MENU_FLAGS_H
 #define DEV_MENU_FLAGS_H

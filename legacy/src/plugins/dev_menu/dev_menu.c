@@ -94,22 +94,13 @@ static int   g_mouse_x;
 static int   g_mouse_y;
 static bool  g_dragging;
 
-/* RAW INPUT, NOT THE SYSTEM CURSOR
+/* NOT GetCursorPos: the game holds the mouse through DirectInput in EXCLUSIVE mode, which
+ * freezes the system cursor and stops mouse window messages, so the menu drew and could not be
+ * clicked.
  *
- * The first version read GetCursorPos and the menu drew perfectly and could not be clicked. That
- * is the documented behaviour of a DirectInput device acquired in EXCLUSIVE mode, which is how
- * this game takes the mouse: the system cursor stops moving and mouse movement stops generating
- * window messages. GetCursorPos then returns the same frozen point forever, which is exactly
- * what a menu that draws but cannot be interacted with looks like.
- *
- * Raw input sits underneath all of that. WM_INPUT delivers the device's own relative movement
- * whatever DirectInput has done with the cursor, so this plugin keeps its OWN pointer position,
- * accumulated from those deltas and drawn by the overlay; the system cursor is invisible and
- * frozen, and is no longer anything to do with us.
- *
- * The window that receives it is a message-only window of our own on our own thread. Subclassing
- * the game's window would also have worked and would have put our code in its message loop; this
- * way nothing of the game's is touched. */
+ * The shipping path is our own DirectInput device. Raw input is kept as a fallback, through a
+ * message-only window of our own, because it costs nothing and a different setup may not have
+ * the registration conflict that made it useless here. See README.md. */
 static void         *g_mouse_device;          /* our own DirectInput mouse, not the game's */
 static void         *g_game_mouse;            /* the game's, so its reads can be silenced   */
 static bool          g_take_mouse = true;
@@ -144,24 +135,12 @@ static BOOL CALLBACK pick_window(HWND window, LPARAM parameter)
     return TRUE;
 }
 
-/* ------------------------------------------------- silencing the game's own mouse reads
+/* Silencing the game's own mouse reads at the source, because asking DirectInput for it
+ * exclusively is refused: the game got there first.
  *
- * Asking DirectInput for the mouse EXCLUSIVELY is the polite way to stop the game seeing it, and
- * on this game it does not work: the game got there first and holds it exclusively itself, so our
- * request is refused and we fall back to sharing. Sharing means the menu works and the world
- * swings around underneath it, which is worse than either extreme.
- *
- * So the game's own reads are silenced at the source. The executable imports exactly ONE symbol
- * from DINPUT8.dll, DirectInput8Create, and a plugin installed at the entry point runs long
- * before the game calls it. Rewriting that import slot gives us the interface it is handed, the
- * interface gives us the CreateDevice call, and CreateDevice gives us the mouse device itself.
- * From there, one vtable entry decides whether the game hears anything.
- *
- * Every hook forwards. While the menu is closed the game reads its mouse exactly as it always
- * did; while it is open, the two functions that return mouse data return nothing. And the check
- * is on the DEVICE, not the vtable, because DirectInput gives every device of a class the same
- * vtable, silencing the vtable outright would take the keyboard with it, and our own mouse.
- */
+ * EVERY HOOK FORWARDS, and the check is on the DEVICE, not the vtable: DirectInput gives every
+ * device of a class the same vtable, so silencing the vtable would take the keyboard with it,
+ * and our own mouse. See README.md. */
 
 static direct_input8_create_t g_original_create;
 static di8_create_device_t    g_original_create_device;
@@ -438,7 +417,6 @@ static bool poll_mouse(int *dx, int *dy, bool *button)
     *button = (state.buttons[0] & 0x80) != 0;
     return true;
 }
-
 
 /* The device, reached the way the engine reaches it, with every step checked. A wrong guess here
  * is a call through a pointer that is not a vtable, so nothing is believed until all of it is. */
@@ -737,20 +715,6 @@ static void cheat_button_rect(int index, int *bx, int *by, int *bw, int *bh)
  * inside(), which is a hover and fires every frame. */
 static bool clicked(int x, int y, int w, int h);
 
-/* --------------------------------------------------------------------- the fix enhancers page
- *
- * Everything on the other three tabs asks the engine to do something it already knows how to do:
- * the cheats are the engine's own commands, the flags are its own debug menu. This one does not.
- * The engine has no notion of a character's size; there is no such property among the 4,262 the
- * ObjectDef table defines, and no such debug command, and it has no notion of a frame rate it
- * is supposed to aim for either.
- *
- * That is a bigger step than anything else in this plugin, so the page shows its working: the
- * object it found, the offset it is writing to, and the reason it is refusing when it refuses.
- * A button that silently does nothing is the failure mode this whole tree is written against.
- * The frame rate half follows the same rule; it shows which clock the engine is running on and
- * what the delta has actually been doing, rather than asking to be believed.
- */
 #define SIZE_OPTION_COUNT 3
 
 /* Which size the user last chose. Re-applied every frame from the EndScene hook, because the
@@ -892,14 +856,6 @@ static void draw_player(void)
                  "width is on top of height; the camera holds its distance either way");
 }
 
-/* ------------------------------------------------------------ the frame rate, on the same page
- *
- * The slider publishes to fps_limit rather than waiting anywhere itself, for the same reason the
- * field of view slider publishes to field_of_view: one writer per thing. What this owns is the
- * REQUEST, and the readout underneath it.
- *
- * Row 4 down. Rows 0 to 3 are the player size half above.
- */
 #define FPS_ROW_TITLE   4
 #define FPS_ROW_SLIDER  5
 #define FPS_ROW_BUTTONS 6
@@ -1189,16 +1145,8 @@ static void player_hold_size(void)
     }
 }
 
-/* --------------------------------------------------------------------------- the flags page
- *
- * A row is a name and a switch, exactly like the cheat buttons: press it and the engine does
- * whatever that entry means. The seven entries that hold a range rather than a state get a second
- * line underneath with the number and a pair of steppers, because those are the only ones where
- * a number is the point.
- *
- * Rows are therefore not all the same height, so the page is laid out once per frame into a
- * table that the drawing and the hit testing both read. Nothing computes a rectangle twice.
- */
+/* Rows are not all the same height, so the page is laid out once per frame into a table that
+ * the drawing and the hit testing both read. Nothing computes a rectangle twice. */
 #define FLAG_MAX_ROWS   64
 #define FLAG_MAX_PAGES  16
 #define FLAG_SWITCH_W   52
@@ -1568,7 +1516,6 @@ static int message_step(void)
     return overlay_line_height() * MESSAGE_SCALE + 6;
 }
 
-
 static int message_lines_shown(void)
 {
     int step = message_step();
@@ -1715,15 +1662,9 @@ static void draw_messages(void)
     }
 }
 
-/* OUR switch, deliberately not the engine's flag 0.
- *
- * Flag 0 turns on the engine's OWN message display, and that display is what corrupted the
- * lighting and then took the game down: it is a dev feature this build cannot draw. Capturing
- * the text does not need it, the hooks see every message whatever the flag says, so the box is
- * driven from here and flag 0 is left alone.
- *
- * Belt and braces: switching the box on also puts flag 0 back to 0, so a stray click on the
- * flags page cannot bring the broken display back while the box is up. */
+/* OUR switch, NOT the engine's flag 0. Flag 0 turns on the engine's own message display, which
+ * on this build corrupts the lighting and then takes the game down. Capturing does not need it.
+ * Switching the box on also puts flag 0 back to 0, so a stray click cannot bring it back. */
 static bool messages_wanted(void)
 {
     return g_show_messages && messages_enabled();

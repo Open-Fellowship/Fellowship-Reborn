@@ -7,9 +7,9 @@ that returns 1; the engine tests the result with `test eax,eax / jne` and carrie
 
 The callee at `0x4BD2C0` is **not** modified. Only this one call site is diverted, so anything
 else that calls it keeps the original behaviour, which is the whole reason for redirecting a call
-rather than patching a function.
+and not patching a function.
 
-A No-CD executable does not need this, and that is the usual case for this game. It runs anyway,
+A No-CD executable does not need this, which is the usual case for this game. It runs anyway,
 because the opcode check in front of the write is what makes an unnecessary patch harmless: on a
 copy where that call has gone, the plugin declines and says so.
 

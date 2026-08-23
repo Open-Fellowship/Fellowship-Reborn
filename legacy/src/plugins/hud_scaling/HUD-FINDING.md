@@ -4,7 +4,7 @@
 circle stay tiny at 4K while the menu sliders scale, and why the *spacing* between them is wrong
 as well as their size.
 
-## It is not the same bug as the menu controls
+## Not the same bug as the menu controls
 
 `hud_scaling` fixes the menu by scaling a control's pixels-per-unit at `rfl+789A7`. That hook was
 extended to the untemplated branch at `rfl+789BB` on the theory that the HUD went that way. It
@@ -97,7 +97,7 @@ in the HUD classes.
 | `Halo` | `1010C6EC` | `HaloULPosY` | 1 | 12 | Y Position (px) |
 
 The other 355 are colours, alphas, speeds, fonts, counts and texture references. Scaling those
-would be wrong - `MeterInterpolateSpeed` is seconds, `MeterCriticalPerc` is a percentage,
+would be wrong: `MeterInterpolateSpeed` is seconds, `MeterCriticalPerc` is a percentage,
 `NumUnits` is a count.
 
 ## Why this is the good news
@@ -112,12 +112,12 @@ engine tells us what to scale.
 **Where the fetch happens.** The property read is `mov ecx,[obj+8] / push -1 / push <index> /
 call [vtable+8]`, and the index is relative to the group. One hook on that call, with a set of
 (group, index) pairs built from the tables, would cover all 45, but the group identity has to be
-recoverable at the call, and that is not yet established.
+recoverable at the call, which is not yet established.
 
 **Whether to scale by width, height or both.** A position in x and a size in x want the width
-ratio; y wants height. The display names distinguish them (`X Position (px)` vs `Y Position (px)`),
-so the metadata answers this too, but at 16:9 the two ratios differ by 1.33 and picking one for
-everything would stretch the art.
+ratio; y wants height. The display names distinguish them (`X Position (px)` vs `Y Position
+(px)`), so the metadata answers this too, but at 16:9 the two ratios differ by 1.33 and picking
+one for everything would stretch the art.
 
 **Whether the texture art survives it.** These are texel sizes into a HUD atlas. Scaling the
 destination rectangle by 6 will magnify a 22x18 frame texture to 132x108, and it will look like a
@@ -150,7 +150,7 @@ and disassembling that caller explains everything:
 Index 12 is `RFSizeX` **only for the class whose table this document lists**. At `rfl+659AB` it is
 a template ID used as an array subscript. **Property indices are relative to the object's class**,
 and mapping all 74 through one table meant roughly half were integers. An ID of `3`, read as a
-float, is the denormal `4.2e-45`; scaled by 4.5 it comes back as integer `13` - a different
+float, is the denormal `4.2e-45`; scaled by 4.5 it comes back as integer `13`: a different
 template, or a subscript off the end of a 36-byte-stride table.
 
 Site 24 itself was harmless because zero scales to zero. The next one was not.

@@ -5,7 +5,7 @@
 All in-game text is drawn at a fixed pixel size, so at 4K subtitles and menu labels are unreadably
 small.
 
-## Seven hooks, and why it is not fewer
+## Seven hooks, and why not fewer
 
 Text is not one number. Each of these was found because the previous version looked wrong in a
 screenshot:
@@ -30,7 +30,7 @@ in a different way each time.
 The first version put the engine's active-camera pointer in every one of the seven stubs and read
 `[camera+0x258]` through it. On a second install that pointer was neither NULL nor a camera and
 the game crashed; `hud_scaling`'s README has the log line that proves it. The integer stubs had a
-second way to die on top of the access violation - `idiv` faults outright when the quotient does
+second way to die on top of the access violation: `idiv` faults outright when the quotient does
 not fit, which a garbage numerator guarantees.
 
 The second version sampled the scale onto a poll thread and had the stubs multiply by a plain
@@ -56,7 +56,7 @@ reason. It is the most fragile of the seven and the one to check first when text
 
 **Line height is hooked from `rfl+63CA0`, not the obvious `rfl+63CA9`.** The function's own `je`
 targets an address *inside* where a five-byte branch at `63CA9` would sit, so the zero-check is
-reimplemented in the stub rather than jumped over.
+reimplemented in the stub instead of being jumped over.
 
 ## Height, not width
 

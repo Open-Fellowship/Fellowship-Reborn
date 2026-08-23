@@ -1,19 +1,13 @@
 /* overlay.h: coloured rectangles on top of the frame, and text made out of them.
  *
- * NO TEXTURES, DELIBERATELY. The obvious way to draw text in Direct3D 8 is a font atlas: render
- * the glyphs into a texture, then draw one textured quad per character. That means CreateTexture,
- * a lock and an upload, texture stage state, a pool choice, and code to rebuild all of it after a
- * device Reset, a lot of surface area for a dev menu, and every bit of it a way to break the
- * game's own rendering on a machine nobody here can test.
+ * NO TEXTURES, DELIBERATELY. A font atlas would mean CreateTexture, a lock and an upload, stage
+ * state, a pool choice, and code to rebuild all of it after a device Reset: a lot of surface area
+ * for a dev menu, and every bit of it a new way to break the game's rendering on a machine
+ * nobody here can test.
  *
- * So the glyphs are rasterised ONCE with GDI into plain bitmasks, and drawn as untextured
- * rectangles: each row of a glyph becomes one quad per run of lit pixels. The whole overlay is
- * then a single DrawPrimitiveUP of pre-transformed vertices. Nothing is allocated on the device,
- * so there is nothing to lose when the device resets, and the only device state touched is a
- * short list that is read back and restored before returning to the game.
- *
- * It costs a few thousand triangles a frame. On hardware that runs this game at 4K, that is not
- * a number worth optimising.
+ * So glyphs are rasterised once with GDI into bitmasks and drawn as untextured rectangles, one
+ * quad per run of lit pixels, in a single DrawPrimitiveUP. Nothing is allocated on the device, so
+ * there is nothing to lose when it resets. See README.md.
  */
 #ifndef DEV_MENU_OVERLAY_H
 #define DEV_MENU_OVERLAY_H

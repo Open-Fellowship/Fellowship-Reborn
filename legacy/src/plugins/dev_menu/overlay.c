@@ -338,17 +338,10 @@ void overlay_flush(void *device)
     ((d3d8_get_vertex_shader_t)vtable[D3D8_GETVERTEXSHADER])(device, &previous_shader);
     ((d3d8_set_vertex_shader_t)vtable[D3D8_SETVERTEXSHADER])(device, OVERLAY_FVF);
 
-    /* THE ONE THAT BIT.
-     *
-     * DrawPrimitiveUP does not just draw: it sets vertex stream 0 to NULL on the way out, and its
-     * indexed cousin does the same to the index buffer. Documented, and easy to miss, because
-     * nothing about drawing a few quads suggests it would unbind the caller's geometry.
-     *
-     * The engine binds its stream once and reuses it across draws, so an overlay that left the
-     * stream unbound meant every later draw that frame ran on whatever the runtime had, which
-     * looked like lens flares and light sprites blowing up into white blobs, and eventually a
-     * crash. Both are saved and put back.
-     */
+    /* DrawPrimitiveUP SETS VERTEX STREAM 0 TO NULL ON THE WAY OUT, and its indexed cousin does
+     * the same to the index buffer. The engine binds its stream once and reuses it, so leaving
+     * it unbound made every later draw that frame run on whatever the runtime had: white blobs,
+     * then a crash. Both are saved and put back. See README.md. */
     ((d3d8_get_stream_source_t)vtable[D3D8_GETSTREAMSOURCE])(device, 0, &previous_stream,
                                                             &previous_stride);
     ((d3d8_get_indices_t)vtable[D3D8_GETINDICES])(device, &previous_indices, &previous_base);

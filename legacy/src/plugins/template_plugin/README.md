@@ -17,7 +17,7 @@ It changes nothing about the game. It exists for two reasons:
 [template_plugin] installed
 [template_plugin]   host image   00400000 .. 00606000
 [template_plugin]   code section 00401000 + 0011B000
-[template_plugin]   Fellowship.rfl not loaded yet - as expected at entry-point time
+[template_plugin]   Fellowship.rfl not loaded yet, as expected at entry-point time
 [template_plugin]   Greeting = hello from plugins\
 ```
 

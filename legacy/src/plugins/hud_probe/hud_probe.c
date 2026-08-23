@@ -17,14 +17,6 @@
 
 #define PLUGIN_SECTION "hud_probe"
 
-/* The universal property getter, in Fellowship.exe. Six bytes are relocated, which is one more
- * than a branch needs and lands on an instruction boundary:
- *
- *     0044E6E0   56            push esi
- *     0044E6E1   57            push edi
- *     0044E6E2   8B 7C 24 10   mov edi,[esp+0x10]
- *     0044E6E6                 <- the stub returns here
- */
 #define GETTER_VA     0x0044E6E0u
 #define GETTER_RETURN 0x0044E6E6u
 #define GETTER_SIZE   6u
@@ -35,10 +27,6 @@ static const uint8_t getter_expected[GETTER_SIZE] = {
     0x8B, 0x7C, 0x24, 0x10         /* mov edi,[esp+0x10] */
 };
 
-/* A fixed table, never grown, and a cheap hash: this runs on every authored-value read in the
- * game, thousands a second, so the recording path has to be a bounded number of instructions
- * with no allocation and no lock. Losing an entry to a hash collision costs a line of a report;
- * taking a lock here would cost the frame rate. */
 #define TABLE_SIZE 2048
 
 typedef struct entry {
@@ -73,15 +61,6 @@ static void __cdecl record(uint32_t caller, uint32_t index)
     }
 }
 
-/*  pushad / pushfd                       36 bytes of saved state
- *  push [esp+0x28]                       the index      (36 + 4)
- *  push [esp+0x28]                       the caller     (36 + 0, now shifted by the first push)
- *  call record
- *  add esp,8
- *  popfd / popad                         esp is exactly what it was at function entry
- *  push esi / push edi / mov edi,[esp+0x10]      the relocated six bytes, in their own context
- *  jmp 0044E6E6
- */
 static void *build_stub(uintptr_t stub_address, uintptr_t return_address)
 {
     uint8_t buffer[64];

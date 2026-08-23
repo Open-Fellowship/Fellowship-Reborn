@@ -149,17 +149,9 @@ uintptr_t player_last_object(void)
     return g_last_object;
 }
 
-/* ------------------------------------------------------------------------------- writing back
- *
- * memory.h deliberately offers no write, because almost everything in this tree that writes to
- * the game writes to CODE and goes through patch_write_*, which restores page protection
- * afterwards. This writes to a heap object instead, which is already writable, so the thing worth
- * checking is that the range really is committed and really is writable; a stale pointer that
- * happened to survive the class check would otherwise fault here.
- *
- * Kept local rather than added to common/memory.h: one caller does not justify widening an API
- * that every plugin sees.
- */
+/* This writes to a heap object, not to code, so what matters is that the range really is
+ * committed and writable: a stale pointer that survived the class check would fault here. Kept
+ * local rather than widened into common/memory.h for one caller. */
 static bool writable_range(uintptr_t address, size_t size)
 {
     MEMORY_BASIC_INFORMATION info;
@@ -247,20 +239,10 @@ bool player_apply_size(float girth, float height, const char **why)
     /* And the reciprocal into the camera multiplier. Written outright rather than renormalised,
      * because unlike the matrix nothing else touches it: it has held exactly (1, 1, 1) in every
      * reading, so 1.0 restores it precisely and there is nothing to accumulate. */
-    /* Per axis, not one value in all three.
-     *
-     * Keying the whole thing to height was wrong, and wrong in the way it was predicted to be:
-     * changing only the build moved the camera. Writing the offset out explains it; the camera
-     * sits at `matrix * (0, TrackHeight, -TrackDist)`, so the DISTANCE term rides on row 2, a
-     * horizontal row that carries girth, while the HEIGHT term rides on row 1 which carries
-     * height. Two different scales, so one reciprocal cannot cancel both.
-     *
-     * This vector has three components and until now every write put the same number in all of
-     * them. Giving each axis the reciprocal of whatever scaled it is the obvious next reading:
-     * y cancels the height row, x and z cancel the two horizontal ones. If the vector turns out
-     * to be uniform after all, or ordered differently, this will still be visibly wrong when
-     * girth and height differ, and right when they are equal, which is the case that already
-     * worked. */
+    /* PER AXIS, not one value in all three. The camera sits at
+     * matrix * (0, TrackHeight, -TrackDist), so the distance term rides on a horizontal row and
+     * the height term on row 1: two different scales, and one reciprocal cannot cancel both.
+     * See README.md. */
     triple[0] = 1.0f / girth;
     triple[1] = 1.0f / height;
     triple[2] = 1.0f / girth;
@@ -268,15 +250,3 @@ bool player_apply_size(float girth, float height, const char **why)
     return true;
 }
 
-
-/* Log the floats where the two positions are most likely to be, so they can be identified by
- * looking at them rather than guessed at.
- *
- * A world coordinate in this engine is large, the schema talks in world units where a tracking
- * distance is 2000, and it changes as you walk. A rotation component never leaves [-1, 1] and a
- * flag or a counter does not look like either. Printing a window around each and reading it is
- * quicker and far more certain than another search.
- *
- * The player's is expected next to its transform at +0x00F8: the three floats before it, or the
- * three after the nine. The camera's is expected near the head of its object. Both windows are
- * printed whole so that "none of these" is as visible an answer as a hit. */

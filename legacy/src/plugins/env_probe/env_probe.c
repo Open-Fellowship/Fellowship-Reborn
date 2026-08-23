@@ -15,26 +15,6 @@
 
 #define PLUGIN_SECTION "env_probe"
 
-/* ================================================================================ what we log
- *
- * Three things, in the order they become knowable:
- *
- *   1. the platform, at install time. Wine announces itself through an export in ntdll that does
- *      not exist on Windows, so this is a fact rather than a guess.
- *   2. which d3d8.dll is in the process, once it is loaded. wined3d, DXVK's d8vk and the
- *      community wrapper are three very different things wearing the same file name, and the
- *      path plus the size tells them apart.
- *   3. what the game asked Direct3D for, and what it answered. This is the one that matters:
- *      a device request that fails leaves the game running with nothing to draw into, which is
- *      indistinguishable from a hang unless somebody writes the HRESULT down.
- */
-
-/* ------------------------------------------------------------------------------ Direct3D 8
- *
- * Only the two entries needed to see the answer. IDirect3D8's vtable is the COM order, so
- * CreateDevice is slot 15 and GetAdapterIdentifier is slot 5, not addresses in this game, so
- * they are the same on any implementation.
- */
 #define D3D8_GETADAPTERIDENTIFIER 5
 #define D3D8_CREATEDEVICE         15
 
@@ -95,10 +75,6 @@ static bool               g_present_hooked;
 static unsigned           g_frames;
 static DWORD              g_last_report;
 
-/* The window the device draws into, kept so that the frames and the window can be reported
- * together. A window that is 320x200 and hidden when the device is made is not yet a problem,
-* plenty of games create one that way and show it afterwards, but a window still that size once
- * frames are going out is the whole answer. */
 static HWND               g_watch_window;
 
 /* The thread that presented the last frame, which is the thread worth asking about when the
@@ -391,26 +367,12 @@ static void hook_device(void *device)
              (unsigned)(uintptr_t)g_original_present);
 }
 
-/* ------------------------------------------------------------------------------- the watchdog
- *
- * A log that simply stops is ambiguous. The game might be stuck before its render loop, or it
- * might be drawing perfectly into a window nobody can see, and from outside both are a black
- * screen. Present answers that, but only if it is ever called, and "never called" is exactly
- * the case that leaves no line behind. So a thread of our own asks the question out loud.
- */
 static bool g_watching = true;
 
-/* ------------------------------------------------------------------- where the main thread is
- *
- * A game that keeps answering messages and stops drawing is waiting for something, and it is not
- * going to say what. Its instruction pointer will.
- *
- * The thread that presented the last frame is suspended for exactly as long as it takes to copy
- * its registers. Nothing is read and nothing is logged while it is stopped: a thread frozen inside
- * the runtime's own lock, by a diagnostic that then wants that lock, is how the diagnostic becomes
- * the bug. The stack is walked afterwards instead, which is safe precisely because this only runs
- * when nothing is moving.
- */
+/* The presenting thread is suspended for exactly as long as it takes to copy its registers.
+ * NOTHING is read or logged while it is stopped: a thread frozen inside the runtime's own lock,
+ * by a diagnostic that then wants that lock, is how the diagnostic becomes the bug. The stack is
+ * walked afterwards. See README.md. */
 static void describe_address(uintptr_t address, char *buffer, size_t size)
 {
     MEMORY_BASIC_INFORMATION region;
@@ -636,10 +598,6 @@ static bool window_is_pumping(HWND window)
     return SendMessageTimeoutA(window, WM_NULL, 0, 0, SMTO_ABORTIFHUNG, 1000, &answer) != 0;
 }
 
-/* Ticks every five seconds for the life of the process. It says nothing while the frame counter
- * is moving, and speaks up when it stops, once when the stall starts and once thirty seconds in,
- * so a game that is wedged says so twice rather than five hundred times. If frames start again the
- * whole thing re-arms. */
 static DWORD WINAPI watchdog_thread(void *unused)
 {
     unsigned last_seen   = 0;

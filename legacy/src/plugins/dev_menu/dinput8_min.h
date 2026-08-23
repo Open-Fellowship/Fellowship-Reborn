@@ -1,32 +1,15 @@
 /* dinput8_min.h: our own mouse, read the same way the game reads its own.
  *
- * WHY NOT THE SYSTEM CURSOR, AND WHY NOT RAW INPUT
+ * NOT GetCursorPos and NOT raw input; both were tried on hardware and both failed. The game holds
+ * the mouse through DirectInput in exclusive mode, which freezes the system cursor, and only one
+ * window per raw input device class per PROCESS may register, which DirectInput8 already did.
  *
- * Two approaches were tried on the machine this runs on, and both failed for reasons worth
- * writing down, because both looked correct:
+ * Exclusive access blocks other applications acquiring EXCLUSIVELY and nothing else, so this
+ * opens its own device and reads the same hardware. Exclusive is tried first, sharing is the
+ * fallback, and the menu says which it got.
  *
- *   GetCursorPos.  The game acquires the mouse through DirectInput in EXCLUSIVE mode. A device
- *   acquired that way stops moving the system cursor and stops generating window messages, so
- *   GetCursorPos returns the same frozen point forever. The menu drew and could not be clicked.
- *
- *   Raw input.  WM_INPUT sits underneath DirectInput, which is why it looked like the answer.
- *   But only ONE window per raw input device class per PROCESS may be registered, and
- *   DirectInput8 registers the mouse itself inside the game's process. Its registration replaces
- *   ours and the messages never arrive.
- *
- * DirectInput devices do not have that problem: exclusive access by one application prevents
- * other applications acquiring EXCLUSIVELY, and nothing else. So this plugin opens its own mouse,
- * non-exclusive and background, and reads relative movement from it; the same hardware the game
- * is reading, through the same API, without taking anything away from it.
- *
- * It tries exclusive first. If the game does not hold the mouse exclusively, we get it, and the
- * game stops seeing the movement while the menu is open, which is the behaviour you actually
- * want from a menu. If it does, we fall back to sharing and say so in the log.
- *
- * NOTHING HERE COMES FROM AN SDK. The GUIDs are the published, stable DirectInput values and the
- * data format is a structure the API documents; `dinput8.lib` would supply both, but declaring
- * them keeps this plugin buildable with nothing but the Windows SDK, the same reasoning as
- * d3d8_min.h next door.
+ * NOTHING HERE COMES FROM AN SDK: the GUIDs and the data format are declared so this builds
+ * against nothing but the Windows SDK, the same reasoning as d3d8_min.h. See README.md.
  */
 #ifndef DEV_MENU_DINPUT8_MIN_H
 #define DEV_MENU_DINPUT8_MIN_H

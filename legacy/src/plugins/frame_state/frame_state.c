@@ -20,18 +20,6 @@
 #define FRAME_MODE_VA     0x0053EE84u
 #define FRAME_COUNTER_VA  0x0054417Cu
 
-/* The ONLY function in the executable that writes the mode word. Everything else asks it to.
- *
- *     004049F0  push ebx
- *     004049F1  mov  ebx,[esp+8]        the mode being asked for
- *     ...
- *     00404A70  mov  [0x53EE84], ebx
- *     00404A79  ret  4
- *
- * Five bytes of prologue, which is exactly a jump, so the value and, the point of the exercise,
-* the address of whoever asked for it can be written down. Reading the binary did not find the
- * caller that turns bit 3 on: it arrives computed in a register from somewhere no cross-reference
- * reaches. So ask the running game instead. */
 #define MODE_SETTER_VA    0x004049F0u
 #define SETTER_PROLOGUE   5u
 
@@ -125,10 +113,6 @@ static void __cdecl on_set_mode(uint32_t caller, uint32_t value)
                  ? "   <- this is the one that stops the drawing" : "");
 }
 
-/* pushad / pushfd / call on_set_mode(return address, mode) / popfd / popad, then the five bytes
- * the jump displaced and a jump back. The two pushes read past our own saved registers: 32 bytes
- * of pushad plus 4 of pushfd puts the return address at esp+36 and the argument at esp+40, and
- * the first push shifts both by another four. */
 static void *build_stub(uintptr_t stub_address, uintptr_t resume_address)
 {
     uint8_t buffer[64];

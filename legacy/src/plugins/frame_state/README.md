@@ -3,7 +3,7 @@
 **Produces:** `frame_state.dll`. **A diagnostic. It changes nothing.** Off by default.
 
 `env_probe` can prove that Direct3D is healthy and that no frames are being presented. Those two
-facts together leave exactly one question, and it is a question about the engine rather than the
+facts together leave exactly one question, and it is about the engine, not the
 driver: **is the game running its frame and failing to show it, or is it not running a frame at
 all?**
 
@@ -57,7 +57,7 @@ Every change of the mode word, and a warning when the counter stops:
 ```
 
 Reading, on a thread of its own, every 20 ms. It never writes to the game and never hooks
-anything, which is why it is safe to leave on while chasing something and pointless to leave on
+anything, so it is safe to leave on while chasing something and pointless to leave on
 afterwards.
 
 ## Who asked for the change
@@ -72,6 +72,9 @@ The setter's prologue is exactly five bytes, which is exactly a jump:
 ```
 004049F0  53              push ebx
 004049F1  8B 5C 24 08     mov  ebx, dword ptr [esp+8]
+...
+00404A70  mov  [0x53EE84], ebx
+00404A79  ret  4
 ```
 
 Those five bytes are redirected to a stub that saves everything, hands the requested mode and
@@ -86,6 +89,13 @@ a thing that can be looked up in the binary:
 
 This is the one thing in this plugin that writes to the game, and `WatchSetter=0` turns it off for
 anyone who wants a diagnostic that only reads.
+
+## The stub
+
+`pushad` / `pushfd` / `call on_set_mode(return address, mode)` / `popfd` / `popad`, then the
+five displaced bytes and a jump back. The two pushes read past our own saved state: 32 bytes
+of `pushad` plus 4 of `pushfd` puts the return address at `esp+36` and the argument at
+`esp+40`, and the first push shifts both by another four.
 
 ## Configuration: `[frame_state]`
 

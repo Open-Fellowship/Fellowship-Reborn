@@ -9,53 +9,15 @@
 
 #include <stdint.h>
 
-/* ================================================================================ the primitive
- *
- * Every cheat in this engine is one call. From the debug menu's own handler, eight times, with
- * nothing between them but which string is pushed:
- *
- *     00411C50   mov  ecx,[0x544070]        the command object
- *                push 0x52F630              "fly"
- *                mov  eax,[ecx]             its vtable
- *                call [eax+0x68]            __thiscall (this, const char *command)
- *
- * The strings themselves are in the executable's data, and the game's README documents them as
- * the cheats: fly, drop, tim, mrclean, heal, bye, invisowalls, and "tele %d %d %d".
- *
- * THE STRING IS NOT RETAINED, and that is not an assumption. One of those eight call sites,
- * teleport at 0x411C93, formats into a STACK BUFFER and passes a pointer to it:
- *
- *     lea  eax,[esp+0x20]
- *     push 0x52F618              "tele %d %d %d"
- *     push eax
- *     call 0x504660              sprintf
- *     ...
- *     lea  eax,[esp+0x14]
- *     push eax                   the formatted string, on the stack
- *     call [edx+0x68]
- *
- * A callee that kept that pointer would be reading a dead frame the moment the menu returned.
- * So a string literal from this DLL is safe to pass, which is what makes this module possible
- * without allocating anything inside the game.
- */
+/* Every cheat is one call: a command string on the stack, one vtable slot on the object at
+ * 0x544070. THE STRING IS NOT RETAINED, which is not an assumption: the teleport site formats
+ * into a stack buffer and passes a pointer to it, so a callee that kept the pointer would be
+ * reading a dead frame. A string literal from this DLL is therefore safe. See README.md. */
 #define COMMAND_OBJECT_PTR_VA  0x00544070u
 #define COMMAND_VTABLE_SLOT    0x68u
 
-/* Spelled `__fastcall` with a dead second parameter rather than `__thiscall`, which is what the
- * engine actually uses. MSVC accepts `__thiscall` on a function-pointer typedef in C++ but not in
- * C, under `/permissive-` with `C_STANDARD 11` it is not a keyword at all, and the declaration
- * below stops parsing at the `*`. This built once because an older toolset was laxer; 19.50 is
- * not, and no pragma reopens it.
- *
- * The substitution is exact on x86 rather than approximate, which is the only reason it is
- * acceptable here:
- *
- *     __thiscall (this, arg)          this -> ECX, arg on the stack, callee cleans
- *     __fastcall (this, dead, arg)    this -> ECX, dead -> EDX, arg on the stack, callee cleans
- *
- * Same register for `this`, same stack layout for the real argument, same cleanup. EDX is
- * caller-saved and `__thiscall` never reads it, so what we put there is discarded; it is
- * passed as NULL to make that explicit rather than leaving a register uninitialised. */
+/* __fastcall with a dead second parameter, NOT __thiscall: the latter is not usable on a
+ * function-pointer typedef in C. The substitution is exact on x86. See common/compiler.h. */
 typedef void (__fastcall *command_fn)(void *self, void *unused_edx, const char *command);
 
 typedef struct cheat {
@@ -97,16 +59,9 @@ bool cheat_believed_state(cheat_id_t id)
     return (id >= 0 && id < CHEAT_COUNT) && g_believed[id];
 }
 
-/* WHERE THE CODE LIVES
- *
- * The first build of this refused every call, because it insisted the vtable entry be inside
- * Fellowship.exe. It is not. Nothing in the executable ever WRITES 0x544070, twenty-three
- * instructions read it and none of them assign it, so the object is created by Fellowship.rfl,
- * which is the game half of this engine, and its vtable is in the rfl's code.
- *
- * That is worth stating rather than quietly widening the check: the engine is the exe and the
- * game is the rfl, and any global the exe only ever reads belongs to the other side.
- */
+/* The vtable entry lives in Fellowship.rfl, NOT the executable. The first build required the
+ * exe and refused every call. Any global the exe only ever reads belongs to the other side.
+ * See README.md. */
 static bool module_range(const char *name, uintptr_t *base, uintptr_t *end)
 {
     HMODULE              module = GetModuleHandleA(name);
@@ -146,14 +101,9 @@ static bool inside_the_game(uintptr_t address)
     return false;
 }
 
-/* Nothing here is believed twice. The pointer, the vtable, the slot and the target are each
- * checked on the way through, every time, because this runs on a click at a moment of the
- * player's choosing rather than at a point in the engine's own flow, the same rule the camera
- * work landed on after an unvalidated global crashed a machine that was not this one.
- *
- * `why` gets a word naming the first check that failed, for the one-shot diagnostic below. A
- * button that does nothing has to be able to say which nothing it did.
- */
+/* Nothing here is believed twice: pointer, vtable, slot and target are each checked on every
+ * call, because this runs on a click rather than at a point in the engine's own flow. `why`
+ * names the first check that failed, so a button that does nothing can say which nothing. */
 static command_fn resolve_command(void **object_out, const char **why)
 {
     uintptr_t object = 0;

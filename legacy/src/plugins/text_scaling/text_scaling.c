@@ -21,28 +21,14 @@
 
 static int32_t g_reference_height = 480;
 
-/* OUR POINTER TO THE CAMERA, NOT THE ENGINE'S
+/* THE STUBS READ THROUGH OUR POINTER, NEVER THE ENGINE'S CAMERA GLOBAL. That global is not
+ * always NULL-or-a-camera, and dereferencing garbage from a stub is an access violation with
+ * nothing to catch it. g_camera is published by camera_read() only once every check has passed,
+ * is zeroed the moment one stops passing, and a stub that finds zero falls through unscaled.
  *
- * The stubs read the viewport height at the moment they run, and they have to. The pause menu
- * renders the world into a sub-rectangle; the camera's viewport IS that rectangle while the menu
- * is drawn. Sampling the scale on a timer instead was tried, and it rendered the menu's glyphs
- * at stock height against 4.5x width, squat and stretched, the exact failure these seven hooks
- * exist to avoid. Measured from the screenshot: capital G, 17 px tall and 86 px wide.
- *
- * What must not come back is the version that read the ENGINE's camera global. That global is
- * not always NULL-or-a-camera: a crash log from a second install showed field_of_view reading a
- * horizontal field of view of 180.000 degrees through it, which only happens when the floats
- * behind it are garbage, and dereferencing that from a stub is an access violation with nothing
- * to catch it and nowhere to report it. The integer stubs had a second way to die on top,
-* `idiv` faults outright when the quotient does not fit, which a nonsense numerator guarantees.
- *
- * So the stubs dereference THIS. It is our variable, in our data section. It is zero until a
- * camera has passed every check in camera_read(), it goes back to zero the moment one stops
- * passing, and a stub that finds zero falls through unscaled; the unmodified game. The pointer
- * is live; the trust is not blind.
- *
- * That validation also closes the `idiv` overflow for free: camera_read() will not publish a
- * camera whose viewport height is outside 64..32768, so eax * height / reference stays small. */
+ * Do not replace the live read with a timer-sampled scale either: the pause menu renders the
+ * world into a sub-rectangle and the viewport IS that rectangle while the menu is drawn, so a
+ * scale sampled earlier is the full-screen one. Both failures are written up in README.md. */
 static volatile uintptr_t g_camera;
 
 /* ------------------------------------------------------------------ the two scaling idioms */
@@ -102,11 +88,9 @@ static void build_scaled_call(emit_t *emit)
     emit_u8(emit, 0x5B);                                              /* pop ebx            */
 }
 
-/* The glyph's HEIGHT scale is not a call: it is a hard-coded `push 1.0f`. The 1.0f is pushed
- * anyway so the stack frame stays byte-identical, then overwritten in place, which is why this
- * one ends `fstp [esp+4]` rather than leaving a value on the FPU stack. Getting this wrong is
- * what made the first version of this fix render squat, stretched glyphs, and replacing it with
- * a `push` of a timer-sampled float brought that same failure straight back. */
+/* The glyph HEIGHT scale is a hard-coded `push 1.0f`, not a call. The 1.0f is pushed anyway so
+ * the stack frame stays byte-identical, then overwritten in place, which is why this ends
+ * `fstp [esp+4]`. The most fragile of the seven; read README.md before changing it. */
 static void build_glyph_height(emit_t *emit)
 {
     size_t to_skip;
@@ -153,11 +137,9 @@ static void build_measure_space(emit_t *emit)
     emit_u8(emit, 0x5A); emit_u8(emit, 0x58);
 }
 
-/* GetLineHeight returns font[+0x0C] behind a validity check.
- *
- * Hooked from 0x63CA0 rather than the obvious 0x63CA9, and that is not a preference: the
- * function's own `je` targets an address INSIDE where a five-byte branch at 0x63CA9 would sit.
- * So the zero-check is reimplemented here instead of being jumped over. */
+/* Hooked from 0x63CA0, NOT the obvious 0x63CA9: the function's own `je` targets an address
+ * inside where a five-byte branch at 0x63CA9 would sit, so the zero-check is reimplemented
+ * here. */
 static void build_line_height(emit_t *emit)
 {
     size_t to_done;

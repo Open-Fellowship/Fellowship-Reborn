@@ -10,7 +10,7 @@ when you have found it.
 
 Every authored value in this engine, every position, size, colour, count, texture reference,
 in the menus and the HUD alike, is fetched through **one function**, and that function is in
-`Fellowship.exe` rather than `Fellowship.rfl`:
+`Fellowship.exe`, not `Fellowship.rfl`:
 
 ```
 0044E6E0   push esi / push edi
@@ -27,8 +27,24 @@ That location is not in the file anywhere you can read it: it is a vtable entry,
 through.
 
 To repeat it: break on `rfl+789A4`, step into the `call dword ptr [vtable+8]`, and the address
-that lands in the instruction pointer is the getter. That is the whole method, and it is worth
-knowing because it is how any vtable entry in this engine gets a name.
+that lands in the instruction pointer is the getter. That is the whole method, and it is how any
+vtable entry in this engine gets a name.
+
+## The stub
+
+Six bytes are relocated, one more than a branch needs, because that is where the next
+instruction boundary falls:
+
+```
+0044E6E0   56            push esi
+0044E6E1   57            push edi
+0044E6E2   8B 7C 24 10   mov edi,[esp+0x10]
+0044E6E6                 <- the stub jumps back here
+```
+
+The stub is `pushad` / `pushfd` (36 bytes of saved state), `push [esp+0x28]` twice for the
+index and the caller, `call record`, `add esp,8`, `popfd` / `popad`, then the relocated six
+bytes and a jump to `0044E6E6`. `esp` at that point is exactly what it was at function entry.
 
 ## Why this is a DLL and not a Cheat Engine script
 
@@ -37,7 +53,7 @@ unplayable long before it produces a useful sample. Native, the recording path i
 fixed 2048-entry table with one probe, no chaining, no allocation and no lock, a bounded handful
 of instructions, because anything heavier at that call rate changes the thing it is measuring.
 
-A hash collision drops a pair rather than growing the table. That costs a line of a report; a
+A hash collision drops a pair instead of growing the table. That costs a line of a report; a
 lock would cost the frame rate.
 
 ## Reading the report
@@ -52,7 +68,7 @@ lock would cost the frame rate.
 ---- 341 distinct (caller, index) pairs ----
 ```
 
-**The index is relative to the object's class**, and that is the trap this tool has already
+**The index is relative to the object's class**, which is the trap this tool has already
 sprung once. Index 12 is `RFSizeX` for one class and a template ID for another; a caller list
 cannot be turned into a property list without knowing the class. `hud_scaling/HUD-FINDING.md` has
 the full account, including the disassembly of the caller that proved it.

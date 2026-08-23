@@ -21,7 +21,26 @@ counter and produced the line that mattered:
 ```
 
 Nine frames, then bit 3 goes on and stays on. Bit 3 is "a movie is playing"; the engine sets it in
-MoviePC's Begin (slot 15, `0x47B9B0`) and clears it when playback ends. On Wine the end never came.
+MoviePC's Begin (slot 15, `0x47B9B0`) and clears it when playback ends. On Wine the end never
+came.
+
+## Bit 3
+
+Starting a movie sets it, in Begin:
+
+```
+0047B9C5  mov cl, byte ptr [0x53EE84]
+0047B9CB  mov eax, 8
+0047B9D0  test al, cl
+0047B9D2  jne 0x47B9DA
+0047B9D4  or  dword ptr [0x53EE84], eax     <- "a movie is playing"
+0047B9DA  mov eax, 1                        <- and playback started
+0047B9DF  ret 8
+```
+
+With the bit set the per-frame function returns without drawing. The movie'''s own update clears
+it again when playback ends, at `0x47BA72`, `0x47BC4D` and `0x47BCB8`, three exits of the same
+function. On Wine that end never comes.
 
 ## The first version, and why it was not enough
 
@@ -100,7 +119,7 @@ Update is made to take that path unconditionally, before it dereferences anythin
 ```
 
 At `0x47BA29` all four pushes and `mov esi,ecx` have already happened, and `0x47BA43` uses esi as
-`this` and ends in the function's own epilogue, so the stack is exactly as the engine expects.
+`this` and ends in the function's own epilogue, so the stack is as the engine expects.
 Begin (`0x47B9B0`) is left alone: it returns 1, sets bit 3 for one frame, and the very next tick
 reports the movie over and clears the bit, precisely what happens on Windows when a movie
 resource is missing (see the rfl's own "No Ring Death Movie! ... Proceeding with normal, boring

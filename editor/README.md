@@ -1,6 +1,6 @@
 # editor
 
-Tools for the game's own data formats. This is where pillar 3 - modding - lives.
+Tools for the game's own data formats. This is where pillar 3, modding, lives.
 
 ## `blender/fotr_importer`
 
@@ -25,14 +25,14 @@ reference.
 ## Still to do here
 
 The importer covers geometry, animation and textures. What it does not yet cover,
-and what modding needs before it is a pipeline rather than a converter:
+and what modding needs before it is a pipeline and not just a converter:
 
 * **Sound.** No reader.
 * **The interface strings.** SRSC containers (`Common/Interface/Interface.odu`,
   `Interface.xdu`) hold them. A string record is `uint16 len` followed by `len`
   bytes, NUL-padded, with the invariant `(2 + len) % 4 == 0`.
 * **Authored object properties.** Item, level and GUI properties are named in
-  plain text inside `Fellowship.rfl` - `Cell Width (Screen %)`,
+  plain text inside `Fellowship.rfl`: `Cell Width (Screen %)`,
   `Model To Use In Inventory`, `ModelFOV`, `Inventory Scale`, and several hundred
   more. The engine registers 397 classes and 4,262 properties this way, with the
   developers' own names on them, which is the vocabulary a modding tool needs to

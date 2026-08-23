@@ -2,7 +2,7 @@
 
 **Produces:** `dev_menu.dll`. Draws an overlay. On by default, but inert until you press the key.
 
-An in-game menu for the values that are a matter of taste rather than a bug. Field of view is the
+An in-game menu for the values that are a matter of taste, not a bug. Field of view is the
 first, because deciding what you like by editing an ini and restarting is a poor way to decide.
 
 Toggle: **the key immediately under Escape** (`VK_OEM_3`, backquote on US and UK layouts).
@@ -11,9 +11,8 @@ The game's own cheats are F5-F12 and `fog_toggle` took F1, so that position was 
 ## Nothing is hooked until you open it
 
 The Direct3D hook is installed on the first press of the toggle key, not at startup. An install
-where nobody ever opens the menu is one where this DLL read an ini and started a thread. That is
-a deliberate property: it means adding this plugin cannot change how the game renders unless you
-ask it to.
+where nobody ever opens the menu is one where this DLL read an ini and started a thread. Adding
+this plugin cannot change how the game renders unless you ask it to.
 
 ## Finding the device
 
@@ -28,8 +27,8 @@ The engine hands it to us. From `Fellowship.exe`:
 
 The executable imports exactly one Direct3D symbol, `Direct3DCreate8`, and calls `+0x3C`, `+0x88`
 and `+0x8C` on that same object, indices 15, 34 and 35, which are `Present`, `BeginScene` and
-`EndScene` in the published `IDirect3DDevice8` ordering. Three hits at three different indices is
-what fixes the interface; one would have been a guess.
+`EndScene` in the published `IDirect3DDevice8` ordering. Three hits at three different indices fix
+the interface; one would have been a guess.
 
 Before anything is called through it, `find_device` checks: the renderer pointer is readable, the
 device pointer is readable, the vtable is readable for every entry this plugin uses, **each entry
@@ -42,9 +41,9 @@ of each.
 
 ## What DrawPrimitiveUP does behind your back
 
-Worth its own heading, because it cost a debugging session and the symptom pointed nowhere near
-the cause: the lights and lens flares in Hobbiton blew up into white blobs whenever the overlay
-was on screen, and the game eventually crashed.
+It cost a debugging session and the symptom pointed nowhere near the cause: the lights and lens
+flares in Hobbiton blew up into white blobs whenever the overlay was on screen, and the game
+eventually crashed.
 
 `IDirect3DDevice8::DrawPrimitiveUP` **sets vertex stream 0 to NULL when it returns**, and
 `DrawIndexedPrimitiveUP` does the same to the index buffer. It is documented and it is easy to
@@ -53,14 +52,14 @@ geometry.
 
 This engine binds its stream once and reuses it across draws. So every draw after the overlay's,
 in that same frame, ran with no stream bound and drew whatever the runtime happened to have,
-which is exactly what a light sprite becoming a screen-filling white blob looks like.
+which is what a light sprite becoming a screen-filling white blob looks like.
 
 Both are saved before the draw and put back after, and the references the getters add are
 released. The render states, the texture stage states, the stage 0 texture and the vertex shader
 were already handled; this was the one that was not.
 
-The general lesson for anything else drawn into this game: it is not enough to restore the states
-you SET. You have to restore the ones the draw call itself changes.
+The general rule for anything else drawn into this game: restoring the states you SET is not
+enough. You have to restore the ones the draw call itself changes.
 
 ## Why there is no texture
 
@@ -83,8 +82,8 @@ like this plugin.
 
 Not this plugin. The slider **publishes** a target through `common/channel.h`, and
 `field_of_view` applies it, keeping one writer for the camera and one for the request. Two
-plugins writing the same field on two different timers is the fight the loader exists to make
-unnecessary: without this, a drag would be undone 400 ms later by the poll thread.
+plugins writing the same field on two different timers would fight each other: without this, a
+drag would be undone 400 ms later by the poll thread.
 
 `automatic` hands it back. `field_of_view` then returns to whatever it was doing before, with no
 restart, and logs the handover both ways.
@@ -95,15 +94,14 @@ anything is listening.
 
 ## Input: three attempts, and why it ended at DirectInput
 
-Two approaches were tried on real hardware before this one, and both are worth recording because
-both looked right.
+Two approaches were tried on real hardware before this one. Both looked right.
 
 **`GetCursorPos`.** The menu drew perfectly and could not be clicked. That is the documented
 behaviour, not a bug: the game acquires the mouse through DirectInput in **exclusive** mode, and
 an exclusively acquired mouse stops moving the system cursor and stops generating window
 messages. `GetCursorPos` returns the same frozen point forever.
 
-**Raw input.** `WM_INPUT` sits underneath DirectInput, which is exactly why it looked like the
+**Raw input.** `WM_INPUT` sits underneath DirectInput, so it looked like the
 answer. It also failed, for a reason that is easy to miss: **only one window per raw input device
 class per _process_ may be registered**, and DirectInput8 registers the mouse itself inside the
 game's process. Its registration replaces ours and the messages never arrive.
@@ -153,7 +151,7 @@ DirectInput8Create  ->  IDirectInput8::CreateDevice  ->  the mouse device
 
 Three details that matter:
 
-* **Everything forwards.** While the menu is closed the game reads its mouse exactly as it always
+* **Everything forwards.** While the menu is closed the game reads its mouse as it always
   did. The cost of the intercept existing is a jump.
 * **The check is on the device, not the vtable.** DirectInput gives every device of a class the
   same vtable, so silencing the vtable outright would take the keyboard with it, and our own
@@ -162,7 +160,7 @@ Three details that matter:
   have to be drained or DirectInput's queue overflows, and the game would fault the moment the
   menu closed.
 
-This is the one part of the plugin installed at startup rather than on first press, and it has to
+This part alone is installed at startup, not on first press, and it has to
 be: the game calls `DirectInput8Create` once, early, and a slot rewritten afterwards is a slot
 nobody will read again. Set `TakeMouse=0` to skip it entirely.
 
@@ -188,7 +186,7 @@ in the same two instructions:
 ```
 
 Eight commands, one call site shape, one object, one slot. So the buttons here do not write a
-flag or set a health value: they ask the game in its own words, exactly as its own debug menu
+flag or set a health value: they ask the game in its own words, as its own debug menu
 does.
 
 | button | command | |
@@ -201,7 +199,7 @@ does.
 | Invisible walls | `invisowalls` | one shot |
 | Suicide | `bye` | one shot |
 
-Which two are toggles is taken from the engine rather than from taste. In the debug menu's own
+Which two are toggles is taken from the engine, not from taste. In the debug menu's own
 handler, `fly` and `tim` are the only entries followed by
 
 ```
@@ -211,15 +209,16 @@ xor ecx,ecx / test esi,esi / sete cl / mov esi,ecx
 which is a displayed state being flipped. The other six just fire.
 
 **"on" and "off" are what was last sent, not what is true.** The command is fire-and-forget and
-the engine offers no way to ask, so the menu says believed rather than pretending to know. Load a
+the engine offers no way to ask, so the menu says believed. Load a
 save with fly already on and the button will disagree with the game until it is pressed once.
 
-Teleport is deliberately absent. Its command is `tele %d %d %d` and it needs three coordinates,
+Teleport is absent. Its command is `tele %d %d %d` and it needs three coordinates,
 which is a text field, and this menu has no text field yet.
 
 ### Why this is safe to call
 
-The string is not retained by the callee, and that is not an assumption. One of the eight sites,
+The string is not retained by the callee, and the engine's own code shows it. One of the eight
+sites,
 teleport at `0x411C93`, formats into a **stack buffer** and passes a pointer to it, which a
 callee that kept the pointer would be reading long after the frame died. A string literal from
 this DLL is therefore fine.
@@ -229,7 +228,11 @@ That is the only reason calling engine code from a plugin is reasonable here at 
 handled on a key-polling thread would be calling into the engine from underneath it.
 
 Before every call the object pointer, its vtable, the slot and the target are each read and
-checked, and the target has to be code inside `Fellowship.exe`. The buttons are dead, and drawn
+checked, and the target has to be code inside `Fellowship.exe` **or** `Fellowship.rfl`. The
+first build required the exe and refused every call: nothing in the executable ever writes
+`0x544070`, twenty-three instructions read it and none assign it, so the object is built by
+the rfl and its vtable is in the rfl's code. Any global the exe only ever reads belongs to
+the other side. The buttons are dead, and drawn
 dead, until a level is loaded and all of that passes. This is the same rule the camera work
 landed on after an unvalidated global crashed a machine that was not the development one.
 
@@ -237,7 +240,7 @@ landed on after an unvalidated global crashed a machine that was not the develop
 
 `Fellowship.dll` bound these to F5 through F12 under `EnableCheatHotKeys`. Nothing in this
 project binds them, so with that DLL out of the folder the function keys do nothing and the menu
-is the only way in. Worth knowing: that same option is what applies the level-select rfl edit in
+is the only way in. That same option applies the level-select rfl edit in
 Blank's DLL, so switching it off there also switches that off. `level_select` in this project
 does that edit on its own.
 
@@ -251,14 +254,17 @@ registers at run time, names and all, and that no shipping UI reaches.
   + 0xD4    ->      const char *names[124]
   + 0xE0    ->      int32_t     values[124]
 0x411BA0            getter, __thiscall (index)
+                      cmp eax,0x2F / je 0x411BB5   one flag is special-cased to a global
+                      mov ecx,[ecx+0xE0] / mov eax,[ecx+eax*4]
 0x411800            setter, __thiscall (index, value)
+                      mov [ecx+eax*4+4],edi        then a jump table, bounded by cmp eax,0x6D
 0x40FE30            where they are registered and defaulted
 ```
 
-The names come out of the engine every frame rather than from a table copied into this plugin, so
+The names come out of the engine every frame, not from a table copied into this plugin, so
 they are right by construction and a flag the game changes by itself is shown changing. Six of
-them (71, 95, 96, 99 to 101) are registered but never named, and read as unnamed rather than as
-a string at address four.
+them (71, 95, 96, 99 to 101) are registered but never named, and are shown as unnamed instead of
+as a string at address four.
 
 ### Pressing a row presses the entry
 
@@ -276,8 +282,8 @@ dispatcher:
            call 0x411800                   SetFlag(index, newValue)
 ```
 
-Twenty-five cases covering a hundred and twelve entries, and reading them is what turns this page
-from numbers into controls:
+Twenty-five cases covering a hundred and twelve entries. Reading them turns this page from
+numbers into controls:
 
 | case | entries | what pressing it does |
 |---|---|---|
@@ -290,20 +296,20 @@ from numbers into controls:
 | `0x411D28` `0x411D56` `0x411D84` | 88, 89, 90 | the profiler switches, each clearing the other's global |
 | `0x411FE2` | 23 | hardware lighting: switches, then talks to the device |
 | `0x411E4A` | 59 | takes a screenshot. An action; the value is not the point |
-| eight command cases | 95-107 | the cheats, sending the same command strings as the buttons on the other page |
+| eight command cases | 95-107 | `0x411C14` `0x411C50` `0x411C65` `0x411C7A` `0x411CB6` `0x411CD4` `0x411CE9` `0x411CFE` `0x411D13`: the cheats, sending the same command strings as the buttons on the other page |
 
 That table is why "set the number to 1" was the wrong primitive. Twenty-one of these entries need
 a second flag set alongside them, and three more need four.
 
 So a row is a name and a switch, the same shape as the cheat buttons: **on** in green, **off**,
-or **run** for the eight that fire something rather than hold a state. Pressing it calls the
+or **run** for the eight that fire once and hold no state. Pressing it calls the
 dispatcher and the engine decides what that means.
 
 ### Three entries are numbers, not switches
 
 99, 100 and 101 are X, Y and Z: the destination the **Teleport** entry (98) reads when it builds
-`tele %d %d %d`. They are the only entries here holding a number that means something in the
-world rather than a mode, and the dispatcher's default case would flatten one to 0 or 1, which
+`tele %d %d %d`. They are the only entries here holding a number that means a place in the
+world, not a mode, and the dispatcher's default case would flatten one to 0 or 1, which
 is what pressing the row used to do, throwing the coordinate away.
 
 So those three rows have a field instead of a switch. Click it and type; Enter sets it, the `-`
@@ -321,18 +327,18 @@ flag object itself:
            push eax / push ecx / push edx
            push 0x52F618              "tele %d %d %d"
            push <stack buffer>
-           call sprintf
+           call 0x504660              sprintf
            call [edx+0x68]            the command object, as every other cheat does
 ```
 
 Arguments push right to left, so the first `%d` is `+0x114` and the last is `+0x11C`: X, Y, Z in
-that order. The object is static, so those are three fixed addresses - `0x544ABC`, `0x544AC0`,
-`0x544AC4` - and the values array never enters into it. The fields read and write there, which
+that order. The object is static, so those are three fixed addresses (`0x544ABC`, `0x544AC0`,
+`0x544AC4`), and the values array never enters into it. The fields read and write there, which
 means what the menu shows is the number Teleport will actually use.
 
 Escape does cancel the edit, but it also opens the game's pause menu, so clicking the field again
-is the better way out. The game still sees the keystrokes while you type, the menu mutes the
-mouse, not the keyboard, which is worth knowing if a digit is bound to something in your setup.
+is the better way out. The game still sees the keystrokes while you type: the menu mutes the
+mouse, not the keyboard. Check that if a digit is bound to something in your setup.
 
 ### Seven entries hold a range
 
@@ -343,8 +349,8 @@ Those get a second line underneath with the value and a pair of steppers:
      3 of 0-6                                  -   +
 ```
 
-Those steppers are the raw number, through `0x411800` rather than a write into the array, since
-that function runs its own per-flag side effects. They wrap at the range the engine's own case
+Those steppers are the raw number, written through `0x411800` and not into the array, since that
+function runs its own per-flag side effects. They wrap at the range the engine's own case
 uses, so they cannot leave a flag holding a value it has no case for.
 
 Rows are therefore not all the same height. The page is laid out once per frame into a table that
@@ -352,8 +358,8 @@ the drawing and the hit testing both read, and the layout runs in the input pass
 input happens before the draw and a page that has just changed would otherwise be clicked at the
 previous page's rectangles for one frame.
 
-Worth knowing before hunting a flag that appears to do nothing: several are PS2-era leftovers
-this build never reads. They still toggle, because the default case toggles everything; nothing
+Before hunting a flag that appears to do nothing: several are PS2-era leftovers this build never
+reads. They still toggle, because the default case toggles everything; nothing
 looks at the result. Flags 10, 11, 12 and 14, which the engine names Render Objects, Render
 Instance Objects, Render Layers and Enable Distance Cull, are among them.
 
@@ -364,8 +370,7 @@ this list is upward of a thousand glyphs, and a glyph is one quad per run of lit
 ## The engine messages box
 
 Turning **Engine Debug Messages** on and seeing nothing happen is not a broken flag. The engine
-prints plenty; on this build the object it prints to draws nothing. The text is real, the sink is
-not.
+prints plenty; on this build the object it prints to draws nothing.
 
 So the sink is borrowed. Everything the engine prints goes through one object held at
 `0x543784`, and always in one of two shapes:
@@ -384,9 +389,9 @@ So the sink is borrowed. Everything the engine prints goes through one object he
            add  esp,8               the caller cleans up
 ```
 
-Sixty-five call sites between those two entries. `this` goes on the stack rather than in `ecx`
-and the caller cleans up, which is how MSVC compiles a member function taking varargs, and it is
-what lets both be hooked with ordinary C functions, no naked thunks and no assembler.
+Sixty-five call sites between those two entries. `this` goes on the stack, not in `ecx`, and
+the caller cleans up, which is how MSVC compiles a member function taking varargs. That lets both
+be hooked with ordinary C functions, no naked thunks and no assembler.
 
 Both are replaced in the vtable, the text is kept in a ring of the last 256 lines, and the
 original is called afterwards, so the engine still does whatever it did. The variadic one is
@@ -400,14 +405,14 @@ time, every `%s` pointer checked for readability before it is touched, and anyth
 copied through as literal text **without consuming an argument**. Guessing at an unknown
 conversion is how the rest of a line turns into garbage, or worse.
 
-### It is NOT driven by flag 0
+### Flag 0 does not drive it
 
 Flag 0, "Engine Debug Messages", turns on the engine's **own** message display, and that display
 is broken on this build: it corrupts the lighting and then takes the game down. Measured the hard
 way, with the box wired to it.
 
 Capturing does not need that flag. The hooks see every message whatever it says, so the box has
-its own switch in the menu's top bar - `engine messages: on` - and flag 0 is left at 0. Turning
+its own switch in the menu's top bar, `engine messages: on`, and flag 0 is left at 0. Turning
 the box on also sets flag 0 back to 0 if something else set it, so a stray click on the flags
 page cannot bring the broken display back while the box is up.
 
@@ -426,8 +431,8 @@ off entirely for anyone who wants nothing hooked.
 case the box cannot serve: a machine where the screen never comes on. A box you cannot see is no
 help at all in working out why you cannot see it, and what the engine said in the seconds before
 it stopped is usually the whole answer. It is off by default because it is a great deal of text,
-and the per-frame statistics are left out of it deliberately: at sixty frames a second they would
-be the entire file within a minute.
+and the per-frame statistics are left out: at sixty frames a second they would be the entire file
+within a minute.
 
 ### Four slots, and slot 0 is the one that matters in game
 
@@ -448,16 +453,16 @@ turning on "Display Num Lights" changed nothing while the loading messages arriv
            call [edi]
 ```
 
-Every statistics row the debug flags switch on goes through it, once a frame each. That is what
-makes those flags visible at all on a build whose own display draws nothing.
+Every statistics row the debug flags switch on goes through it, once a frame each. That makes
+those flags visible at all on a build whose own display draws nothing.
 
 It also revealed that the statistics are **not events and must not be logged as such**. The
-engine prints its whole information block every frame whatever the flags say, the flags decide
-what its own display DRAWS, not what it prints, so as a scrolling list it is thousands of copies
-of the same eight lines, and every real message is buried within a second of the game starting.
+engine prints its whole information block every frame whatever the flags say. The flags decide
+what its own display DRAWS, not what it prints. As a scrolling list that is thousands of copies of
+the same eight lines, and every real message is buried within a second of the game starting.
 
 So slot 0's lines go into a **live table**, keyed on the text before the colon, each row replaced
-in place as it arrives. `FPS: 57.14` overwrites `FPS: 61.02` rather than joining it. Everything
+in place as it arrives. `FPS: 57.14` overwrites `FPS: 61.02`. Everything
 else goes into the ring, which stays a log of things that happened.
 
 Putting the statistics into the ring as well was tried and taken back out. It prints the same
@@ -465,23 +470,23 @@ eight values twice, once as live rows and once as a waterfall underneath, and of
 the ring roughly 15,000 were the frame rate. The channels can mute them, but the default has to be
 the useful one.
 
-The cost, stated so it is not a mystery later: a one-off line arriving through slot 0 lives only
-as long as its live row, a second and a half. Nothing seen so far arrives that way.
+The cost: a one-off line arriving through slot 0 lives only as long as its live row, a second and
+a half. Nothing seen so far arrives that way.
 
 A live row that stops arriving disappears after a second and a half, so a display flag going off
-removes its row rather than leaving the last value sitting there for ever.
+removes its row, and the last value does not sit there for ever.
 
 ### The channels page
 
-Capture stays indiscriminate and the CHOOSING happens in the menu, on a third tab.
+Capture stays indiscriminate and the choosing happens in the menu, on a third tab.
 
-Every line is filed under the text before its colon - `FPS`, `TEX`, `Waypoint`, `Behavior
-Changer`, `Loading Objects from save file`, and each of those keys becomes a channel with its
+Every line is filed under the text before its colon: `FPS`, `TEX`, `Waypoint`, `Behavior
+Changer`, `Loading Objects from save file`. Each of those keys becomes a channel with its
 own switch and a count of how many times it has been seen. The box shows a line only if its
 channel is on.
 
 A channel that is switched **off is not recorded at all**, not merely hidden, so muting something
-noisy frees the ring rather than just the view. The header counts both: `seen` is everything that
+noisy frees the ring as well as the view. The header counts both: `seen` is everything that
 came past, `kept` is what is in the ring.
 
 **The list is not hard-coded.** It builds itself from what the engine actually prints, so a
@@ -489,11 +494,11 @@ message this project has never seen still turns up with a switch beside it, and 
 different level grows the page. New channels start visible; `all` and `none` are at the bottom.
 
 This is the right place for the decision. The engine's own flags decide what the engine tries to
-DRAW, and on this build that answer is mostly nothing; these switches decide what WE draw, out of
-everything it prints, and that is a question the engine never had an opinion about.
+DRAW, and on this build that answer is mostly nothing. These switches decide what this plugin
+draws, out of everything the engine prints.
 
 The box draws at double the menu's text size and is wider, because it is read from a normal
-sitting distance while playing rather than leaned into like the menu.
+sitting distance while playing, not leaned into like the menu.
 
 ### The other slots
 
@@ -512,9 +517,9 @@ sitting distance while playing rather than leaned into like the menu.
 ```
 
 "RFL initialization failed!", "Run always list is corrupted", "An object which has been freed is
-trying to be saved!" all go through it. Missing it meant missing exactly the lines worth having.
+trying to be saved!" all go through it. Missing it meant missing the most useful lines.
 
-Slots `0x14` and `0x18` are **not** text - `0x14` takes two numbers and `0x18` takes none; they
+Slots `0x14` and `0x18` are **not** text: `0x14` takes two numbers and `0x18` takes none. They
 are the display's own positioning and clearing. Left alone.
 
 The box draws at the bottom of the screen **whether the menu is open or closed**, because a log
@@ -531,9 +536,9 @@ hook and the font exist at all.
 ## The fix enhancers page
 
 Everything on the other three tabs asks the engine to do something it already knows how to do: the
-cheats are its own commands, the flags are its own debug menu. This one does not. The engine has no
-notion of a character's size and no notion of a frame rate it is meant to aim for, so this page is
-where the things that are ours rather than the engine's live.
+cheats are its own commands, the flags are its own debug menu. This one does not. The engine has
+no notion of a character's size and no notion of a frame rate it is meant to aim for, so this page
+holds the settings that are this project's own.
 
 ### Player size
 
@@ -542,8 +547,8 @@ across on top of whatever height is set. The camera holds its distance through b
 still moves it normally. With both at 1.00 the plugin writes once to restore and then stops
 touching the object, so an idle page costs the game nothing.
 
-This reaches into the player's object and writes to it, which is a heavier thing than anything else
-in this plugin and is why every step is validated on every call.
+This reaches into the player's object and writes to it, which is a heavier thing than anything
+else in this plugin and is why every step is validated on every call.
 
 ### Finding the player
 
@@ -563,10 +568,10 @@ CMP [EAX + 0x4],0x1000e     the entry's class id: Player
 ```
 
 `0x1000e` is the id the ObjectDef table gives the class named `Player`, so the last line is a real
-identification rather than a hopeful cast. Every step is revalidated on every call and nothing is
+identification, not a hopeful cast. Every step is revalidated on every call and nothing is
 cached, because the object moves between levels and a stale pointer here is a crash.
 
-One instruction is deliberately not reproduced. The original calls `[[EDI]+0x10]` on the entry list
+One instruction is not reproduced. The original calls `[[EDI]+0x10]` on the entry list
 before indexing it and discards the result. This only reads the class id, and calling into the
 engine to satisfy a read that is already being validated would add the risk the module exists to
 avoid.
@@ -579,24 +584,24 @@ avoid.
 +011C   three floats, always exactly (1, 1, 1)
 ```
 
-Scaling the 3x3 scales the model. There is no property for size anywhere in the 4,262 the ObjectDef
-table defines, and the debug command object at `0x544070` accepts exactly eight commands, none
-about size, so writing this matrix is the only way in.
+Scaling the 3x3 scales the model. There is no property for size anywhere in the 4,262 the
+ObjectDef table defines, and the debug command object at `0x544070` accepts exactly eight
+commands, none about size, so writing this matrix is the only way in.
 
 The rows are basis vectors and row 1 is the up axis: it reads `(0, 1, 0)` in every sample while
-rows 0 and 2 turn as the player turns. So row 1 carries height and the other two carry width, which
-is what makes a wide character possible rather than only a big one.
+rows 0 and 2 turn as the player turns. So row 1 carries height and the other two carry width,
+which is what makes a wide character possible as well as a big one.
 
-There is an ambiguity here that deliberately does not matter. Whether the rows are the object's
-basis vectors or the world's is not established, and a yaw-only matrix cannot tell them apart. Both
-horizontal rows always get the same factor, so the two readings produce the same shape. It would
-only matter if width were split into separate front-to-back and side-to-side numbers, which is a
-thing to establish first rather than assume.
+There is an ambiguity here that does not matter. Whether the rows are the object's basis vectors
+or the world's is not established, and a yaw-only matrix cannot tell them apart. Both horizontal
+rows always get the same factor, so the two readings produce the same shape. It would only matter
+if width were split into separate front-to-back and side-to-side numbers, which would have to be
+established first.
 
 ### Why the camera does not follow
 
-The camera sits at `playerPos + playerMatrix * (0, TrackHeight, -TrackDist)`, so scaling the matrix
-scales that offset and the view zooms in and tilts down as the player shrinks.
+The camera sits at `playerPos + playerMatrix * (0, TrackHeight, -TrackDist)`, so scaling the
+matrix scales that offset and the view zooms in and tilts down as the player shrinks.
 
 **The three floats at `+0x011C` are a camera-distance multiplier, not a model scale.** Writing them
 moves the camera and leaves the model alone, which is the opposite of what their position after a
@@ -627,8 +632,8 @@ work: the entry's value block is at `+0x08`, which is established, but its inter
 
 The third settles it. Because the two ordinals are adjacent, a flat four-byte layout puts their
 values four bytes apart wherever the block begins, so that search assumed nothing about the base
-and still found nothing. The block is not a flat array of floats. The accessor that would settle it
-properly is in `Fellowship.exe` at `0x44E6E0`, the one `hud_probe` hooks.
+and still found nothing. The block is not a flat array of floats. The accessor that would settle
+it properly is in `Fellowship.exe` at `0x44E6E0`, the one `hud_probe` hooks.
 
 ### Other fields in the same object
 
@@ -652,22 +657,22 @@ doorway.
 
 ### Safety
 
-The write happens from inside the EndScene hook, on the game's own thread in its own frame, and the
-range is checked committed and writable first. The matrix is renormalised before being scaled, so
-applying it every frame is a hold rather than a multiplication, and it survives the engine
-rewriting the matrix from animation. A row that has collapsed means this is no longer an
-orientation matrix, so the module stops rather than writing into whatever replaced it.
+The write happens from inside the EndScene hook, on the game's own thread in its own frame, and
+the range is checked committed and writable first. The matrix is renormalised before being scaled,
+so applying it every frame is a hold, not a multiplication, and it survives the engine rewriting
+the matrix from animation. A row that has collapsed means this is no longer an orientation matrix,
+so the module stops and does not write into whatever replaced it.
 
 ### Frame rate
 
 A slider from 30 to 300, four presets, an **uncapped** toggle and a **save as default** button.
 The slider does not wait for anything itself. It publishes a target to `fps_limit` over the shared
-channel, exactly as the field of view slider publishes to `field_of_view`, so there is one writer
+channel, as the field of view slider publishes to `field_of_view`, so there is one writer
 for the thing and one writer for the request. Save writes `MaxFPS` into the `[fps_limit]` section
-of `fix_enhancers.ini`, which is another plugin's section and is deliberate: the menu is the
-player acting, not a plugin minding its own business.
+of `fix_enhancers.ini`, which is another plugin's section: the menu writes as the
+player, not as a plugin minding its own business.
 
-Two lines report rather than assert. Both are read out of the engine:
+Two lines report what the engine is doing. Both are read out of it:
 
 ```
 clock: QueryPerformanceCounter at 100000 Hz
@@ -682,7 +687,7 @@ frames by `Timer::GetFramerate`.
 ### The delta window that used to be here
 
 A third line held a 240-frame ring of the delta at `0x00543284` as low, mean, high and a spread
-percentage, and it is worth recording what it showed because it is how `frame_timing` was proven:
+percentage. What it showed is how `frame_timing` was proven:
 
 ```
 frame delta over 240 frames:  low 0.00  avg 16.67  high 31.00 ms  spread 186%    stock clock
@@ -691,9 +696,9 @@ frame delta over 240 frames:  low 11.10 avg 11.11  high 11.12 ms  spread 0%     
 
 It came out once the fix was demonstrated. A per-frame sample that nothing reads is a
 `VirtualQuery` every frame for a number nobody looks at, and if the measurement is ever wanted
-again, taking it from **outside** the process is the better shape anyway: the same address, read
-against the frame counter at `0x0054417C` so there is exactly one sample per frame and no
-aliasing against the frame rate.
+again, taking it from **outside** the process is the better shape: the same address, read against
+the frame counter at `0x0054417C` so there is one sample per frame and no aliasing against the
+frame rate.
 
 ## Configuration: `[dev_menu]`
 

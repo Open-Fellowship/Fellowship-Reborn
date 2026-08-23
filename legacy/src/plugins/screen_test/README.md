@@ -16,7 +16,7 @@ is not reaching the display.
 | the screen flashes colours | the display path works. The game is drawing nothing into a perfectly good surface |
 | the screen stays black | the presented image never reaches the panel, and nothing inside the process can fix that |
 
-That is the whole plugin. It is the crudest diagnostic here on purpose: no keyboard, no overlay,
+That is the whole plugin, and the crudest diagnostic here: no keyboard, no overlay,
 no font, no input. On a handheld, where the machine showing the fault is not the machine you are
 sitting at, that matters more than it sounds.
 

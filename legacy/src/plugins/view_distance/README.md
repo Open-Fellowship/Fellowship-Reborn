@@ -24,10 +24,15 @@ same paragraph.
 ## How the constants work
 
 The engine reads its visibility distance with seven identical `fld [0x5432AC]` instructions and
-its far plane with two `fld [0x5432B8]`. Rather than write new values over the engine's own
-floats, which other code may also read, the plugin **repoints the operands** at two floats
+its far plane with two `fld [0x5432B8]`. Writing new values over the engine's own floats would
+reach other code that reads them too, so the plugin **repoints the operands** at two floats
 inside this DLL. `VisibilityCells` is therefore just a number in the ini, with no cave, no
 recompile and nothing to undo.
+
+The two floats live in this DLL's own static data, so no space has to be found inside the
+game's `.text` and no second fix can want the same cave. One replaces the engine's authored
+`80.0`; the other is large enough that every comparison against it fails, which is what
+ignoring the authored fade distance means here.
 
 `IgnoreObjectFade` is slightly different: it rewrites `fld [edi+0xC4]` as `fld [absolute]`, six
 bytes in both forms, so no instruction boundary moves.

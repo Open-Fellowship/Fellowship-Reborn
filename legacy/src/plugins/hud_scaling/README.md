@@ -7,7 +7,7 @@ slider is a hairline and the checkbox marks are specks.
 
 ## The measurement
 
-Pixel-exact, from PNG captures with numpy rather than by eye:
+Pixel-exact, from PNG captures with numpy, not by eye:
 
 | | 640x480 | 800x600 | 3840x2160 |
 |---|---|---|---|
@@ -15,7 +15,7 @@ Pixel-exact, from PNG captures with numpy rather than by eye:
 | slider bar thickness | 6 | 6 | 6 |
 | checkbox mark | 18 x 7 | 18 x 7 | 18 x 7 |
 
-Positions, by contrast, fit an exact affine law with zero residual - `0.25 * W + 7`,
+Positions, by contrast, fit an exact affine law with zero residual: `0.25 * W + 7`,
 `0.40 * H + 39`, and so on. So containers scale and contents do not, and at 640x480 the two agree
 because that is the resolution the interface was authored against.
 
@@ -35,7 +35,7 @@ Eight bytes, relocated whole into a stub that multiplies by `viewportWidth / 640
 
 The first version generated a stub that loaded the engine's active-camera pointer, checked it
 against NULL, and read `[camera+0x254]` through it, once per GUI control the game builds. That
-is safe for exactly as long as the pointer is either NULL or a camera, and on a second install it
+is safe only for as long as the pointer is either NULL or a camera, and on a second install it
 was neither. From the same run's log:
 
 ```
@@ -132,7 +132,7 @@ symptom would look like a size bug.
 ## Still unsolved: the in-game HUD
 
 The bar, the ring and the circle are drawn somewhere this plugin does not reach. The next step is
-to name that path rather than guess at it: breakpoint the texture bind for the circle and log the
+to name that path, not guess at it: breakpoint the texture bind for the circle and log the
 caller, the way `rfl+7A2D5` was found for the inventory icons. It may not even be in the rfl,
 the exe has its own HUD code and nothing here has touched it.
 

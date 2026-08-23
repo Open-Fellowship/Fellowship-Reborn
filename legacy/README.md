@@ -31,21 +31,21 @@ cmake -S . -B build -A Win32
 cmake --build build --config Release
 ```
 
-Everything lands in `build\dist\`, laid out exactly as it installs.
+Everything lands in `build\dist\`, laid out as it installs.
 
 Verified clean on **MSVC 19.38 (VS2022)** and **19.50 (VS2026)**, x86, `/W4 /WX`. If CMake is left
-to choose, it takes the newest Visual Studio installed; pass `-G "Visual Studio 17 2022"` to pin an
-older one.
+to choose, it takes the newest Visual Studio installed; pass `-G "Visual Studio 17 2022"` to pin
+an older one.
 
-MSVC is the only supported toolchain, deliberately. The loader's entry-point stub is
+MSVC is the only supported toolchain. The loader's entry-point stub is
 `__declspec(naked)` inline assembly and the proxy's export names come from `/EXPORT` pragmas;
 supporting a second compiler would mean a second implementation of both, and two implementations
 of the most safety-critical code in the tree is a poor trade for build convenience.
 
 ### If you find MinGW-built DLLs in an install
 
-You will, in older ones. Every plugin shipped before this note was built by **MinGW GCC 13**, and
-that is worth knowing rather than hiding, because it explains something about the code.
+You will, in older ones. Every plugin shipped before this note was built by **MinGW GCC 13**,
+which explains something about the code.
 
 The strict flags above live inside `if(MSVC)` in `CMakeLists.txt`, so under GCC none of them
 applied. `/W4 /WX` did not exist, and constructs MSVC rejects outright went unnoticed, most
@@ -54,8 +54,8 @@ not accept at all. The result was a tree that built cleanly every day under the 
 README said was unsupported, and had never once built under the one it said was required.
 
 That is no longer a choice anyone has to make: **MSYS2 has dropped its 32-bit `mingw32`
-environment**, so there is no i686 GCC to go back to. MSVC is now the only toolchain that can build
-this project, and as of this note it does, from clean, on both versions above.
+environment**, so there is no i686 GCC to go back to. MSVC is now the only toolchain that can
+build this project, and as of this note it does, from clean, on both versions above.
 
 The four things that had to change are worth naming, since all four were real:
 
@@ -128,7 +128,7 @@ NULL nor a camera. The rule that came out of it, and that the tree now follows:
 > value in the plugin's own data section. A stub cannot check anything cheaply and has nowhere to
 > report what it found; when it is wrong, it is an access violation on a hot path.
 
-Still to come in `common`: `signature.c`, so sites are found by what the code *is* rather than by
+Still to come in `common`: `signature.c`, so sites are found by what the code *is* and not by
 address, and `detour.c`, so two plugins can hook the same engine function without the second one
 overwriting the first. Neither is needed by anything here yet; no two plugins currently share a
 site, but both are needed before this tree has many more plugins in it.
@@ -141,17 +141,17 @@ Two things changed on the way in:
 **Constants moved out of the game.** The byte patches had to find unused space inside `.text`,
 the zero region at `0x51B302`, the slack past the rfl's VirtualSize, to hold a float or a stub.
 A plugin uses its own static or its own allocated page instead, so `VisibilityCells` is a number
-in an ini rather than a recompile, and two fixes can never want the same cave.
+in an ini and not a recompile, and two fixes can never want the same cave.
 
 **Everything re-verifies before it writes.** Each site checks the exact bytes it is about to
 overwrite and declines, loudly, if they are not what was expected. A different build of the game
-therefore gets "not installed" in the log rather than a corrupted executable.
+therefore gets "not installed" in the log, not a corrupted executable.
 
 ## Coexistence
 
 Two things are already in most installations of this game and both must keep working:
 
-* **`d3d8.dll`**, a graphics wrapper. Untouched: the loader deliberately takes the `dinput8`
+* **`d3d8.dll`**, a graphics wrapper. Untouched: the loader takes the `dinput8`
   slot instead. See `src/loader/dinput8_proxy.h` for why.
 * **`Fellowship.dll` + `FellowshipPatcher.exe`**, the community patcher. It rewrites operands
   inside the executable at run time, including the field-of-view numerator at `0x520A90`

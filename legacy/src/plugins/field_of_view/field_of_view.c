@@ -27,17 +27,9 @@
  * writing the world's focal length over that would put every icon in the wrong place. */
 #define WORLD_FOV_FLOOR 40.0
 
-/* Above this, it is not a field of view either. This ceiling is the lesson from the crash log
- * that prompted the rewrite:
- *
- *     [field_of_view] baseline focal 76.2722, horizontal 180.000 deg
- *     [field_of_view] applied: focal 76.2722 -> 347937712601931479777280.0000
- *
- * 2*atan(halfW/focal) reaching exactly 180 degrees means halfW came back astronomical, so what
- * was being read was not a camera. The old code had a floor and no ceiling, so a saturated angle
- * sailed through, was latched as the baseline, permanently, it never re-sampled, and a focal
- * length of 3.5e23 went into the projection matrix. The whole span between the floor and this
- * ceiling is a real field of view; nothing outside it is. */
+/* A floor AND a ceiling. A saturated angle once sailed through a floor-only check, was latched
+ * as the baseline, and put a focal length of 3.5e23 into the projection matrix. Do not remove
+ * either bound. See README.md. */
 #define WORLD_FOV_CEILING 170.0
 
 /* A focal length this plugin is willing to write. At halfW 64 these are fields of view of about
@@ -52,12 +44,6 @@ static double g_announced_request;  /* so a slider drag does not fill the log */
 static float  g_baseline_focal;
 static DWORD  g_interval_ms = 400;
 
-/* While dev_menu's slider is actually asking for a value, this thread has to keep up with a
- * dragging hand rather than with a setting that changes once a session. 400 ms of that is a
- * picture that lurches twice a second; 16 is a picture that follows the knob.
- *
- * It costs nothing when nobody is dragging, because the fast interval is only used while the
- * channel holds a request. The work per tick is a camera validation and one float write. */
 #define SLIDER_INTERVAL_MS 16u
 
 static bool g_slider_active;
@@ -106,20 +92,16 @@ static DWORD WINAPI poll_thread(LPVOID parameter)  /* never returns */
     for (;;) {
         camera_view_t view;
 
-        /* camera_read() is the gate. It refuses a null pointer, a pointer that does not look
-         * like an object, a structure that is not fully readable, dimensions outside 64..32768,
-         * halves and a focal length outside their plausible ranges, and an aspect ratio that
-         * disagrees with the rectangle the camera says it is rendering into. Everything below
-         * this line is arithmetic on numbers that have already been believed. */
+        /* camera_read() is the gate. Everything below this line is arithmetic on numbers
+         * that have already been validated. */
         if (camera_read(&view)) {
             double horizontal = 2.0 * to_degrees(atan((double)view.half_w / (double)view.focal));
 
             if (horizontal >= WORLD_FOV_FLOOR && horizontal <= WORLD_FOV_CEILING) {
                 if (g_baseline_focal == 0.0f) {
-                    /* Sampled once, from the game's own value, and never re-sampled: deriving
-                     * the target from the current focal after we have already written it would
-                     * compound on every tick. Which is exactly why the sample has to be
-                     * trustworthy; a bad one is permanent. */
+                    /* Sampled once and never re-sampled: deriving the target from the
+                     * current focal after we have written it would compound every tick. A bad
+                     * sample is therefore permanent, which is why the bounds above matter. */
                     double target = g_target_vertical;
 
                     if (target <= 0.0) {
@@ -139,11 +121,6 @@ static DWORD WINAPI poll_thread(LPVOID parameter)  /* never returns */
                 }
 
                 {
-                    /* dev_menu's slider outranks the ini and the automatic value, and only while
-                     * it is asking. Release it there and this falls straight back to whatever
-                     * was chosen at install time, no restart, and no second writer: the slider
-                     * publishes a number, this plugin remains the only thing that writes the
-                     * camera. */
                     double target = g_target_vertical;
                     float  requested;
 

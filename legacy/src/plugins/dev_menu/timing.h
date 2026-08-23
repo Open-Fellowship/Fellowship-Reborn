@@ -1,23 +1,11 @@
 /* timing.h: the frame rate control on the fix enhancers page.
  *
- * A target rate that gets published to fps_limit over the channel, and a button that writes it
- * into the ini so the next launch starts there. It writes [fps_limit], which is another plugin's
- * section, and that is deliberate rather than an oversight of the rule in ini.h; the menu is the
- * player acting, not a plugin minding its own business.
+ * Publishes a target to fps_limit over the channel, and writes it into the ini on request. It
+ * writes [fps_limit], another plugin's section, which is the menu acting as the player rather
+ * than as a plugin minding its own business.
  *
- * It reads two numbers back out of the engine so the page can report rather than assert: the
- * frame rate the engine's own counter arrived at, and the Timer's ticks-to-seconds constant,
- * which says which clock is running without asking the plugin that changed it and without
- * believing anything about load order.
- *
- * THERE WAS A THIRD THING HERE. A 240-frame ring of the delta at 0x00543284, shown as low, mean,
- * high and a spread percentage, which is how frame_timing was demonstrated in the first place:
- * on a stock clock at a 60 fps cap it read 0 ms against 31 ms because the two rates beat at 4 Hz,
- * and afterwards it collapsed to a hundredth of a millisecond either side of the target. It came
- * out once the fix was proven, because a per-frame sample that nothing reads is a VirtualQuery
- * every frame for a number nobody looks at. If it is ever wanted again, measuring from OUTSIDE
- * the process is the better shape anyway: the same address, read against the frame counter at
- * 0x0054417C so there is exactly one sample per frame and no aliasing.
+ * It reads the frame rate and the Timer's ticks-to-seconds constant back out of the engine, so
+ * the page reports what is true instead of asserting what was asked for. See README.md.
  */
 #ifndef DEV_MENU_TIMING_H
 #define DEV_MENU_TIMING_H

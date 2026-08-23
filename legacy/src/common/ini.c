@@ -10,12 +10,6 @@
 #include <string.h>
 
 #define INI_FILE_NAME   "fix_enhancers.ini"
-/* What the file was called before, and the whole reason there are two names here. Renaming a
- * configuration file silently reverts everybody who already had one to the built-in defaults,
- * and it does it without an error: every key simply stops being found. So the old name is still
- * accepted, and only when the new one is absent, if both exist the new one wins outright rather
- * than the two being merged, because a half-read configuration is harder to diagnose than a
- * wrong one. */
 #define INI_LEGACY_NAME "open_fellowship.ini"
 
 static char ini_file_path[MAX_PATH];
@@ -58,27 +52,17 @@ bool ini_using_legacy_name(void)
     return ini_is_legacy;
 }
 
-/* A sentinel nobody would type. GetPrivateProfileString cannot otherwise distinguish "the key
- * says nothing" from "there is no key", and those are different: the first is a deliberate empty
- * value and the second means fall back to the built-in default.
+/* A sentinel nobody would type: GetPrivateProfileString cannot otherwise tell "the key says
+ * nothing" from "there is no key".
  *
- * Split across two string literals on purpose: "\x02absent" would be read as the single hex
- * escape \x02a, which is a different character and an error at -Werror. */
+ * Split across two string literals on purpose: "\x02absent" reads as the single escape \x02a,
+ * which is a different character and an error under /WX. */
 #define INI_ABSENT "\x01\x02" "absent"
 
-/* The profile API returns everything after the '=' verbatim, INLINE COMMENT AND ALL, and this
- * project walked straight into that with its own documentation:
- *
- *     LogMessages=1                ; Mirrors what the engine prints...
- *
- * comes back as "1                ; Mirrors what the engine prints...". The numeric readers get
- * away with it, because strtol and strtod stop at the space, which is why KeyCode=192 with a
- * comment has always worked. The BOOLEAN reader compared the whole string against "1" and quietly
- * fell back to its default, so EVERY DOCUMENTED BOOLEAN in the shipped ini was ignored. That is
- * why LogMessages appeared to do nothing however many times it was set.
- *
- * A comment here is a ';' or '#' at the start of the value or following whitespace. Trailing
- * whitespace goes with it. */
+/* The profile API returns everything after the '=' verbatim, INLINE COMMENT AND ALL. The
+ * numeric readers survive it because strtol stops at the space; the boolean reader did not, and
+ * every documented boolean in the shipped ini was ignored until this was added. A comment is a
+ * ';' or '#' at the start of the value or following whitespace. See README.md. */
 static void strip_inline_comment(char *value)
 {
     size_t end = strlen(value);

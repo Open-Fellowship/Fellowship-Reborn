@@ -17,13 +17,6 @@
 
 #define PLUGIN_SECTION "inventory_icons"
 
-/* rfl+7A42D   fstp dword ptr [esp+0x20]     stores dYb, the vertical distance base
- * rfl+7A431   fld  dword ptr [esp+0x40]     loads the model's X extent
- *
- * Eight bytes, relocated whole. Between them the stub overwrites BOTH distance bases with
- * focal * W / 128, which is the value that makes the projected position land exactly on the
- * cell. Everything downstream, both distances, both offsets, derives from these two, so one
- * correction fixes position and size together. */
 #define ICON_HOOK_RVA    0x7A42Du
 #define ICON_RETURN_RVA  0x7A435u
 #define ICON_HOOK_SIZE   8u

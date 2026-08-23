@@ -38,20 +38,11 @@ static unsigned g_resyncs;
 static unsigned g_calls;
 static LONGLONG g_installed_at;
 
-/* The live target, published by the dev menu's slider and preferred over the ini value while it
- * is there. Same arrangement as field_of_view and the field of view slider: one writer for the
- * engine, one writer for the request, and a plugin whose partner is not installed reads a block
- * nobody ever writes to. */
 static channel_block_t *g_channel;
 static uint32_t         g_seen_serial;
 static float            g_target_fps;
 static bool             g_uncapped;
 
-/* A drag of the menu's slider publishes a new value on every frame it moves, and the first
- * version of this logged each one. One sweep of the track wrote about four hundred lines. The
- * rates were all correct and the log was useless, which is the same thing as being wrong.
- *
- * So the change is applied immediately and the LINE waits for the value to stop moving. */
 static LONGLONG g_settle_at;      /* when the current value stops counting as still moving */
 static bool     g_settle_pending;
 #define SETTLE_MS 400
@@ -63,12 +54,6 @@ static LONGLONG now_ticks(void)
     return counter.QuadPart;
 }
 
-/* One place computes everything that depends on the target, so changing it at run time cannot
- * leave the period and the margin disagreeing with each other. `fps` of 0 means uncapped.
- *
- * The schedule is thrown away rather than adjusted. A target that has just moved says nothing
- * useful about when the next frame is due, and the resync below would have discarded it on the
- * following frame anyway, doing it here means one frame of the old rate instead of two. */
 static void apply_target(float fps)
 {
     g_target_fps = fps;
@@ -94,12 +79,6 @@ static void apply_target(float fps)
     }
 }
 
-/* Polled once a frame rather than pushed, because the menu runs on the game's thread inside
- * EndScene and this runs on the same thread at the top of the frame: there is no moment where a
- * push would be cheaper, and a poll needs no agreement about who is allowed to call whom.
- *
- * The serial is the whole test. Reading it is one aligned load, and while it has not moved this
- * costs nothing and the target is left exactly as the ini set it. */
 static void poll_target(void)
 {
     float value;
@@ -161,21 +140,11 @@ static void report_resync(LONGLONG gap)
 
 /* Runs once per frame, before the engine's own frame function.
  *
- * The resync is not an optimisation, it is the difference between a limiter and a hang, and it has
- * to look BOTH ways.
- *
- * Behind is the obvious case: the process is suspended, or a level loads, the target falls into
- * the past, and a limiter that keeps adding one period would run unthrottled for as many frames
- * as it was behind, catching up on time that no longer exists.
- *
- * AHEAD is the case that cost a week on a Steam Deck. This hook is one call site, and the engine
- * is under no obligation to reach it exactly once per drawn frame, during start-up it goes round
- * far more often than that, with nothing being presented. Every one of those calls used to add a
- * whole frame period to the target while barely any real time passed, so the schedule ran away
- * into the future, one Sleep grew to several seconds, and the game sat in it with a black screen
- * and a message loop still answering. A limiter can be late. It must never be early by more than
- * a frame, and no single wait here may exceed one period.
- */
+ * THE RESYNC HAS TO LOOK BOTH WAYS, and it is the difference between a limiter and a hang.
+ * Behind is the obvious case. AHEAD is the one that hung a Steam Deck: this is one call site and
+ * the engine is under no obligation to reach it once per drawn frame, so the schedule ran away
+ * into the future and one Sleep grew to seconds. A limiter may be late; it must never be early
+ * by more than a frame, and no single wait may exceed one period. See README.md. */
 static void __cdecl fps_limit_tick(void)
 {
     LONGLONG current;
@@ -227,11 +196,6 @@ static void __cdecl fps_limit_tick(void)
     g_next_frame += g_period_ticks;
 }
 
-/* pushad / pushfd / call fps_limit_tick / popfd / popad / jmp <engine frame function>
- *
- * Fourteen bytes. The tail jump is what makes this safe without knowing the callee's calling
- * convention: the stack is exactly as the engine left it, so the original returns to 0x4BCA1E
- * by itself. */
 static void *build_stub(uintptr_t stub_address, uintptr_t original)
 {
     uint8_t buffer[32];

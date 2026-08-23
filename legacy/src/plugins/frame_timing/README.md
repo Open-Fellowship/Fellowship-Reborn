@@ -63,10 +63,10 @@ ten second timeout into a ten millisecond one is the bug that distinction exists
 
 All fourteen are validated before any of them is written. A partial application would be worse
 than none: the Timer would be reading some of its origins in milliseconds and the rest in
-hundred-thousandths, and the differences it takes between them would be nonsense rather than
+hundred-thousandths, and the differences it takes between them would be nonsense, not
 merely coarse.
 
-The constructor's immediate is patched rather than the field it writes, so there is no race to win
+The constructor's immediate is patched, not the field it writes, so there is no race to win
 with the constructor, which runs from `0x00403CC4` during start-up.
 
 The frame rate readout is fixed by the same change and needed no work of its own:
@@ -82,22 +82,25 @@ The counter is a DWORD and the engine zero-extends the difference before convert
 0040D171   fild qword ptr [esp+4]
 ```
 
-so a wrap does not produce a negative delta, it produces an enormous positive one.
+so a wrap does not produce a negative delta, it produces an enormous positive one. The
+frame delta itself would survive that, because `UpdateTime` clamps at 0.1 s, but game time
+at `0x00543364` would jump by half a day, and the twenty-six effect sites that read it would
+go with it.
 
-**A rebase does not help, and it is worth saying why because it was the first design.** The engine
+**A rebase does not help, though it was the first design.** The engine
 only ever computes `now - stored`, and a common offset subtracted from both is invisible to a
 difference, whether or not either side wraps. What has to fit in thirty-two bits is the **span**:
 the oldest origin the Timer is still counting from, which is `+0x24`, set at start-up, at a level
 load and at a savegame load. At 100 kHz that span is 11.9 hours of one uninterrupted level.
 
 So the plugin takes its own once-per-frame hook at `0x004046CE`, the engine's call to
-`UpdateTime`, and moves the engine's origin before the span runs out, exactly the way the engine
+`UpdateTime`, and moves the engine's origin before the span runs out, the same way the engine
 moves it itself in `SetTimeScale` at `0x0040D220`: carry the accumulated seconds at `+0x1C` into
 the time base at `+0x20` and start counting again from now. The accumulator comes out at the value
 it went in, so nothing on screen can tell it happened.
 
-`0x004046CE` rather than `0x004BCA19` because `fps_limit` already owns that one, and because this
-has to happen between whole frames rather than inside `Tick`.
+`0x004046CE` and not `0x004BCA19`, because `fps_limit` already owns that one, and because this
+has to happen between whole frames, not inside `Tick`.
 
 ## Savegames
 
@@ -106,6 +109,50 @@ save carries an elapsed tick count in whatever unit the timer was using. A save 
 plugin and loaded without it, or the reverse, gets **one** wrong frame rate reading before the
 next eight-frame sample corrects it. Game time is stored as float seconds and is unit independent,
 so nothing else crosses over.
+
+## How it is built
+
+**The counter is a plain C function.** `hires_ticks` is called from engine code, in the slot
+`GetTickCount` used to occupy, so it obeys the same rules: the result in `EAX`, `EBX` `ESI` `EDI`
+`EBP` left alone, and nothing left on the x87 stack. A function taking no arguments and returning
+`uint32_t` satisfies all three by construction, and with no arguments `__stdcall` and `__cdecl`
+assemble identically, because there is no stack to clean either way. So the fourteen sites call
+it directly and it needs no stub.
+
+**The tick arithmetic is split in two.** Written as `(delta * rate) / frequency` the product
+overflows sixty-four bits after a few weeks of uptime on a fast counter. It is computed as a
+whole part plus a remainder part, which costs one extra divide and cannot overflow: the remainder
+is smaller than the frequency, so the second product is bounded by `frequency * rate`.
+
+**The frame hook does need a stub**, because it runs between whole frames:
+
+```
+pushad / pushfd / call frame_timing_frame / popfd / popad / jmp UpdateTime
+```
+
+The engine loads `ECX` with the engine object at `0x004046C9`, one instruction before the call
+being diverted, so every register has to come back as it went in. The tail jump leaves the stack
+as the engine built it, so `UpdateTime` returns to `0x004046D3` by itself and its calling
+convention never has to be known.
+
+**The expected bytes are computed, not stored.** A `rel32` is a difference between two addresses
+in the same image, so it is identical whether the module sits at its preferred base or not, and
+the five bytes each site must hold can be derived from the preferred addresses alone.
+
+**The Timer address is resolved once at install.** It lives in the executable's own `.data`,
+mapped and writable from the moment the process exists, so nothing about it can become true
+later. A `VirtualQuery` every frame to re-learn that would be a syscall in the one path that has
+to stay cheap.
+
+The constructor's immediate sits at `0x0040CF20`, inside
+
+```
+0040CF1D   C7 46 10 6F 12 83 3A   mov dword ptr [esi+0x10], 0x3A83126F   ; 0.001f
+```
+
+and the field it writes is `0x0053EE68`. When the watchdog re-anchors, the frame rate sample is
+reloaded to eight frames instead of being left at zero, so the next sample is eight frames away
+and not zero seconds wide. It re-anchors with a quarter of the span still in hand.
 
 ## What it does not fix
 
@@ -120,7 +167,7 @@ delta consumers sorted into simulation and presentation first. That is a separat
 ## Checking it
 
 The dev menu's **fix enhancers** tab reads the Timer's `+0x10` back and says which clock is
-running, so whether this installed is answered by the engine rather than by a log line.
+running, so whether this installed is answered by the engine, not by a log line.
 
 For the frame times themselves, read `0x00543284` from outside the process against the frame
 counter at `0x0054417C`, which gives exactly one sample per frame with no aliasing. Measured that
@@ -141,8 +188,8 @@ the only way it stopped the delta being zero was to invent time.
 
 Re-quantising the same real frame times onto the 15.625 ms grid `GetTickCount` moves on, which is
 what the engine would have reported for the identical run, gives a standard deviation of 7.086 ms
-and 29% of frames reporting 0 ms. That is a derivation from measured frame times rather than a
-second measurement, so read it as the shape of the old behaviour rather than as a reading.
+and 29% of frames reporting 0 ms. That is a derivation from measured frame times, not a
+second measurement, so read it as the shape of the old behaviour and not as a reading.
 
 ## Configuration: `[frame_timing]`
 

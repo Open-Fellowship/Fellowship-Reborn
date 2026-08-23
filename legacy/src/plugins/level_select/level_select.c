@@ -15,31 +15,6 @@
 
 #define PLUGIN_SECTION "level_select"
 
-/* ================================================================================== the branch
- *
- * The main menu's New Game handler asks whether a level was configured to start, and if one was,
- * skips past the level list to load it:
- *
- *     mov  eax,[ebp+0x70]           "Level to Load for New Game"
- *     test eax,eax
- *     je   <level list>             not configured -> the level selection screen
- *     ...                           configured     -> load that level
- *
- * Retail configures one, so the screen is never reached. Two bytes fix that: the conditional
- * becomes a nop and an unconditional jump, keeping the same six-byte length and the same
- * displacement, which is why the community edit looks the way it does in a hex editor.
- *
- *     0F 84 D6 00 00 00     je  +0xD6
- *     90 E9 D6 00 00 00     nop / jmp +0xD6
- *
- * ================================================================= why this one scans for it
- *
- * engine_sites.h says signature scanning is the upgrade path and is worth nothing until a second
- * build turns up to test against. One has. The same eleven bytes sit at rfl+0x75B7F in the
- * 1,306,624-byte retail Fellowship.rfl and at rfl+0x75FAF in the 1,372,160-byte one, so an
- * address would have been right about exactly one of them, and the sequence occurs exactly once
- * in each. That is what makes scanning correct here rather than merely fashionable.
- */
 #define BRANCH_OFFSET   5u    /* into the pattern, where the two bytes live */
 
 static const uint8_t stock_branch[] = {

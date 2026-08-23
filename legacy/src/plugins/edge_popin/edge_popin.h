@@ -1,8 +1,7 @@
 /* edge_popin.h: the renderer's guard rect is a hard-coded 3072 x 1024 box.
  *
- * The only fix in this project that is a genuine engine BUG rather than a preference, and the
- * only one that should ship switched on unconditionally. It is also harmless at 640x480, because
- * there the rect is bigger than the screen and nothing is ever outside it.
+ * The one fix here that is a genuine engine bug and not a preference, so it ships on
+ * unconditionally. Harmless at 640x480. See README.md.
  */
 #ifndef EDGE_POPIN_H
 #define EDGE_POPIN_H

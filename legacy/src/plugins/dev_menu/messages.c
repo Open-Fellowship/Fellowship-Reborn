@@ -12,80 +12,26 @@
 #include <stdio.h>
 #include <string.h>
 
-/* ================================================================================== the sink
- *
- * The engine prints through one object, held at 0x543784, and always the same way:
- *
- *     004040EB   mov  eax,[0x543784]
- *                push 0x52E720            "RIOT Engine core initialized."
- *                push eax                 the object, as the FIRST STACK ARGUMENT
- *                mov  ecx,[eax]
- *                ff 51 08                 call [ecx+8]
- *
- *     0040B88D   push edx                 an argument
- *                push 0x52E9D8            "Object Totals: (%d objs)"
- *                push eax                 the object again
- *                ff 51 20                 call [ecx+0x20]
- *                add  esp,8               the caller cleans up
- *
- * Two entry points, sixty-five call sites between them. `this` goes on the stack rather than in
- * ecx and the caller cleans up, which is how MSVC compiles a member function that takes varargs,
- * and it is what makes these two hookable with plain C functions, no naked thunks, no assembler.
+/* The engine prints through one object at 0x543784. Two entry points, sixty-five call sites:
  *
  *     +0x08   print(self, const char *text)
  *     +0x20   printf(self, const char *format, ...)
  *
- * Slots 0x0C, 0x14 and 0x18 are used elsewhere on the same object and are left alone. This
- * records what goes past and then calls the original, so the engine still does whatever it did.
- */
+ * `this` goes on the stack and the caller cleans up, which is how MSVC compiles a member
+ * function taking varargs, and is what makes both hookable with plain C. See README.md. */
 #define MESSAGE_OBJECT_PTR_VA 0x00543784u
 #define SLOT_STATS            (0x00u / 4u)
 #define SLOT_PRINT            (0x08u / 4u)
 #define SLOT_WARN             (0x0Cu / 4u)
 #define SLOT_PRINTF           (0x20u / 4u)
 
-/* SLOT 0 IS THE PER-FRAME ONE, and missing it is why turning on "Display Num Lights" changed
- * nothing in the box while the loading messages arrived perfectly well:
- *
- *     0041398F   mov  eax,[0x543784]
- *                fstp qword ptr [esp]      the frame rate, as a double
- *                push 0x52F838             "FPS: %5.2f"
- *                push eax
- *                call [ecx]                <- slot 0, not 8, not 0x20
- *
- *     00413A0E   push 0x52F818             "TEX: %dkb/%dkb"
- *                push eax
- *                call [edx]
- *
- *     00413A93   push 0x52F7F4             "XYZ: %d,%d,%d"
- *                push esi
- *                call [edi]
- *
- * Every statistics row the debug flags switch on goes through it, once a frame each. It is a
- * printf with the same shape as the other two, and this is the slot that makes those flags
- * visible at all on a build whose own display draws nothing.
- */
+/* SLOT 0 IS THE PER-FRAME PRINTF, and missing it is why turning on a statistics flag changed
+ * nothing while loading messages arrived perfectly. Every statistics row goes through it, once a
+ * frame each. See README.md. */
 
-/* Slot 0x0C is a SECOND printf on the same object, and it is the one that carries the warnings:
- *
- *     00404070   mov  eax,[0x543784]
- *                push 0x52E740          "Input initialization failed"
- *                push eax
- *                call [ecx+0xC]
- *
- *     0042B6EB   mov  ecx,[0x543784]
- *                push eax               the index
- *                push 0x537A78          "LOAD/SAVE: Invalid Object Pointer Table Index: %d"
- *                push ecx
- *                call [edx+0xC]
- *
- * Same shape as 0x20, same convention, and where "RFL initialization failed!", "Run always list
- * is corrupted" and "An object which has been freed is trying to be saved!" go. Missing it meant
- * missing exactly the lines worth having.
- *
- * Slots 0x14 and 0x18 are NOT text. 0x14 takes two numbers and 0x18 takes nothing; they are the
- * display's own positioning and clearing, and they are left alone.
- */
+/* Slot 0x0C is a SECOND printf, and it carries the warnings: "RFL initialization failed!",
+ * "Run always list is corrupted" and the rest. Slots 0x14 and 0x18 are NOT text; they are the
+ * display's own positioning and clearing, and are left alone. See README.md. */
 
 typedef void (__cdecl *print_fn)(void *self, const char *text);
 typedef void (__cdecl *printf_fn)(void *self, const char *format, ...);
@@ -304,18 +250,11 @@ static void record(const char *text)
     LeaveCriticalSection(&g_lock);
 }
 
-/* ============================================================ formatting, done defensively
- *
- * The first version handed the engine's format string straight to the CRT's vsnprintf. That is
- * not safe here. These strings are the engine's own, several carry a leading control byte, and
- * anything the CRT does not understand the way this engine's own printf understands it means a
- * value read as a pointer and dereferenced. A debug overlay must not be able to take the game
- * down; it is the one thing in this project that runs while everything else is working.
- *
- * So the walk is ours. Known conversions only, one at a time, and every %s pointer is checked
- * for readability before it is touched. Anything unrecognised is copied through as literal text
- * rather than consumed as an argument, which loses a value at worst.
- */
+/* THE FORMATTING IS OURS, NOT THE CRT'S. Handing the engine's format strings to vsnprintf is
+ * not safe: they are this engine's own, several carry a leading control byte, and any conversion
+ * the CRT reads differently means a value taken as a pointer and dereferenced. Known conversions
+ * only, every %s checked for readability, anything unrecognised copied through as literal text
+ * WITHOUT consuming an argument. See README.md. */
 static void append(char *out, size_t size, size_t *used, const char *text)
 {
     while (*text != '\0' && *used + 1 < size) {

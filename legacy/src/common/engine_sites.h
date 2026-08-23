@@ -1,24 +1,10 @@
 /* engine_sites.h: the engine addresses this project has proven, in one place.
  *
- * ==============================================================================================
- * THESE ARE PREFERRED-BASE ADDRESSES, NOT RUNTIME ONES
+ * THESE ARE PREFERRED-BASE ADDRESSES, NOT RUNTIME ONES. Nothing may use one directly; convert
+ * with exe_site() or rfl_site() first.
  *
- * Every constant here is an absolute address in a module loaded at its preferred base, which is
- * how the byte-patch tooling this grew out of expressed them. Nothing may use one directly.
- * Convert first:
- *
- *     exe_site(0x48BEF0)   ->  host_image_base() + (0x48BEF0, 0x400000)
- *     rfl_site(base, 0x789A7)
- *
- * ==============================================================================================
- * THE TARGET BUILD
- *
- * Fellowship.exe, No-CD, 2,133,459 bytes. Fellowship.rfl, 1,372,160 bytes. Every site below was
- * verified against those two files byte for byte, and every plugin re-verifies the bytes it is
- * about to overwrite before it writes them, so a different build declines rather than corrupts.
- *
- * Signature scanning is the upgrade path and is deliberately not here yet: it is worth doing when
- * a second build turns up to test against, and worth nothing before then.
+ * Target build: Fellowship.exe, No-CD, 2,133,459 bytes; Fellowship.rfl, 1,372,160 bytes.
+ * See README.md.
  */
 #ifndef COMMON_ENGINE_SITES_H
 #define COMMON_ENGINE_SITES_H
@@ -53,35 +39,12 @@ static inline uintptr_t rfl_site(uintptr_t rfl_base, uint32_t rva)
 #define CAMERA_DEVICE_W         0x234u        /* int, what GetAspect reads */
 #define CAMERA_DEVICE_H         0x238u        /* int */
 
-/* The renderer, and the Direct3D 8 device hanging off it. Established from the engine's own
- * call at 0047BDDD:
- *
- *     mov  ecx,[0x54743C]        the renderer
- *     mov  eax,[ecx+0x166]       -> IDirect3DDevice8*      (an unaligned field, but its own)
- *     mov  edx,[eax]             its vtable
- *     call dword ptr [edx+0x8c]  EndScene, index 35
- *
- * The exe imports exactly one Direct3D symbol, Direct3DCreate8, and calls +0x3C, +0x88 and +0x8C
- * on this same object, Present, BeginScene, EndScene at indices 15, 34 and 35. Three hits on
- * the published ordering at three different indices is what fixes the interface. */
 #define EXE_RENDERER_PTR        0x0054743Cu
 #define RENDERER_D3D_DEVICE     0x166u
 
 /* The visibility distance in cells, read by seven `fld` sites. */
 #define EXE_VISIBILITY_CELLS    0x005432ACu
 
-/* ------------------------------------------------------------------------------ frame timing
- *
- * The engine object at 0x00543280 holds the numbers the whole game reads for time, and the Timer
- * instance at 0x0053EE58 is what produces them. Written up in full in plugins/frame_timing.
- *
- * Neither the delta nor the frame rate has a WRITE anywhere in the image, and that is not a
- * puzzle; both are written through pointers. UpdateTime at 0x00408F00 does `lea edi,[esi+4]`
- * and hands that to Timer::Tick; 0x00409000 does `add ecx,0x14` and hands that to
- * Timer::GetFramerate. Searching for a store to either address finds nothing at all.
- *
- * Read only, from this side. The delta is overwritten at the top of every frame, so writing to
- * it achieves nothing that survives to be noticed. */
 #define EXE_FRAME_DELTA         0x00543284u   /* float, seconds, 31 read sites                */
 #define EXE_FRAME_DELTA_RECIP   0x00543288u   /* float, 1.0 / delta                           */
 #define EXE_FRAME_FPS           0x00543294u   /* float, resampled every 8 frames              */

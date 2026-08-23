@@ -13,15 +13,6 @@
 
 #define PLUGIN_SECTION "view_distance"
 
-/* Two floats that live in THIS DLL's data, not in a cave inside the game.
- *
- * The byte-patch generation had to find unused space inside .text to put these in, and then
- * repoint the engine's operands at that space. A plugin does not: the operand can point straight
- * at our own static, which is writable, correctly aligned, alive for the life of the process, and
- * costs nobody a cave that a second fix might also want.
- *
- * g_visibility_cells replaces the engine's authored 80.0; g_no_fade is large enough that every
- * comparison against it fails, which is what "ignore the authored fade distance" means here. */
 static float g_visibility_cells = 120.0f;
 static float g_no_fade          = 1.0e19f;
 

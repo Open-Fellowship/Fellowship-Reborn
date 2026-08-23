@@ -13,11 +13,6 @@
 
 #define PLUGIN_SECTION "windowed_res"
 
-/*   0x4BC49E   C7 05 74 5C 56 00 80 02 00 00   mov dword [0x565C74], 0x280   default width  640
- *   0x4BC4A8   C7 05 78 5C 56 00 E0 01 00 00   mov dword [0x565C78], 0x1E0   default height 480
- *   0x4BC5A1   83 FF 24                        cmp edi, 0x24    mode-list limit, 36 -> 12
- *   0x4BC4FF   the je resolution_unlock made unconditional, put back
- */
 #define WIDTH_IMMEDIATE_VA  0x004BC4A5u
 #define HEIGHT_IMMEDIATE_VA 0x004BC4AFu
 #define LIST_LIMIT_VA       0x004BC5A3u

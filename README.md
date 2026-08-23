@@ -11,24 +11,24 @@ to patch bytes by hand ever again.
 ## Scope
 
 Five things, in the order they matter. Everything in this repository should be
-justifiable as one of them, and a change that is not is a change that needs a
+justifiable as one of them, and a change that is none of them needs a
 better reason than "it was interesting".
 
 **1. Fix the game.** The bugs that are genuinely the game's, not the hardware's.
 A stock install hangs on a black screen on NVIDIA cards; the renderer culls its
 own screen edges above 3072 pixels; a shipped level-select screen is reachable
 by nothing. These are defects with a right answer, and fixing one is finished
-work rather than a matter of taste.
+work, not a matter of taste.
 
 **2. Modern settings.** Make a 2002 game behave on 2026 hardware, frame rate,
 resolution, HUD and text scaling, field of view, and controller support. The
 game was authored for 640x480 and a fixed timestep, and most of what looks
-broken at 4K is that assumption showing through rather than anything rotten.
+broken at 4K is that assumption showing through, not anything rotten.
 
 **3. Modding.** Tools that let people build models, maps and sounds for this
 game without reverse engineering it first. The Blender extension in `editor/`
 already reads geometry, animation, levels and textures, and writes them back.
-That is also why the object model is documented rather than merely used: 397
+That is also why the object model is documented and not merely used: 397
 classes and 4,262 properties with the developers' own names on them is a modding
 surface, and it was a research artifact for about a day. Sound and the interface
 strings are the gaps.
@@ -40,8 +40,8 @@ The engine turns out to be full of things that shipped and are unreachable,
 `level_select` is one, the 124-entry developer flag menu is another.
 
 **5. Cheats and the dev menu.** The engine's own debug tooling, put back where a
-player can reach it, plus additions in the same spirit. This is last on the list
-and it is not an afterthought: it is the part that makes the rest testable, and
+player can reach it, plus additions in the same spirit. It is last on the list
+without being an afterthought: it is the part that makes the rest testable, and
 several of the findings the other four pillars rest on came out of building it.
 
 ## Status
@@ -73,7 +73,7 @@ Against the five pillars: `black_screen`, `edge_popin` and `level_select` are **
 `field_of_view`, `model_lod` and `view_distance` are **2**; `level_select` and `dev_menu`'s engine
 flag page reach content that shipped and nothing else can, which is **4**; `dev_menu` and
 `fog_toggle` are **5**. Pillar **3** is not served by any plugin; it lives in `editor/`, because
-modding is a tooling problem rather than a runtime one.
+modding is a tooling problem, not a runtime one.
 
 On by default:
 
@@ -107,7 +107,7 @@ disproved; the write-up, with the disassembly that killed each one, is in
 
 **Every plugin verifies before it writes.** Each site checks the exact bytes it
 is about to change and declines, loudly, if they are not what was expected. A
-different build of the game gets "not installed" in the log rather than a
+different build of the game gets "not installed" in the log, not a
 corrupted executable.
 
 **A generated stub dereferences nothing but our own data.** Engine memory is
@@ -118,13 +118,12 @@ after a crash caused by breaking it.
 
 **Measure, then patch.** Every fix has a measurement behind it in its own
 README, and the ones that were tried and did not work are written down too, with
-the evidence that killed them. That record is the point: it is the difference
-between a contributor spending an evening rediscovering something and reading
-one page.
+the evidence that killed them. That record is the difference between a contributor
+spending an evening rediscovering something and reading one page.
 
 ## Building
 
-32-bit only, MSVC only, deliberately. See `legacy/README.md`.
+32-bit only, MSVC only. See `legacy/README.md` for why.
 
 ```
 cd legacy
@@ -135,9 +134,9 @@ cmake --build build --config Release
 Verified clean on MSVC 19.38 (VS2022) and 19.50 (VS2026) under `/W4 /WX`. `-A Win32` on its own
 takes the newest Visual Studio installed; pin an older one with `-G "Visual Studio 17 2022"`.
 Plugins in installs predating this note were built with MinGW GCC 13, under which the strict flags
-never applied - `legacy/README.md` says what that hid and why it cannot recur.
+never applied; `legacy/README.md` says what that hid and why it cannot recur.
 
-Everything lands in `build\dist\`, laid out exactly as it installs. Copy
+Everything lands in `build\dist\`, laid out as it installs. Copy
 `dinput8.dll`, `fix_enhancers.ini` and `plugins\` next to `Fellowship.exe`.
 To uninstall, delete `dinput8.dll`.
 

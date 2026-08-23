@@ -29,10 +29,15 @@ keep:
 jmp 0x48BEFA
 ```
 
-Ten bytes are relocated rather than five, because the branch needs five and the second
+Ten bytes are relocated, not five, because the branch needs five and the second
 instruction ends at ten; taking the whole pair means nothing is left half-overwritten. `pushfd`
 is not decoration: `fog_poll` returns with whatever flags it last set, and the `cmp`/`jne` two
 instructions later is ours.
+
+The two relocated instructions are at `0x48BEF0` and `0x48BEF6`, encoding as
+`8B 81 66 01 00 00` and `8B 54 24 04`, ten bytes
+in total. By the time the relocated `mov edx,[esp+4]` executes the stack is back to the
+engine's own `esp`, which is what keeps reading the argument at `+4` correct.
 
 The stub lives in memory this plugin allocates. The byte-patch version of this fix had to find
 free space inside the game's own `.text` and put the stub there; a loader removes that need,
@@ -46,6 +51,6 @@ along with the risk of two fixes wanting the same cave.
 | `Key` | `F1` | one of `F1` `F2` `F3` `F4` |
 | `StartWithFog` | `1` | `0` starts with fog already off |
 
-The choice of key is narrow on purpose: the game's own README binds F5 through F12 to its
+The choice of key is narrow: the game's own README binds F5 through F12 to its
 cheats (fly, tele, heal, invisowalls and the rest), and a fix that silently steals one of those
 is a bug report nobody will diagnose.

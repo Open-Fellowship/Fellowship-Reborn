@@ -10,11 +10,11 @@ game asked it for a device.
 ## What it writes down
 
 **The platform**, at install time. Wine exports `wine_get_version` from `ntdll` and Windows does
-not, so this is a fact rather than a guess, and the Proton and Steam environment variables come
+not, so this is a fact, not a guess, and the Proton and Steam environment variables come
 with it:
 
 ```
-[env_probe] running under WINE 9.0 - Proton, a Steam Deck, or a Linux desktop
+[env_probe] running under WINE 9.0, Proton, a Steam Deck, or a Linux desktop
 [env_probe]   SteamDeck                1
 [env_probe]   SteamGameId              12345
 [env_probe]   PROTON_USE_WINED3D       1
@@ -66,10 +66,10 @@ is drawing at all. Both go through the device vtable, slots 14 and 15:
 ```
 
 **And when the frames stop.** A log that just stops is ambiguous, and the case worth catching
-leaves no line behind on its own - `Present` cannot report that it was not called. So a thread of
+leaves no line behind on its own: `Present` cannot report that it was not called. So a thread of
 our own ticks every five seconds for the life of the process, says nothing while the frame counter
 is moving, and speaks up when it stops. It reports twice, at the start of the stall and thirty
-seconds in, and re-arms if frames start again, so a wedged game says so twice rather than five
+seconds in, and re-arms if frames start again, so a wedged game says so twice, not five
 hundred times:
 
 ```
@@ -136,14 +136,21 @@ than by an address, because the game calls it exactly once and the slot is the o
 reliably true of. The returned `IDirect3D8` then has one vtable entry replaced, `CreateDevice` at
 slot 15, which logs and forwards.
 
-Both are COM vtable positions rather than addresses in this game, so neither depends on the build
+Both are COM vtable positions and not addresses in this game, so neither depends on the build
 and both are correct against wined3d, DXVK and the retail Microsoft runtime alike.
 
 The adapter is asked to identify itself before anything is hooked, through `GetAdapterIdentifier`
 at slot 5, which is how wined3d and DXVK end up naming themselves in the log.
 
 The device that comes back has two of its own entries replaced the same way, `Reset` at 14 and
-`Present` at 15, which is why nothing is hooked until there is a device to hook.
+`Present` at 15, so nothing is hooked until there is a device to hook.
+
+## The window it keeps
+
+The device window is recorded so that the frames and the window can be reported together. A
+window that is 320x200 and hidden when the device is made is not yet a problem, since plenty
+of games create one that way and show it afterwards. A window still that size once frames are
+going out is the whole answer.
 
 ## Configuration: `[env_probe]`
 

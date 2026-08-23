@@ -1,8 +1,8 @@
 # Where the camera lives
 
 What was established while looking for a way to move the camera independently of the player. The
-answer was mostly negative, which is why it is written down: it rules out three approaches that
-look reasonable from the outside.
+answer was mostly negative and is written down because it rules out three approaches that look
+reasonable from the outside.
 
 Measured on `Fellowship.exe`, No-CD, 2,133,459 bytes, from 1,373 frames of play captured out of
 the running process.
@@ -26,7 +26,7 @@ n = ( 0.0000  0.0000  1.0000)  d = -1e19      far
 ```
 
 All four side planes have `d = 0`, so they pass through the origin. **This frustum is in view
-space**, where the camera is the origin by definition, which is why no position appears in it.
+space**, where the camera is the origin by definition, so no position appears in it.
 
 The side planes carry the field of view directly: `acos(0.6664)` is 48.2 degrees, so 96.4 full
 horizontally, which is what `field_of_view` reports it set. The far plane holding `-1e19` is
@@ -50,14 +50,14 @@ The camera position recovered from that is the origin, while the player stood at
 So the camera's world position is subtracted on the CPU and baked into each object's world matrix
 before anything is submitted. Roughly 512 world matrices per 1,100 `SetTransform` calls.
 
-That is forced rather than eccentric. At coordinates around 400,000 a 32-bit float has about 0.03
+That is forced, not eccentric. At coordinates around 400,000 a 32-bit float has about 0.03
 units of precision, so absolute world positions would visibly shake. Every large-world engine of
 the period does this.
 
 ## Culling follows the field of view, not the frustum planes
 
 Writing wider planes into `camera+0xE8` changes nothing. The engine rebuilds them before it culls,
-so they are an output to read rather than an input to steer.
+so they are an output to read, not an input to steer.
 
 Widening the field of view does work. With the engine set to a 140 degree vertical field while
 Direct3D was handed a 64 degree projection, geometry that had been missing at the edges was drawn
@@ -66,7 +66,7 @@ and the popping stopped.
 ## What that rules out
 
 **The mouse turns the body, not a separate camera angle.** Standing still and sweeping the mouse
-moves row 0 of the player's 3x3 at `+0x00F8` through its full range, exactly as walking does. There
+moves row 0 of the player's 3x3 at `+0x00F8` through its full range, as walking does. There
 is no independent view angle to write.
 
 **Rotating the view matrix is not enough on its own.** It works for terrain, and the interface is
@@ -85,5 +85,5 @@ at `+0x14`, fly is state 4, and there is a push and pop pair around a stack of p
 `+0x18`, `+0x1C` and `+0x20`. Entering fly constructs a controller at Player `+0xFC` and leaving
 destroys it.
 
-So flying moves the player entity and the camera follows as it always does. It is not a detached
-camera and cannot be borrowed as one.
+So flying moves the player entity and the camera follows as it always does. There is no detached
+camera here to borrow.

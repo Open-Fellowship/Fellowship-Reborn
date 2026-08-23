@@ -3,7 +3,7 @@
 **Produces:** `black_screen.dll`. Patches `Fellowship.exe`. Always on, and it has no configuration.
 
 A stock install hangs on a black screen at load **on NVIDIA cards** and starts perfectly well on
-AMD ones. That is not a Windows version problem or a wrapper problem; it is one constant in the
+AMD ones. The cause is neither a Windows version nor a wrapper: it is one constant in the
 executable, and which vendor's driver you have decides whether it matters.
 
 ## The site
@@ -38,14 +38,14 @@ byte decides it.
 ## Why this is a guard, not a fix
 
 The executable this project is built against **already answers 50**, so on the development
-machine this plugin has nothing to do, and it says so rather than claiming a fix it did not make:
+machine this plugin has nothing to do, and it says so instead of claiming a fix it did not make:
 
 ```
-[black_screen] 0043D2BC already answers D3DFMT_L8 (50) for 8-bit - nothing to do on this copy
+[black_screen] 0043D2BC already answers D3DFMT_L8 (50) for 8-bit, nothing to do on this copy
 ```
 
 Every copy and backup on that machine descends from one that had been through a file patcher.
-A pristine install still holds 41, and that is who this plugin is for:
+A pristine install still holds 41, which is who this plugin is for:
 
 ```
 [black_screen] 0043D2BC  8-bit format  D3DFMT_P8 (41) -> D3DFMT_L8 (50)
@@ -66,7 +66,7 @@ There is no `[black_screen]` section and no `Enabled` key.
 
 The plugin reads the constant before it writes and declines on anything it does not recognise: a
 copy already answering `D3DFMT_L8` is left alone and told so, and a value that is neither 41 nor
-50 is treated as a different build rather than as a bug. A switch protected nothing those two
+50 is treated as a different build, not as a bug. A switch protected nothing those two
 checks did not already handle, and the mistake it invited, leaving it off on an NVIDIA card, is a
 black screen at load with no clue as to why. That is the exact failure this plugin exists to
 prevent.
