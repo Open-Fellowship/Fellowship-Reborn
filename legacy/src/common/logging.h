@@ -11,13 +11,11 @@
 
 /* `feature_name` must be a string literal or otherwise outlive the process. */
 void log_init(const char *feature_name, bool truncate);
-void log_shutdown(void);
 
 void log_info(const char *format, ...);
 void log_warning(const char *format, ...);
 void log_error(const char *format, ...);
 
 /* Full path of the log file, for messages that want to name it. Empty before log_init(). */
-const char *log_path(void);
 
 #endif /* COMMON_LOGGING_H */

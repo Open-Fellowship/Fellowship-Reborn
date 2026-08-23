@@ -108,7 +108,7 @@ left on top. This rejects garbage; it does not police a rounding difference.
 **Two ways to use it.** Some values can be sampled onto a timer. Some cannot: the pause menu
 renders the world into a sub-rectangle and the camera's viewport **is** that rectangle while the
 menu is drawn, so a scale sampled a quarter of a second earlier is the wrong number. For those,
-`camera_publish` puts a validated pointer into a variable owned by the plugin. It is zero until a
+`camera_track` puts a validated pointer into a variable owned by the plugin. It is zero until a
 camera has passed every check, and returns to zero the moment one stops passing; a stub that finds
 zero falls through and does nothing, which is the unmodified game.
 

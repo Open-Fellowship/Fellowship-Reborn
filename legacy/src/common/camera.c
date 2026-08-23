@@ -177,14 +177,6 @@ static DWORD WINAPI watch_thread(LPVOID parameter)
 }
 OF_NORETURN_THREAD_END
 
-bool camera_watch(unsigned interval_ms, camera_watch_callback_t on_change)
-{
-    if (on_change == NULL) {
-        return false;
-    }
-    return camera_track(interval_ms, NULL, on_change);
-}
-
 bool camera_track(unsigned interval_ms, volatile uintptr_t *slot,
                   camera_watch_callback_t on_change)
 {

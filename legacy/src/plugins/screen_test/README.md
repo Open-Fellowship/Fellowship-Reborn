@@ -2,8 +2,8 @@
 
 **Produces:** `screen_test.dll`. A diagnostic. Off by default.
 
-Paints the whole back buffer a solid colour every frame and cycles it: red, green, blue, one
-second each.
+Paints the whole back buffer a solid colour every frame and cycles it: red, green, blue, 60
+frames each, which is a second at 60 fps.
 
 ## What it settles
 
@@ -37,3 +37,4 @@ untested.
 | Key | Default | |
 |---|---|---|
 | `Enabled` | `0` | on means the game is unplayable while it runs. That is the point |
+| `FramesPerColour` | `60` | how long each colour is held, in frames. Clamped to `5 .. 600` |

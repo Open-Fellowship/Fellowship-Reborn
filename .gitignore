@@ -1,4 +1,8 @@
 build/
+
+# Python leaves these beside the Blender extension.
+__pycache__/
+*.pyc
 out/
 *.user
 *.suo

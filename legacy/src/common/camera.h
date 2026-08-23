@@ -33,11 +33,8 @@ bool camera_read(camera_view_t *out);
 typedef void (*camera_watch_callback_t)(const camera_view_t *view);
 
 /* Polls until a camera validates, calls `on_change` then, and again whenever the viewport
- * dimensions change. Returns false if the thread could not be started. */
-bool camera_watch(unsigned interval_ms, camera_watch_callback_t on_change);
-
-/* The same poll, publishing a validated POINTER instead of a number, for values that cannot be
- * sampled onto a timer. `slot` is the caller's own variable: zero until a camera has passed every
+ * dimensions change, publishing a validated POINTER for values that cannot be sampled onto
+ * a timer. `slot` is the caller's own variable: zero until a camera has passed every
  * check, zero again the moment one stops passing, and a stub that finds zero falls through and
  * does nothing. `on_change` may be NULL. See README.md. */
 bool camera_track(unsigned interval_ms, volatile uintptr_t *slot,

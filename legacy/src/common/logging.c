@@ -63,11 +63,6 @@ void log_init(const char *feature_name, bool truncate)
     log_ready = true;
 }
 
-void log_shutdown(void)
-{
-    log_ready = false;
-}
-
 void log_info(const char *format, ...)
 {
     va_list arguments;
@@ -90,9 +85,4 @@ void log_error(const char *format, ...)
     va_start(arguments, format);
     write_line("ERROR", format, arguments);
     va_end(arguments);
-}
-
-const char *log_path(void)
-{
-    return log_file_path;
 }

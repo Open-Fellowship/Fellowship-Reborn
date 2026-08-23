@@ -167,13 +167,6 @@ float ini_read_float(const char *section, const char *key, float default_value)
     return (float)parsed;
 }
 
-bool ini_write_int(const char *section, const char *key, int32_t value)
-{
-    char text[64];
-    snprintf(text, sizeof(text), "%ld", (long)value);
-    return WritePrivateProfileStringA(section, key, text, ini_path()) != 0;
-}
-
 bool ini_write_float(const char *section, const char *key, float value, int decimal_places)
 {
     char text[64];

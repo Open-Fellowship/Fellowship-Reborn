@@ -33,6 +33,5 @@ bool ini_read_string(const char *section, const char *key, const char *default_v
 /* `decimal_places` is clamped to 0..6. Returns false and leaves the file alone on failure: a
  * caller that logs "saved" without checking this is lying to the user. */
 bool ini_write_float(const char *section, const char *key, float value, int decimal_places);
-bool ini_write_int  (const char *section, const char *key, int32_t value);
 
 #endif /* COMMON_INI_H */
