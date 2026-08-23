@@ -33,8 +33,8 @@ set(FELLOWSHIP_REBORN_ENGINE_OUTPUT ${CMAKE_BINARY_DIR}/dist)
 # The output is named Fellowship.rfl because that is what the host looks for.
 # The retail module is renamed to Fellowship.orig.rfl and loaded by this one;
 # see engine/proxy/README.md.
-# Everything under objectdef/ ending in _table.c is GENERATED - the engine's four
-# static registries - and regenerating them is how they get fixed; never edit
+# Everything under objectdef/ ending in _table.c is GENERATED: the engine's four
+# static registries: and regenerating them is how they get fixed; never edit
 # them. They are checked into the tree rather than produced at build time because
 # generating them needs a pristine Fellowship.rfl, which a build must not
 # require:

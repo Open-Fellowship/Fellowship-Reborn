@@ -2,7 +2,7 @@
 
 `Fellowship.rfl` carries a registry of every level object type the engine knows, by name, with a
 full property schema attached. It is plain data in `.data`, so reading it needs no decompilation
-and no disassembler - `decomp/tools/classdump.py` parses the image directly.
+and no disassembler, `decomp/tools/classdump.py` parses the image directly.
 
 This matters beyond convenience. The decompilation work has been operating on the rule that
 **every name is invented**, because the images carry no debug directory, no RTTI and no linker
@@ -21,10 +21,10 @@ the developers' own names, and so is every one of the 4,262 property keys hangin
 | properties across all classes | 4,262 |
 | largest class | `Player`, 166 properties in 32 groups |
 
-The 179 retired slots are worth noticing on their own. They are not padding - each is a real
+The 179 retired slots are worth noticing on their own. They are not padding, each is a real
 32-byte record with an id, kept in place so that ids never shift, and they cluster: `0x010075`
 through `0x010100` is one unbroken run of 140. Something occupied that range and was removed
-wholesale, and the ids around it - the `…Behavior` classes - say what kind of thing it was.
+wholesale, and the ids around it, the `…Behavior` classes, say what kind of thing it was.
 
 Full index: [generated/class-index.md](generated/class-index.md).
 Machine-readable, everything: [generated/object-model.json](generated/object-model.json).
@@ -36,7 +36,7 @@ A 32-byte record per class, contiguous, starting at `0x1010F0A0`, 397 of them:
 | offset | | |
 |---|---|---|
 | `+0x00` | id | `0x00010001` upward, dense, in table order |
-| `+0x04` | ObjType | one of the nineteen categories in the ObjType registry - see [RFL-EXPORTS.md](RFL-EXPORTS.md) |
+| `+0x04` | ObjType | one of the nineteen categories in the ObjType registry, see [RFL-EXPORTS.md](RFL-EXPORTS.md) |
 | `+0x08` | | small int, meaning unestablished. 0 in 189 of 397; range 0-135 |
 | `+0x0c` | flags | `0x?00004??`, meaning unestablished |
 | `+0x10` | name | `char *` |
@@ -54,10 +54,10 @@ exactly two stores followed by a return:
 ```
 
 with a getter at `0x1004c230` returning the address of that pair. This matters for more than
-tidiness - see below.
+tidiness, see below.
 
-**The id precedes the name rather than following it.** Read the record the other way round - which
-is the obvious reading, since the name is the field that catches the eye - and the record still
+**The id precedes the name rather than following it.** Read the record the other way round (which
+is the obvious reading, since the name is the field that catches the eye) and the record still
 parses, the ids are still dense, and every class reference in the whole table resolves to the class
 *next door*. Nothing about the shape of the data reveals the error.
 
@@ -71,7 +71,7 @@ The engine's own initialiser then settles it independently: the base it publishe
 which is the boundary the reference semantics force and not the one the eye picks out. Two
 unrelated lines of evidence, same answer.
 
-Each group is 12 bytes - name, count, pointer to `count` property records - and each property
+Each group is 12 bytes (name, count, pointer to `count` property records) and each property
 record is 20 bytes:
 
 | offset | | |
@@ -85,7 +85,7 @@ record is 20 bytes:
 Base types were identified from what the default and constraint fields hold, not guessed: floats
 carry float bit patterns, colours carry `0x00RRGGBB`, channels default to `-1`, enums carry a
 comma-separated value list, and every resource type defaults to the same pointer into the
-zero-filled tail of `.data` - which is to say, unset. Of the high-nibble modifiers only `1` is
+zero-filled tail of `.data`, which is to say, unset. Of the high-nibble modifiers only `1` is
 established, as "list"; every property carrying it is named as a plural. The others appear on
 references and are reported raw rather than named.
 
@@ -100,7 +100,7 @@ properties might be a large C++ object or a small one holding a serialised blob,
 cannot tell you which.
 
 So this is a vocabulary, not a layout. It means that when a decompiled function is found to touch
-the player's health, there is a real name - `InitialHealth`, `MaxHealth`, `CriticalHealthPerc` - to
+the player's health, a real name (`InitialHealth`, `MaxHealth`, `CriticalHealthPerc`) exists to
 attach to it instead of an invented one. That is worth a great deal and it is not the same thing as
 knowing where those fields live.
 
@@ -119,7 +119,7 @@ The group names are the most compact description of the player's capabilities th
 > The One Ring · Speech · Conversation distances · Facial Expressions · Head & Neck · Magic ·
 > Team Information · PC Movement Animations · PC Controls Configuration
 
-The first three groups - Health, Melee Attack Positions, Incoming Messages - have their descriptors
+The first three groups (Health, Melee Attack Positions, Incoming Messages) have their descriptors
 in a different pool from the other twenty-nine, and the same three appear on `NPC`, `Nazgul`,
 `Balrog` and the rest. They are inherited from a shared base, and the group array splices the base
 class's groups in ahead of the class's own. That is the one structural fact about inheritance the
@@ -150,13 +150,13 @@ PUSH <ordinal>                   the property's flat index in its class's schema
 CALL [EDX + 8]                   -> void*, a pointer to the value
 ```
 
-The ordinal is the property's position in the flat listing of its class - group by group, in table
+The ordinal is the property's position in the flat listing of its class, group by group, in table
 order, exactly what `classdump.py` prints. Three owner slots for the block are attested:
 `record + 0x08`, `gameobject + 0x14`, and one other structure's `+0x08`.
 
 ### How that was established
 
-Not by reading the accessor - its implementation is not in the rfl. By four independent checks
+Not by reading the accessor, its implementation is not in the rfl. By four independent checks
 against a schema the code never sees.
 
 **One property, two different integers.** `0x10015a90` tests the class id and then fetches ordinal
@@ -166,8 +166,7 @@ are type *channel*, defaulting to `none`. The function is a jaw-channel getter, 
 numbers name the same property in two different classes.
 
 **Types match, in order.** `0x1002c1c0` reads ordinal 0 as a float, ordinal 1 as an int compared
-against exactly 0 and 1, ordinal 2 as a boolean, and then sends ordinal 3 to the message interface -
-destroying the object first if ordinal 2 was set. `Health Threshold Trigger` is
+against exactly 0 and 1, ordinal 2 as a boolean, and then sends ordinal 3 to the message interface, destroying the object first if ordinal 2 was set. `Health Threshold Trigger` is
 `HealthThreshold` float 50.0, `ThresholdMethod` enum {Below, Above}, `DestroyWhenSent` enum
 {No, Yes}, `Message` message. Four ordinals, four types, and the behaviour matches the names.
 
@@ -192,7 +191,7 @@ read at `0x100611cd` inside the 5,394-byte function at `0x10060c90`.
 ### What this means for the Player class
 
 **Player is more tractable than it looked.** Its 166 properties are not 166 unknown member offsets
-waiting to be recovered - they are ordinals 0 to 165 on one generic accessor, and the ObjectDef
+waiting to be recovered: they are ordinals 0 to 165 on one generic accessor, and the ObjectDef
 table already gives every one of them a name, a type and a default. Recovering what a Player
 property read *is* now amounts to reading the immediate that was pushed.
 

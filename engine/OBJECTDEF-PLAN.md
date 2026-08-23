@@ -14,7 +14,7 @@ The first *system* the engine layer would own, rather than the two pure predicat
 * **It is the foundation.** Every other engine subsystem reads through this registry. Owning it
   gives later work somewhere to stand.
 * **It fails visibly.** The game finds its classes at startup or it does not.
-* **It is verifiable to the same standard as the decompilation.** See below - this is the part that
+* **It is verifiable to the same standard as the decompilation.** See below: this is the part that
   makes it worth doing properly rather than approximately.
 
 ## What the interface actually is
@@ -27,8 +27,8 @@ GetObjectDefInterface()   ->  &g_objectDefInterface
 g_objectDefInterface  =  { u32 count; ObjectDef *table; }      at 0x10132874
 ```
 
-Written once by an initialiser at `0x1004c210` - two stores, `count = 0x18d` and
-`table = 0x1010f0a0` - and read by the six-byte getter at `0x1004c230`. **Those two globals are
+Written once by an initialiser at `0x1004c210` (two stores, `count = 0x18d` and
+`table = 0x1010f0a0`) and read by the six-byte getter at `0x1004c230`. **Those two globals are
 referenced by exactly three instructions in the whole engine**, the two stores and the getter's
 load. Nothing else touches them.
 
@@ -53,13 +53,13 @@ ObjectDef, 32 bytes                     PropertyGroup, 12 bytes
 ```
 
 Note the group array is a table of **pointers** to groups, not groups inline, and that a class's
-first groups are frequently shared with other classes - `Player`, `NPC`, `Nazgul` and the rest all
+first groups are frequently shared with other classes, `Player`, `NPC`, `Nazgul` and the rest all
 point at the same three base-class groups. A generator that emits each group once and references it
 is reproducing the original's structure; one that copies them is not.
 
 ## How it gets verified
 
-**Byte-compare the generated table against the retail image**, with pointer fields masked - exactly
+**Byte-compare the generated table against the retail image**, with pointer fields masked, exactly
 the technique `decomp/tools/matchtool.py` uses for code, applied to data. Every non-pointer field
 (id, ObjType, counts, type codes, defaults, constraints, flags) must match the retail `.data`
 verbatim, and the pointer fields must resolve to strings and structures that match in turn.
@@ -70,7 +70,7 @@ anyone knows what they mean.
 
 ## Steps
 
-1. **`classdump.py --emit-c`** - generate the table as C: strings, property arrays, group records,
+1. **`classdump.py --emit-c`**: generate the table as C: strings, property arrays, group records,
    the group pointer arrays, the 397 ObjectDefs, and the interface struct. Deduplicate the shared
    groups. Mechanical; the reader already has every field.
 2. **A verifier** that compares the generated structures against the retail image field by field
@@ -82,13 +82,13 @@ anyone knows what they mean.
 
 ## Unknowns, and what to do about each
 
-**`ObjectDef+0x08`** - meaning unestablished. Range 0-135, zero in 189 of 397 classes, equal to
+**`ObjectDef+0x08`**, meaning unestablished. Range 0-135, zero in 189 of 397 classes, equal to
 neither the property count nor the group count. Emit the retail value verbatim; the verifier proves
 it was carried across. It does not need to be understood to be reproduced.
 
-**`ObjectDef+0x0c`, the flags** - same treatment. Values look like `0x?00004??`.
+**`ObjectDef+0x0c`, the flags**, same treatment. Values look like `0x?00004??`.
 
-**Whether any consumer writes to the records.** The engine does not - the table is in `.data`, but
+**Whether any consumer writes to the records.** The engine does not; the table is in `.data`, but
 the only three instructions that touch the interface globals are the two stores and the getter.
 Whether the host executable or the level editor mutates a record through the returned pointer is
 **not established**. If they do, a table in read-only memory would fault; emitting it as writable
@@ -96,7 +96,7 @@ data costs nothing and avoids the question.
 
 **The constraint field on 16% of object references** names a class id that is not in this table.
 Those resolve to nothing today and would resolve to nothing after this change, which is the correct
-behaviour - but it means there is a second class-id space somewhere that has never been found.
+behaviour, but it means there is a second class-id space somewhere that has never been found.
 
 ## What this deliberately does not do
 

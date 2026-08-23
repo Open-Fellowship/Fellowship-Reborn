@@ -24,7 +24,7 @@ on its own:
 
 | | |
 |---|---|
-| **by source file** | how much of what we have *attempted* is finished. Trends to 100% by construction - the manifest only contains functions somebody chose to take on. Useful for spotting a file with something still open in it, useless as a measure of the project |
+| **by source file** | how much of what we have *attempted* is finished. Trends to 100% by construction, the manifest only contains functions somebody chose to take on. Useful for spotting a file with something still open in it, useless as a measure of the project |
 | **coverage of each image** | how much of the binary is actually accounted for, against `census.tsv`. This is the real number |
 
 `census.tsv` holds the denominators, produced by running `ExportFunctions.java` in `census` mode
@@ -43,7 +43,7 @@ Those are the whole job: **12,040 functions and 1.91 MB of code** if every one w
 Summing what Ghidra put inside a function body is not the size of the image's code, and for a long
 time this file assumed it was. In an optimised C++ image a great deal of code is reached only
 through a vtable or a jump table, so nothing calls it at an address the analyser can follow and it
-never becomes a function at all. In the rfl that is **220,016 bytes across 1,932 runs** - a fifth of
+never becomes a function at all. In the rfl that is **220,016 bytes across 1,932 runs**, a fifth of
 `.text`, and 32% on top of the body total.
 
 Reporting only the body total therefore overstated our coverage by about a third. The correction is
@@ -51,18 +51,18 @@ not cosmetic: the whole purpose of this number is to be the one figure in the pr
 flatter us, and it was flattering us.
 
 A little under a tenth of that loose code is a different problem. `truncated` counts runs that begin
-exactly where a function body ends, which means the body stopped early - usually at a mid-body
+exactly where a function body ends, which means the body stopped early, usually at a mid-body
 `INT3`. Those bytes belong to the function in front of them, so a size taken from Ghidra for such a
 function is short, and a "match" against a short size would be a match against part of a function.
 **No entry in `manifest.tsv` is currently affected**, which was checked rather than assumed.
 
-The exe's `.cms_t` (SecuROM, 184,320 bytes) holds no code at rest - the census finds it entirely
-zero-filled - so it contributes nothing to any figure here.
+The exe's `.cms_t` (SecuROM, 184,320 bytes) holds no code at rest, the census finds it entirely
+zero-filled, so it contributes nothing to any figure here.
 
 Coverage is reported by function count *and* by bytes, and the gap between the two is worth
 watching. At the time of writing it is 0.66% of functions but 0.39% of bytes, because everything
 matched so far has been small. Byte coverage lagging function coverage is the signal that the easy
-ones are being taken first - expected, and not a problem, but not something to let a flattering
+ones are being taken first, expected, and not a problem, but not something to let a flattering
 percentage hide either.
 
 ## The corpus
@@ -77,7 +77,7 @@ python decomp/tools/corpus.py --asm "fdivr"      # search the disassembly
 python decomp/tools/corpus.py --calls 1004c210   # every caller of an address
 ```
 
-`export/` is gitignored and regenerated rather than committed - it is 28 MB of JSON and 17 MB of
+`export/` is gitignored and regenerated, never committed: it is 28 MB of JSON and 17 MB of
 flat files, all derived from the images. The recipe is in `tools/ExportFunctions.java`.
 
 Two cautions, both of which have already bitten. The corpus only knows about functions, so a
@@ -195,28 +195,28 @@ file.
 
 What the Rich header does give is a **count**: the rfl was linked from roughly 246 C++ objects,
 120 C objects and 30 MASM objects. Around 396 translation units. That is a useful check on any
-reconstruction - a tree with forty files, or four thousand, is wrong.
+reconstruction, a tree with forty files, or four thousand, is wrong.
 
 So modules here are grouped by **inferred subsystem**, from two kinds of evidence:
 
-* **address clustering** - the linker keeps an object's functions together, so a run of adjacent
+* **address clustering**: the linker keeps an object's functions together, so a run of adjacent
   functions is usually one translation unit. It is a hint, not proof: ten `Vector3` methods sit
   together at `0x10002230` but two more are away at `0x100044e0`, which is either linker ordering
   or evidence they lived in a different file
-* **shared types** - functions taking the same `this` layout belong together
-* **same-`this` call chains** - a `__thiscall` method restores its own `this` with
+* **shared types**: functions taking the same `this` layout belong together
+* **same-`this` call chains**: a `__thiscall` method restores its own `this` with
   `MOV ECX,ESI` immediately before calling another method on the same object. That proves
   the callee is invoked on an object of the caller's class, so a class established for one
   function carries to the other. `decomp\tools\ordmap.py` does this, and
   `--check` guards it against over-claiming
-* **cross-function codegen dependencies** - proof rather than a hint; see below
+* **cross-function codegen dependencies**: proof rather than a hint; see below
 
 Add a module when there is evidence of a distinct subsystem, not in anticipation of one. Empty
 folders named for subsystems we have guessed at would be inventing structure we cannot justify.
 
-**This is almost always organisation rather than constraint - but not quite always, and the
+**This is almost always organisation rather than constraint (but not quite always, and the
 exception is what makes file grouping recoverable at all.** With `/Gy` every function is its
-own COMDAT, so which `.cpp` a function lives in usually has no effect on its bytes - which is why `math\vector3.cpp` matches
+own COMDAT, so which `.cpp` a function lives in usually has no effect on its bytes) which is why `math\vector3.cpp` matches
 12 of 12 while certainly not being the original file, under a name we made up. Layout is
 organisation, not constraint.
 
@@ -225,20 +225,20 @@ call it. `Player::ShouldRegenerate` at `0x100570d0` compares two float-returning
 keeps the first result on the x87 stack across the second, ending in `FCOMPP`. VC6 only
 does that when the callee is **defined above the caller in the same translation unit**.
 With `Player::GetCriticalHealth` merely declared it spills to a stack slot and compares
-against memory instead - 76 bytes rather than 67, everything after the first call shifted.
+against memory instead, 76 bytes rather than 67, everything after the first call shifted.
 That one ruled out `double` returns, operand order, every spelling of the comparison,
 inline helpers, free versus member versus virtual callees, C with `__fastcall`, and a
 twenty-switch flag sweep before finding it.
 
 So those three functions shared a source file, and that is not inferred from address
-clustering - it is forced by the bytes. Wherever two functions in a call relationship pass
+clustering; it is forced by the bytes. Wherever two functions in a call relationship pass
 a float result, the grouping is recoverable the same way. It is a narrow case, and it is
 the only proof of original file structure the project has. It would only start to matter if the goal were relinking a whole
 matching image, which it is not.
 
 ### Names
 
-**Every name in `src\` is invented** - `Vector3`, `Matrix`, `LevelList`, `IsBackupPath`, every
+**Every name in `src\` is invented**, `Vector3`, `Matrix`, `LevelList`, `IsBackupPath`, every
 member and every parameter. Nothing in these binaries carries the originals. Names are chosen to
 describe what the code demonstrably does and nothing more; where a member's purpose is not
 established, the comment says so rather than the name implying it. Treat them as our labels, not
@@ -262,11 +262,11 @@ build\all\math\vector3.obj
 
 One compile, many comparisons. A manifest row does not claim "this source builds that image", it
 claims "this function, compiled by the original toolchain, is byte for byte what sits at that
-address" - and that claim can be made about as many addresses in as many images as you like.
+address", and that claim can be made about as many addresses in as many images as you like.
 
 The same bytes satisfy both images because a function body is position-independent: the linker
-decides where it lands, not what it contains. Everything that *does* depend on placement - call
-targets, absolute addresses - is exactly what `matchtool.py` masks on both sides.
+decides where it lands, not what it contains. Everything that *does* depend on placement (call
+targets, absolute addresses) is exactly what `matchtool.py` masks on both sides.
 
 ## Running it
 
@@ -328,14 +328,14 @@ Each file carries what a reader needs and raw disassembly does not:
 
 | | |
 |---|---|
-| `size` | the body **excluding** trailing padding - exactly what `manifest.tsv` wants |
+| `size` | the body **excluding** trailing padding, exactly what `manifest.tsv` wants |
 | `calling_convention` | `__thiscall` vs `__cdecl`, which decides the signature |
 | `disassembly` | with raw bytes alongside each instruction |
 | `decompiled` | Ghidra's C, the most useful single field |
 | `calls`, `data` | resolved call targets and string literals |
 
 `index.json` flags every function as leaf or not. **Leaf functions are the ones to hand out
-first** - no calls means no relocations, so nothing is masked and a match means every byte
+first**, no calls means no relocations, so nothing is masked and a match means every byte
 agreed.
 
 It is a Java script rather than Python on purpose: headless runs Java with no setup, whereas

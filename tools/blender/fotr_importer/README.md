@@ -21,7 +21,7 @@ Point it at any `.mdu` in the game folder and pick a model from the dropdown:
 
 | Archive | What's inside |
 |---|---|
-| `Common\NPC\NPCs.mdu` | every character - Legolas, Gimli, Balrog, Cave Troll, orcs, villagers |
+| `Common\NPC\NPCs.mdu` | every character, Legolas, Gimli, Balrog, Cave Troll, orcs, villagers |
 | `Common\Resources\Resources.mdu` | weapons, items, inventory props |
 | `Common\System\System.mdu` | Frodo, Gandalf and Aragorn |
 | `World Common\World Common\World Common.mdu` | shared trees, rocks, grass, barrels, carts |

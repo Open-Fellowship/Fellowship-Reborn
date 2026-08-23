@@ -41,8 +41,8 @@ r.z = m[2][1]*v.y;  r.z += m[2][2]*v.z;  r.z += m[2][0]*v.x;
 `/GX` was added late, after `0x1005c500` turned out to carry a C++ exception-handling frame that
 cannot be produced without it. It emits nothing at all in a function with no destructible local,
 which is why the first 34 matches never revealed it and why adding it changed none of them. If your
-function has a local object with a destructor, expect an EH prologue - three pushed words and a
-`FS:[0]` link - and note that the frame has **no real EBP**: `__CxxFrameHandler` reconstructs one as
+function has a local object with a destructor, expect an EH prologue, three pushed words and a
+`FS:[0]` link, and note that the frame has **no real EBP**: `__CxxFrameHandler` reconstructs one as
 the registration node plus 12, so unwind funclet offsets read as *entry ESP minus n*.
 
 **Store order is literal.** VC6 at `/O2` emits stores in source order and does not group them by
@@ -59,14 +59,14 @@ m[0][1] = m[0][2] = /* ... */ = 0.0f;
 after a `JNZ`; the original's `JZ` to a tail `xor eax,eax / ret` means the *non-zero* case is in
 the `if` body and `return 0` comes last. Match the shape Ghidra printed.
 
-**Struct packing shows up in the addressing mode.** A stride that is not a power of two - a
-`LEA r,[r+r*2]` before the index scale, or a displacement like `-6` - means the struct is packed.
+**Struct packing shows up in the addressing mode.** A stride that is not a power of two (a
+`LEA r,[r+r*2]` before the index scale, or a displacement like `-6`) means the struct is packed.
 `#pragma pack(2)` on a `{void*; unsigned short;}` gives stride 6; unpacked it pads to 8 and the
 scale becomes `*8`. Packing also restores the `AND EAX,0FFFFh` zero-extension that VC6 elides
 when the scale is a power of two.
 
 **`DEC r` / `JS` as a loop guard** means the source decrements the counter itself,
-`while (--count >= 0)`. Writing `for (i = count - 1; i >= 0; --i)` adds a redundant
+`while (--count >= 0)`. Writing `for (i = count, 1; i >= 0; --i)` adds a redundant
 `TEST EAX,EAX`. A `LEA EDI,[EAX+1]` after the guard is the compiler's own counted-loop rewrite,
 not something to write.
 
@@ -80,7 +80,7 @@ emitted. A predicate returning `int` gives `MOV EAX,1` / `XOR EAX,EAX`; `bool` g
 `SETcc` instead.
 
 **Reaching an authored property goes through the slot's ADDRESS, not the slot.** The engine reads
-game data by ordinal through a virtual accessor - see `documentation\ORDINAL-MAP.md`. The natural
+game data by ordinal through a virtual accessor, see `documentation\ORDINAL-MAP.md`. The natural
 spelling folds and loses three to five bytes:
 
 ```cpp
@@ -89,9 +89,9 @@ object->properties->GetValue(ord, elem);   // MOV ECX,[EAX+0x14]        WRONG
 
 **Which spelling is right is written in the disassembly, so read it before choosing.**
 
-* `MOV ECX,[reg+0x14] / MOV EDX,[ECX]` - the field HOLDS a pointer to the block. The direct
+* `MOV ECX,[reg+0x14] / MOV EDX,[ECX]`: the field HOLDS a pointer to the block. The direct
   spelling `owner->properties->GetValue(ord, elem)` is correct and is what you want
-* `ADD EAX,0x14 / MOV EAX,[EAX] / MOV ECX,EAX` - three instructions where the first form takes one.
+* `ADD EAX,0x14 / MOV EAX,[EAX] / MOV ECX,EAX`: three instructions where the first form takes one.
   The block is reached through the field's ADDRESS, and the direct spelling folds to the short form
   and loses three bytes
 
@@ -115,15 +115,15 @@ if (a != b) changed = 1;
 return changed;
 ```
 
-Every comparison-shaped source - `return a != b;`, either branch polarity of the two-return form,
-the ternary, a `bool` return, a cast - folds instead to `XOR ECX,ECX / SETNE CL`, and because that
+Every comparison-shaped source (`return a != b;`, either branch polarity of the two-return form,
+the ternary, a `bool` return, a cast) folds instead to `XOR ECX,ECX / SETNE CL`, and because that
 tail is short VC6 then duplicates the tail and the epilogue into both arms and drops EBP from the
 frame entirely. The flag also supplies the enregistered zero for any call argument that needs one.
 
 **A float that survives a call needs the callee defined above it, in the same file.** If the original
 holds a float-returning call's result on the x87 stack across a second call and ends in `FCOMPP`,
 VC6 only emits that when it can see the callee's body. Merely declaring it makes the compiler spill
-to a stack slot and compare against memory - a `PUSH ECX`, an `FSTP`, a wider `FCOMP` and a matching
+to a stack slot and compare against memory, a `PUSH ECX`, an `FSTP`, a wider `FCOMP` and a matching
 `POP ECX` in every epilogue, so everything after the first call shifts.
 
 Where a function being matched calls one already matched elsewhere in the tree, copy that matched
@@ -137,7 +137,7 @@ search where nothing else moves, so it is easy to stare past.
 
 **`break` and `return <n>` are not interchangeable at the end of a `case`,** even when the switch is
 followed by exactly `return <n>`. Written as `m_field = 1; return 1;` VC6 sees one constant serving
-both the store and the return value and emits `MOV EAX,1 / MOV [reg+off],EAX` - four bytes shorter
+both the store and the return value and emits `MOV EAX,1 / MOV [reg+off],EAX`, four bytes shorter
 than `MOV dword ptr [reg+off],1`. The trap is that it only bites the case whose stored value equals
 the returned one, so four arms of a five-arm switch match and one does not, and everything after it
 shifts. `m_field = 1; break;` emits the store with its immediate and tail-duplicates the epilogue,
@@ -145,7 +145,7 @@ which is what the original has.
 
 **A sparse `switch` lowers to a `SUB`/`JZ` chain, and a dense one to a binary search.**
 `SUB EAX,0x10025 / JZ ... / SUB EAX,0xc / JZ ...` is a `switch` with fall-through cases, not
-`if (a || b || c)` - the latter gives a `CMP`/`JZ` chain and different bytes. A larger switch picks a
+`if (a || b || c)`, the latter gives a `CMP`/`JZ` chain and different bytes. A larger switch picks a
 median value, tests it, and recurses; the case bodies are then placed by fall-through rather than in
 source order.
 
@@ -163,12 +163,12 @@ __inline int IsDefPlayer(unsigned short index)
 }
 ```
 
-Note also that a plain `static` helper is **not** inlined by this compiler at `/O2` - it emits a
+Note also that a plain `static` helper is **not** inlined by this compiler at `/O2`, it emits a
 real `CALL`. `__inline` or `__forceinline` is required.
 
 **A property value that must stay in ST(0) needs an inlined float-RETURNING helper.** Written in
 line, `*(float *)ReadProperty(...) * k` makes VC6 load `k` first and fold the dereference into the
-`FMUL` - and it does that whichever order you write the operands, and whether `k` is a literal, a
+`FMUL`, and it does that whichever order you write the operands, and whether `k` is a literal, a
 `const float`, an `extern const float` or an `extern float`. Wrapping the dereference so the helper
 returns a float is what leaves the value on the stack and lets the scale fold the other way:
 
@@ -184,7 +184,7 @@ of the constant.
 
 **A pair of floats coming back from a call is an out-parameter, not a by-value return.** A real
 by-value return of a two-float class needs an explicit copy constructor before VC6 will use the
-hidden-pointer convention at all, and it then emits that copy at the call site - which the original
+hidden-pointer convention at all, and it then emits that copy at the call site, which the original
 does not have.
 
 **VC6 picks the `FNSTSW` mask from the comparison operator AS WRITTEN, and does not canonicalise.**
@@ -201,7 +201,7 @@ Read the mask off the original and write that operator. It settled four of six c
 in a single function this way.
 
 **No copy at a call site means the callee took a REFERENCE out-parameter, not a by-value return.**
-VC6 never elides the copy in `T x = f();` for a memory-returned class - it builds a temporary and
+VC6 never elides the copy in `T x = f();` for a memory-returned class, it builds a temporary and
 copies it, every time. So if the original has no copy after the call, the source did not return by
 value. `const T &x = f();` is worse: it materialises a second temporary.
 
@@ -211,7 +211,7 @@ inline, which is why the float-returning property helper above works and a `Vect
 does not.
 
 **A Win32 import needs `__declspec(dllimport)`, and that is not optional.** With it, a call
-compiles to `FF 15 <addr>` - six bytes, indirect through the import thunk - which is what the game
+compiles to `FF 15 <addr>` (six bytes, indirect through the import thunk) which is what the game
 has. Without it VC6 emits `E8 rel32` into a linker-generated jump stub: wrong instruction, wrong
 length, and everything after the first call shifts. Declare them yourself rather than including
 `<windows.h>`, which changes what the compiler sees:
@@ -222,11 +222,11 @@ extern "C" __declspec(dllimport) void * __stdcall GlobalLock(void *hMem);
 
 `dllimport` has a second effect worth knowing, because it looks like register allocation and is
 not. It makes the thunk slot an ordinary variable, so two calls to the same import share one load
-of it - `MOV EBX,[addr]` then `CALL EBX` twice - and the `PUSH EBX`/`POP EBX` pair lands *inside*
+of it (`MOV EBX,[addr]` then `CALL EBX` twice) and the `PUSH EBX`/`POP EBX` pair lands *inside*
 whichever block does the calling rather than in the prologue. That falls out of `dllimport`; do not
 try to write it.
 
-**A virtual whose `this` arrives on the stack is `__stdcall` - but check what clobbered ECX
+**A virtual whose `this` arrives on the stack is `__stdcall`, but check what clobbered ECX
 first.** At a call site reading `PUSH EAX / MOV ECX,[EAX] / CALL dword ptr [ECX+0x8c]`, the object
 is the pushed leftmost argument and the `MOV ECX` is only the vtable load, which is what forced the
 object onto the stack. Declare that slot `virtual T __stdcall`.
@@ -247,7 +247,7 @@ return 0x17;
 
 Writing the arithmetic form `0x17 + ((flags & 0x200000) != 0)` gives `SHR EAX,21 / AND EAX,1`
 instead, which is shorter and shifts every following byte. So do `!!x`, `(bool)x`, a named bool
-local, and the ternary `x ? 1 : 0` - all of them peephole to the shift. Two returns is the only
+local, and the ternary `x ? 1 : 0`, all of them peephole to the shift. Two returns is the only
 shape that produces the `SBB` sequence.
 
 **`=` and `|=` are literal too.** A plain `MOV dword ptr [EAX],2` where the surrounding code uses
@@ -258,7 +258,7 @@ point and the two are equivalent. Write what the instruction says.
 carry a relocation, so the operand is masked on both sides and only the opcode and the argument
 setup have to agree. Declare the callee `extern` with the argument count and calling convention the
 disassembly shows, name it for what the site does with it, and record that the identity
-is unestablished. A call through an import thunk - `CALL dword ptr [0x0056xxxx]` in the exe - is a
+is unestablished. A call through an import thunk, `CALL dword ptr [0x0056xxxx]` in the exe, is a
 `__stdcall` Win32 API, and those you can usually name outright from the argument count and what
 happens to the result.
 

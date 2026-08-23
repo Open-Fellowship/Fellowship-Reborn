@@ -25,8 +25,8 @@ invented, and neither is the vocabulary they imply.
 ## The vocabulary
 
 **ObjectDef** is the engine's own name for the class registry described in
-[OBJECT-MODEL.md](OBJECT-MODEL.md). `GetObjectDefInterface` is six bytes - `mov eax, 0x10132874;
-ret` - returning the address of a pair of globals that an initialiser fills in with the record
+[OBJECT-MODEL.md](OBJECT-MODEL.md). `GetObjectDefInterface` is six bytes (`mov eax, 0x10132874;
+ret`) returning the address of a pair of globals that an initialiser fills in with the record
 count and the table base. So what that document calls "the class registry" should be called the
 **ObjectDef table**, and its 397 entries are ObjectDefs.
 
@@ -42,7 +42,7 @@ The other four getters have the same six-byte shape and return four more interfa
 
 **ObjType is a second registry, and it is the ObjectDef table's missing column.** Its initialiser
 is at `0x1004c290`, the same two-store shape as the ObjectDef one, publishing 19 records at
-`0x10129aa0`. The records are **8 bytes** - `{u32 id, char *name}` - not the ObjectDef 32-byte
+`0x10129aa0`. The records are **8 bytes** (`{u32 id, char *name}`) not the ObjectDef 32-byte
 layout, which is why reading them that way produced ids `1, 5, 9, 0xd, 0x11` and then garbage.
 
 The nineteen categories:
@@ -59,7 +59,7 @@ the exported `IsObjectLight` predicate tests; "Behavior" and "Root Behavior" spl
 classes; the four material classes and `Footsteps` are the whole of "Material".
 
 `RiotDllType` returns the constant `0x80000103` and nothing else; `RiotDllGetID` returns `1`.
-Both are six bytes and neither reads anything, so they are compile-time answers - the handshake a
+Both are six bytes and neither reads anything, so they are compile-time answers, the handshake a
 Riot Engine host uses to ask a module what it is and which one it is. `DllMain` is 17 bytes and
 does one thing: it stores its first argument, the module handle, into a global at `0x10132688` and
 returns 1.
@@ -88,7 +88,7 @@ nothing else. `IsObjectPortal` testing exactly `Portal`. `IsObjectMoveNode` test
 `Move Node Object`.
 
 This matters because the ObjectDef record can be read with the id one field out, and it still
-parses - dense ids, sane names, every field in a plausible place. The only thing that catches the
+parses, dense ids, sane names, every field in a plausible place. The only thing that catches the
 error is meaning. Three separate lines of evidence now agree on the same assignment: properties
 named after their own target class, the table base the engine publishes in its own initialiser, and
 these three named predicates. They were arrived at independently and they do not disagree.
@@ -96,8 +96,8 @@ these three named predicates. They were arrived at independently and they do not
 ## Why there are only eleven
 
 Everything else the engine does is reached through the interface structures rather than through
-exported functions, which is why `GetObjectDefInterface` has no callers inside the rfl itself - the
+exported functions, which is why `GetObjectDefInterface` has no callers inside the rfl itself, the
 host executable and the level editor call it, the DLL does not call itself. That is also why the
 export table is worth so little and so much at once: eleven names is nearly nothing, but they name
-the doors, and the vocabulary behind them - ObjectDef, ObjType, LandType, Message - is the
+the doors, and the vocabulary behind them, ObjectDef, ObjType, LandType, Message, is the
 developers' own.
