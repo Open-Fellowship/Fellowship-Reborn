@@ -1,4 +1,4 @@
-# legacy
+# runtime
 
 Fixes for the retail engine of *The Lord of the Rings: The Fellowship of the Ring*
 (Surreal Software, 2002, Riot Engine).

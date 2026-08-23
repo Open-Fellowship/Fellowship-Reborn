@@ -19,15 +19,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -S legacy -B legacy/build -A Win32
+        run: cmake -S runtime -B runtime/build -A Win32
 
       - name: Build
-        run: cmake --build legacy/build --config Release
+        run: cmake --build runtime/build --config Release
 
       - name: Check the loader and the plugins were produced
         shell: pwsh
         run: |
-          $dist = "legacy/build/dist"
+          $dist = "runtime/build/dist"
           if (-not (Test-Path "$dist/dinput8.dll")) {
               throw "dinput8.dll was not produced"
           }
@@ -44,7 +44,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Fellowship Reborn-win32
-          path: legacy/build/dist
+          path: runtime/build/dist
           if-no-files-found: error
 
   analyze:
@@ -61,7 +61,7 @@ jobs:
       # /analyze:WX- matters: this project builds with /WX, so without it every analysis
       # finding becomes a fatal error instead of the advice it is meant to be.
       - name: Configure with /analyze
-        run: cmake -S legacy -B legacy/build-analyze -A Win32 -DCMAKE_C_FLAGS="/analyze /analyze:WX-"
+        run: cmake -S runtime -B runtime/build-analyze -A Win32 -DCMAKE_C_FLAGS="/analyze /analyze:WX-"
 
       - name: Build
-        run: cmake --build legacy/build-analyze --config Release
+        run: cmake --build runtime/build-analyze --config Release

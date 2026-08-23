@@ -1,4 +1,4 @@
-# Fellowship Reborn, legacy layer: fixes for the retail engine of
+# Fellowship Reborn, runtime layer: fixes for the retail engine of
 # The Lord of the Rings: The Fellowship of the Ring (Surreal Software, 2002).
 #
 # One loader plus one DLL per independent fix. The shared code is a STATIC library linked into
