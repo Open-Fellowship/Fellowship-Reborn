@@ -1,4 +1,4 @@
-# Contributing to OpenFellowship
+# Contributing to Fellowship Reborn
 
 ## The first rule
 

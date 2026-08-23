@@ -31,7 +31,7 @@ Nothing else moves. Keep a copy of the retail `Fellowship.rfl` somewhere safe be
 the hashes of a pristine one are in [TOOLCHAIN.md](../../documentation/TOOLCHAIN.md).
 
 If the renamed original is missing, this DLL fails at the first exported call and says so in
-`open_fellowship_engine.log` beside itself, rather than returning null interfaces. A null interface
+`fellowship_reborn_engine.log` beside itself, rather than returning null interfaces. A null interface
 surfaces later as an unexplained crash inside the host, which is a much worse thing to debug than a
 refusal at startup.
 
@@ -129,7 +129,7 @@ image, following the pointers rather than requiring two linkers to agree on addr
 
 ## Switching a system off
 
-Every reimplemented system has a key in `open_fellowship_engine.ini` beside the DLL:
+Every reimplemented system has a key in `fellowship_reborn_engine.ini` beside the DLL:
 
 ```ini
 [engine]

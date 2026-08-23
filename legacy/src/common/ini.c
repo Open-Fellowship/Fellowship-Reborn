@@ -9,8 +9,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define INI_FILE_NAME   "fix_enhancers.ini"
-#define INI_LEGACY_NAME "open_fellowship.ini"
+#define INI_FILE_NAME "fellowship_reborn.ini"
+
+/* Every name this file has shipped under, newest first. Renaming a configuration file silently
+ * reverts everybody who already had one to the built-in defaults, and it does it without an
+ * error: every key simply stops being found. So the older names are still read, and only when
+ * no newer one is present. */
+static const char *const ini_legacy_names[] = {
+    "fix_enhancers.ini",
+    "open_fellowship.ini"
+};
 
 static char ini_file_path[MAX_PATH];
 static bool ini_is_legacy;
@@ -35,11 +43,18 @@ const char *ini_path(void)
         ini_file_path[sizeof(ini_file_path) - 1] = '\0';
 
         if (!file_exists(ini_file_path)) {
-            snprintf(legacy, sizeof(legacy), "%s%s", host_directory(), INI_LEGACY_NAME);
-            legacy[sizeof(legacy) - 1] = '\0';
-            if (file_exists(legacy)) {
-                memcpy(ini_file_path, legacy, sizeof(ini_file_path));
-                ini_is_legacy = true;
+            size_t index;
+
+            for (index = 0; index < sizeof(ini_legacy_names) / sizeof(ini_legacy_names[0]);
+                 ++index) {
+                snprintf(legacy, sizeof(legacy), "%s%s", host_directory(),
+                         ini_legacy_names[index]);
+                legacy[sizeof(legacy) - 1] = '\0';
+                if (file_exists(legacy)) {
+                    memcpy(ini_file_path, legacy, sizeof(ini_file_path));
+                    ini_is_legacy = true;
+                    break;
+                }
             }
         }
     }

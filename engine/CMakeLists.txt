@@ -10,7 +10,7 @@
 # and this one loads it into the same process. Configure with -A Win32.
 
 cmake_minimum_required(VERSION 3.15)
-project(open_fellowship_engine C)
+project(fellowship_reborn_engine C)
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR
@@ -28,7 +28,7 @@ if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-set(OPEN_FELLOWSHIP_ENGINE_OUTPUT ${CMAKE_BINARY_DIR}/dist)
+set(FELLOWSHIP_REBORN_ENGINE_OUTPUT ${CMAKE_BINARY_DIR}/dist)
 
 # The output is named Fellowship.rfl because that is what the host looks for.
 # The retail module is renamed to Fellowship.orig.rfl and loaded by this one;
@@ -61,9 +61,9 @@ set_target_properties(fellowship_rfl PROPERTIES
     PREFIX ""
     OUTPUT_NAME "Fellowship"
     SUFFIX ".rfl"
-    RUNTIME_OUTPUT_DIRECTORY ${OPEN_FELLOWSHIP_ENGINE_OUTPUT}
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${OPEN_FELLOWSHIP_ENGINE_OUTPUT}
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${OPEN_FELLOWSHIP_ENGINE_OUTPUT}
+    RUNTIME_OUTPUT_DIRECTORY ${FELLOWSHIP_REBORN_ENGINE_OUTPUT}
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${FELLOWSHIP_REBORN_ENGINE_OUTPUT}
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${FELLOWSHIP_REBORN_ENGINE_OUTPUT}
 )
 
 if(MSVC)

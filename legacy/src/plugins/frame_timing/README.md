@@ -166,7 +166,7 @@ delta consumers sorted into simulation and presentation first. That is a separat
 
 ## Checking it
 
-The dev menu's **fix enhancers** tab reads the Timer's `+0x10` back and says which clock is
+The dev menu's **Fellowship Reborn** tab reads the Timer's `+0x10` back and says which clock is
 running, so whether this installed is answered by the engine, not by a log line.
 
 For the frame times themselves, read `0x00543284` from outside the process against the frame

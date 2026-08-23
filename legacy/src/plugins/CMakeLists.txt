@@ -11,13 +11,13 @@ function(add_fellowship_plugin name)
     endforeach()
 
     add_library(${name} SHARED ${sources})
-    target_link_libraries(${name} PRIVATE open_fellowship_common)
+    target_link_libraries(${name} PRIVATE fellowship_reborn_common)
     target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/${name})
     set_target_properties(${name} PROPERTIES
         PREFIX ""
-        RUNTIME_OUTPUT_DIRECTORY ${OPEN_FELLOWSHIP_OUTPUT}/plugins
-        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${OPEN_FELLOWSHIP_OUTPUT_DEBUG}/plugins
-        RUNTIME_OUTPUT_DIRECTORY_RELEASE ${OPEN_FELLOWSHIP_OUTPUT}/plugins
+        RUNTIME_OUTPUT_DIRECTORY ${FELLOWSHIP_REBORN_OUTPUT}/plugins
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${FELLOWSHIP_REBORN_OUTPUT_DEBUG}/plugins
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE ${FELLOWSHIP_REBORN_OUTPUT}/plugins
     )
 endfunction()
 

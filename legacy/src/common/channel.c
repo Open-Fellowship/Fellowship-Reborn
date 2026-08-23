@@ -18,7 +18,7 @@ channel_block_t *channel_open(void)
 
     /* Local\ rather than Global\, and the process id in the name: this is a conversation between
      * DLLs inside one game, not between games and not across sessions. */
-    sprintf(name, "Local\\OpenFellowship.%lu", (unsigned long)GetCurrentProcessId());
+    sprintf(name, "Local\\FellowshipReborn.%lu", (unsigned long)GetCurrentProcessId());
 
     g_mapping = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0,
                                    CHANNEL_MAPPING_SIZE, name);

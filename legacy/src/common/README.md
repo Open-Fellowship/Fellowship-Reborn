@@ -155,12 +155,12 @@ ever published.
 
 ## Configuration
 
-One file, `<game>\fix_enhancers.ini`, one section per DLL. A plugin passes its own section name on
+One file, `<game>\fellowship_reborn.ini`, one section per DLL. A plugin passes its own section name on
 every call and therefore cannot read or overwrite another plugin's key by accident. `ini.c` knows
 nothing about what any key means; range checks, NaN handling and semantic validation belong to the
 plugin that owns the value.
 
-**Two file names.** It used to be `open_fellowship.ini`, and that name is still accepted when the
+**Two file names.** It used to be `fellowship_reborn.ini`, and that name is still accepted when the
 new one is absent, because renaming a configuration file otherwise reverts everybody who already
 had one to the built-in defaults, silently, with every key simply not being found. When both
 exist the new name wins outright and the old one is not read: a half-read configuration is harder
@@ -187,12 +187,12 @@ single hex escape `\x02a`, a different character, and an error under `/WX`.
 
 ## Logging
 
-Every module appends to `<game>\fix_enhancers.log`. The prefix is set once by `log_init` and
+Every module appends to `<game>\fellowship_reborn.log`. The prefix is set once by `log_init` and
 written in front of every line automatically, so a call site cannot forget it and two plugins
 cannot drift apart in how they spell their own name:
 
 ```
-[loader]      plugin hud_scaling.dll         loaded at 10000000, calling open_fellowship_install
+[loader]      plugin hud_scaling.dll         loaded at 10000000, calling fellowship_reborn_install
 [hud_scaling] WARNING: control_apply_scale did not match, HUD left alone
 ```
 
@@ -237,7 +237,7 @@ fact and not a heuristic, and it is answered once and remembered.
 A plugin exports exactly one function:
 
 ```c
-void open_fellowship_install(void);
+void fellowship_reborn_install(void);
 ```
 
 The loader calls it **after** `LoadLibrary` has returned, so it runs outside the loader lock with

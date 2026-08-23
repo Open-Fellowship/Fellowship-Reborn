@@ -8,7 +8,7 @@ It changes nothing about the game. It exists for two reasons:
    satisfies the loader contract.
 2. **It is the loader's own test.** When a real plugin does not appear to work, the first
    question is whether it was loaded at all. If this one's lines are in
-   `fix_enhancers.log`, the loader, the plugin folder, the entry-point export and the ini
+   `fellowship_reborn.log`, the loader, the plugin folder, the entry-point export and the ini
    reader are all working, and the fault is in the plugin.
 
 ## What it writes

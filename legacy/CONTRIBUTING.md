@@ -23,7 +23,7 @@ disk without a lookup table.
 
 ## What install time is, and is not
 
-The loader calls `open_fellowship_install` at the host executable's **entry point**: outside the
+The loader calls `fellowship_reborn_install` at the host executable's **entry point**: outside the
 loader lock, image fully mapped, before the CRT has run.
 
 * Patching `Fellowship.exe`, do it immediately.

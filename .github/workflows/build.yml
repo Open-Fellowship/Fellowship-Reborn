@@ -35,15 +35,15 @@ jobs:
           if ($plugins.Count -lt 20) {
               throw "expected at least 20 plugins, found $($plugins.Count)"
           }
-          if (-not (Test-Path "$dist/fix_enhancers.ini")) {
-              throw "fix_enhancers.ini was not staged into dist"
+          if (-not (Test-Path "$dist/fellowship_reborn.ini")) {
+              throw "fellowship_reborn.ini was not staged into dist"
           }
           "loader + $($plugins.Count) plugins + ini"
 
       - name: Upload the build
         uses: actions/upload-artifact@v4
         with:
-          name: OpenFellowship-win32
+          name: Fellowship Reborn-win32
           path: legacy/build/dist
           if-no-files-found: error
 

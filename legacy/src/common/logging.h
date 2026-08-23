@@ -1,6 +1,6 @@
 /* logging.h: one shared log file, one prefix per DLL.
  *
- * Every module appends to <game>\fix_enhancers.log. The prefix is set once by log_init() and
+ * Every module appends to <game>\fellowship_reborn.log. The prefix is set once by log_init() and
  * written automatically, so a call site cannot forget it. Each line is flushed, because the
  * interesting case is the one where the process dies immediately afterwards. See README.md.
  */

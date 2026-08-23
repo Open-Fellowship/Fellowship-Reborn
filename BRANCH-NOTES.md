@@ -39,7 +39,7 @@ The four registries are **generated from the retail image and verified field by 
 it** — 9,334 non-pointer fields, all identical, with pointer fields masked and then followed.
 `python decomp/tools/objdefgen.py --verify engine/objectdef` re-runs that.
 
-Every reimplemented system has an off switch in `open_fellowship_engine.ini` beside the DLL, so a
+Every reimplemented system has an off switch in `fellowship_reborn_engine.ini` beside the DLL, so a
 regression can be attributed in one sitting without a rebuild. That has already earned itself once,
 on a fault that turned out not to be ours (a missing `LevelList.txt`).
 

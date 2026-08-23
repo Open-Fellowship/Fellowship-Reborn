@@ -14,8 +14,8 @@ moving one file.
     Fellowship.exe
     Fellowship.rfl
     dinput8.dll               <- the loader
-    fix_enhancers.ini       <- configuration, optional
-    fix_enhancers.log       <- written at run time
+    fellowship_reborn.ini       <- configuration, optional
+    fellowship_reborn.log       <- written at run time
     plugins\
         template_plugin.dll
         ...
@@ -117,7 +117,7 @@ Each has its own README next to its source, with the measurement that justifies 
 | `src/common/` | host image geometry, logging, ini, memory, patch, trampoline, emit, module watch, camera, channel |
 | `src/loader/` | `dinput8.dll`. Loads `plugins\`, patches nothing itself. See its README |
 | `src/plugins/` | one directory per plugin |
-| `dist/` | `fix_enhancers.ini`, copied into the build output |
+| `dist/` | `fellowship_reborn.ini`, copied into the build output |
 
 `camera.c` earns its place by being the answer to a crash. Three plugins were written against the
 comment "`EXE_ACTIVE_CAMERA_PTR` is NULL outside a level", and on a second install it was neither

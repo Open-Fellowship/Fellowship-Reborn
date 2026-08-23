@@ -12,8 +12,8 @@
 #define OF_RETAIL_NAME   "Fellowship.orig.rfl"
 #define OF_RETAIL_SUFFIX ".orig.rfl"
 
-#define OF_ENGINE_LOG_NAME "open_fellowship_engine.log"
-#define OF_ENGINE_INI_NAME "open_fellowship_engine.ini"
+#define OF_ENGINE_LOG_NAME "fellowship_reborn_engine.log"
+#define OF_ENGINE_INI_NAME "fellowship_reborn_engine.ini"
 
 /* Every system this layer takes over is individually switchable, and that is not
  * a convenience - it is how a regression gets attributed.

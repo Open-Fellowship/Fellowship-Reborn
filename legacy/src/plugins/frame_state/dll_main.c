@@ -15,7 +15,7 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
     return TRUE;
 }
 
-OPEN_FELLOWSHIP_ENTRY
+FELLOWSHIP_REBORN_ENTRY
 {
     frame_state_install();
 }
