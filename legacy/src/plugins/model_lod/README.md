@@ -1,6 +1,6 @@
 # model_lod
 
-**Produces:** `model_lod.dll`. **Off by default.**
+**Produces:** `model_lod.dll`. **On by default.** Costs frame rate in crowded scenes.
 
 Pins every model to its finest level of detail by settling the two branches that step the LOD
 chain: `0x485B97` (`75 54` -> `90 90`) and `0x485C46` (`7A` -> `EB`).
@@ -17,4 +17,4 @@ never step back.
 
 | Key | Default | |
 |---|---|---|
-| `Enabled` | `0` | |
+| `Enabled` | `1` | |

@@ -1,6 +1,6 @@
 # field_of_view
 
-**Produces:** `field_of_view.dll`. **Off by default.**
+**Produces:** `field_of_view.dll`. **On by default.** Turn it off if you run the community patcher's own `CameraFieldOfView`.
 
 Holds the **vertical** field of view constant as the screen gets wider, so a 16:9 monitor shows
 more of the world horizontally rather than less of it vertically.
@@ -97,7 +97,7 @@ Set `Enabled=0`; nothing else depends on it.
 
 | Key | Default | |
 |---|---|---|
-| `Enabled` | `0` | |
+| `Enabled` | `1` | |
 | `VerticalFOV` | `0` | degrees. `0` = automatic: reproduce the 4:3-equivalent of whatever the game set |
 | `IntervalMs` | `400` | how often the value is re-applied |
 

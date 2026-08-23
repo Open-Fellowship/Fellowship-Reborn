@@ -155,7 +155,7 @@ void view_distance_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
+    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", true)) {
         log_info("Enabled=0, the engine keeps its own draw distances");
         return;
     }

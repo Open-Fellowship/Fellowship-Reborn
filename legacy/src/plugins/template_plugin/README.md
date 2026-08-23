@@ -30,5 +30,5 @@ A plugin that patches `Fellowship.rfl` must wait for the module to exist.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `Enabled` | `1` | `0` and the plugin returns without doing anything |
+| `Enabled` | `0` | `1` and it logs its greeting. A loader self-test, not a fix |
 | `Greeting` | `hello from plugins\` | Echoed to the log, so you can see the ini being read |

@@ -15,7 +15,7 @@ void template_plugin_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", true)) {
+    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
         log_info("Enabled=0, doing nothing");
         return;
     }

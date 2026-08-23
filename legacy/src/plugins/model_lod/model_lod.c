@@ -28,8 +28,9 @@ void model_lod_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    /* Off by default: it costs frame rate, and unlike edge_popin nothing is broken without it. */
-    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
+    /* On by default: the project ships an improved picture out of the box, and this is one of the
+     * cheapest parts of it. It does cost frame rate in crowded scenes, so it has a switch. */
+    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", true)) {
         log_info("Enabled=0, models keep the engine's own LOD stepping");
         return;
     }

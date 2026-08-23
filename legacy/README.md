@@ -85,9 +85,9 @@ The fixes already proven by that work are being ported into plugins here. Each p
 |---|---|---|---|
 | `edge_popin` | exe | **on** | the guard rect is a hard-coded 3072 px box, so 4K culls its own edges. The only genuine engine bug here |
 | `fog_toggle` | exe | **on** | F1 turns distance fog off and on while the game runs |
-| `view_distance` | exe | off | far plane, visibility cells, object fade, resource preload. Five switches, all costing frame rate |
-| `model_lod` | exe | off | pins models to their finest LOD |
-| `field_of_view` | exe | off | holds the *vertical* field of view constant as the screen widens |
+| `view_distance` | exe | **on** | far plane, visibility cells, object fade, resource preload. Five switches, all costing frame rate. The first thing to turn off if the frame rate will not hold |
+| `model_lod` | exe | **on** | pins models to their finest LOD. Costs frame rate in crowded scenes |
+| `field_of_view` | exe | **on** | holds the *vertical* field of view constant as the screen widens. Turn off if you run the community patcher's own FOV option |
 | `hud_scaling` | rfl | **on** | GUI sizes are authored in 640x480 pixels and never scale. Menu controls only; the in-game HUD is a different draw path, see its README |
 | `text_scaling` | rfl | **on** | all in-game text is drawn at a fixed pixel size. Seven hooks |
 | `inventory_icons` | rfl | off | only needed alongside a FOV mod that rewrites the focal numerator |
@@ -101,7 +101,7 @@ The fixes already proven by that work are being ported into plugins here. Each p
 | `level_select` | rfl | **on** | New Game opens the game's own level list, a finished screen nobody ever reaches. Finds its site by signature |
 | `hud_probe` | exe | off | a diagnostic, not a fix: records which code reads which authored value |
 | `dev_menu` | draws | **on** | an in-game overlay, toggled with the key under Escape. Hooks nothing until you press it |
-| `template_plugin` | nothing | **on** | the loader contract's own test |
+| `template_plugin` | nothing | off | the loader contract's own test |
 
 Each has its own README next to its source, with the measurement that justifies it.
 

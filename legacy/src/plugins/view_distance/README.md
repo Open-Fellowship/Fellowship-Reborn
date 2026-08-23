@@ -1,6 +1,6 @@
 # view_distance
 
-**Produces:** `view_distance.dll`. **Off by default.**
+**Produces:** `view_distance.dll`. **On by default.** The first thing to turn off if the frame rate will not hold.
 
 How far the engine bothers to draw, and when it starts fading things out. Five independent
 switches, none of them a bug fix: the 2002 defaults are correct for 2002 hardware, and every key
@@ -14,7 +14,7 @@ same paragraph.
 
 | Key | Default | |
 |---|---|---|
-| `Enabled` | `0` | master switch |
+| `Enabled` | `1` | master switch |
 | `FarPlane` | `1` | far clip plane effectively removed, in both the culling frustum and the software clipper |
 | `FadeIgnoresCap` | `1` | object fade no longer clamped to the visibility distance |
 | `VisibilityCells` | `120` | the engine's own value is `80`. One cell is 2048 units |
