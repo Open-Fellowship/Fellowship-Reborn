@@ -46,7 +46,7 @@ further out than the error it exists to absorb.
 
 **The schedule resyncs in both directions, and the second direction is not optional.**
 
-Behind is the obvious case. If the process is suspended, alt-tab, a level load, a debugger; the
+Behind is the obvious case. If the process is suspended by alt-tab, a level load or a debugger, the
 target ends up far in the past, and a limiter that just kept adding one period would run
 completely unthrottled for as many frames as it was behind, catching up on time that no longer
 exists. Four frames of lateness abandons the schedule and restarts it from now.

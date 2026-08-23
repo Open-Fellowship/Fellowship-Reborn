@@ -48,7 +48,7 @@ several of the findings the other four pillars rest on came out of building it.
 
 | Part | State |
 |---|---|
-| `legacy/` | **Working.** Loader plus 18 plugins, built and tested on a retail install at 3840x2160. Covers pillars 1, 2, 4 and 5. |
+| `legacy/` | **Working.** Loader plus 24 plugins, built and tested on a retail install at 3840x2160. Covers pillars 1, 2, 4 and 5. |
 | `architecture/` | Notes only. |
 | `engine/` | Experimental, on a branch. A drop-in `Fellowship.rfl` that forwards to the retail engine, with four of its static registries served from generated code. |
 | `editor/` | **Started.** The Blender extension (models, animation, levels, textures) lives here. Pillar 3. |
@@ -89,6 +89,8 @@ On by default:
 | `fog_toggle` | distance fog on and off while the game runs |
 | `dev_menu` | an in-game overlay: a live field-of-view slider, the game's own cheats as buttons, and the engine's own 124-entry developer flag menu that no shipping build reaches |
 | `level_select` | New Game opens the game's own level list, a finished screen that ships in every rfl and that nothing reaches. Two bytes, found by signature |
+
+| `movie_skip` | the opening movies go through a Windows Media runtime Wine only stubs, so under Proton the game waits behind a black screen for an end that never comes. Three bytes, and it goes straight on |
 
 Off by default, and documented in the ini: `view_distance`, `model_lod`,
 `field_of_view`, `inventory_icons`, `cd_check`, `windowed_res`, `hud_probe`.
