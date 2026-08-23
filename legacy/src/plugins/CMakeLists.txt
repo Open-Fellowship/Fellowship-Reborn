@@ -16,7 +16,7 @@ function(add_fellowship_plugin name)
     set_target_properties(${name} PROPERTIES
         PREFIX ""
         RUNTIME_OUTPUT_DIRECTORY ${OPEN_FELLOWSHIP_OUTPUT}/plugins
-        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${OPEN_FELLOWSHIP_OUTPUT}/plugins
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${OPEN_FELLOWSHIP_OUTPUT_DEBUG}/plugins
         RUNTIME_OUTPUT_DIRECTORY_RELEASE ${OPEN_FELLOWSHIP_OUTPUT}/plugins
     )
 endfunction()

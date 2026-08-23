@@ -41,6 +41,11 @@ endif()
 # executable, the fixes in plugins\.
 set(OPEN_FELLOWSHIP_OUTPUT ${CMAKE_BINARY_DIR}/dist)
 
+# Debug goes somewhere else entirely. Both configurations used to write here, so building
+# Debug after Release replaced every DLL with a build eight times the size and left 25 .pdb
+# files beside them, all of it looking exactly like something ready to copy into the game.
+set(OPEN_FELLOWSHIP_OUTPUT_DEBUG ${CMAKE_BINARY_DIR}/dist-debug)
+
 # The output directory is emptied at configure time, and that is a safety property rather than
 # tidiness. CMake never deletes the output of a target that has stopped existing, so after a
 # plugin is renamed or removed its old DLL simply stays in dist\plugins, gets installed alongside
