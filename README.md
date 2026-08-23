@@ -26,7 +26,7 @@ game was authored for 640x480 and a fixed timestep, and most of what looks
 broken at 4K is that assumption showing through, not anything rotten.
 
 **3. Modding.** Tools that let people build models, maps and sounds for this
-game without reverse engineering it first. The Blender extension in `editor/`
+game without reverse engineering it first. The Blender extension in `tools/`
 already reads geometry, animation, levels and textures, and writes them back.
 That is also why the object model is documented and not merely used: 397
 classes and 4,262 properties with the developers' own names on them is a modding
@@ -53,7 +53,7 @@ several of the findings the other four pillars rest on came out of building it.
 | `documentation/` | The toolchain, the matching method, the object model, and the ordinal map. |
 | `architecture/` | Notes only. |
 | `engine/` | **Experimental.** A drop-in `Fellowship.rfl` that forwards to the retail engine, with four of its static registries served from generated code. Runs the retail game. |
-| `editor/` | **Started.** The Blender extension (models, animation, levels, textures) lives here. Pillar 3. |
+| `tools/` | **Started.** The Blender extension (models, animation, levels, textures) lives here. Pillar 3. |
 | `installer/` | Not started. |
 
 ## What `legacy/` is
@@ -74,7 +74,7 @@ Against the five pillars: `black_screen`, `edge_popin` and `level_select` are **
 `hud_scaling`, `text_scaling`, `resolution_unlock`, `game_speed`, `fps_limit`, `windowed_res`,
 `field_of_view`, `model_lod` and `view_distance` are **2**; `level_select` and `dev_menu`'s engine
 flag page reach content that shipped and nothing else can, which is **4**; `dev_menu` and
-`fog_toggle` are **5**. Pillar **3** is not served by any plugin; it lives in `editor/`, because
+`fog_toggle` are **5**. Pillar **3** is not served by any plugin; it lives in `tools/`, because
 modding is a tooling problem, not a runtime one.
 
 On by default:
