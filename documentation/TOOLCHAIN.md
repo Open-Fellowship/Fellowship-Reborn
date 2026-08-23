@@ -155,7 +155,7 @@ offset coincide, so no translation is needed:
 | 50 | `D3DFMT_L8` | already through the file patcher |
 
 That is cheaper and more certain than a hash comparison against an unknown copy, and it is the
-first thing to check on any exe offered as a reference. `legacy/src/plugins/black_screen/README.md`
+first thing to check on any exe offered as a reference. `runtime/src/plugins/black_screen/README.md`
 is where the site comes from.
 
 Measured across the copies on the development machine:
@@ -171,7 +171,7 @@ Measured across the copies on the development machine:
 by 349 bytes. The patched one carries seven `e9 xx xx xx xx` + `90` detours in `.text` — at
 `0x10063ca0`, `0x10064779`, `0x100648b2`, `0x100648c8`, `0x10064917`, `0x10064a0b`, `0x10064b2a`
 and `0x100789a7` — jumping into stubs written at `0x100ec140`-`0x100ec32d`, which the pristine
-copy leaves as zeros. That is the zero-slack technique `legacy/README.md` describes, so the
+copy leaves as zeros. That is the zero-slack technique `runtime/README.md` describes, so the
 direction is never ambiguous: **real code becoming `e9 …` + NOP padding is the patch**, and a
 zeroed slack region is the pristine state. Hash against the reference above instead of guessing.
 

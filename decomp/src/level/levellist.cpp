@@ -1,7 +1,7 @@
 // levellist.cpp - Fellowship.rfl, the machinery behind LevelList.txt.
 //
 // LevelList.txt sits next to Fellowship.exe, one level path per line, and fills
-// the level-selection screen that `legacy/src/plugins/level_select` reopens.
+// the level-selection screen that `runtime/src/plugins/level_select` reopens.
 // The reader is at 0x10072c20; these are the two helpers it leans on.
 //
 // Both carry real relocations, which the earlier maths classes did not: string

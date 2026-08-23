@@ -1,4 +1,4 @@
-# Contributing to legacy
+# Contributing to runtime
 
 ## A plugin is one behaviour
 

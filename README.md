@@ -48,7 +48,7 @@ several of the findings the other four pillars rest on came out of building it.
 
 | Part | State |
 |---|---|
-| `legacy/` | **Working.** Loader plus 24 plugins, built and tested on a retail install at 3840x2160. Covers pillars 1, 2, 4 and 5. |
+| `runtime/` | **Working.** Loader plus 24 plugins, built and tested on a retail install at 3840x2160. Covers pillars 1, 2, 4 and 5. |
 | `decomp/` | **Started.** Toolchain identified and reproduced; 58 functions match byte for byte. The object model is fully decoded. |
 | `documentation/` | The toolchain, the matching method, the object model, and the ordinal map. |
 | `architecture/` | Notes only. |
@@ -56,7 +56,7 @@ several of the findings the other four pillars rest on came out of building it.
 | `tools/` | **Started.** The Blender extension (models, animation, levels, textures) lives here. Pillar 3. |
 | `installer/` | Not started. |
 
-## What `legacy/` is
+## What `runtime/` is
 
 The retail game, running as it always did, with a loader beside it and one DLL
 per independent fix in `plugins\`. Nothing is decompiled and nothing is
@@ -103,7 +103,7 @@ The in-game HUD (health bar, ring, the small circle) is authored in pixels for
 640x480 and stays that size at any resolution. It is a different draw path from
 the menus and `hud_scaling` cannot reach it. Two approaches have been tried and
 disproved; the write-up, with the disassembly that killed each one, is in
-`legacy/src/plugins/hud_scaling/HUD-FINDING.md`.
+`runtime/src/plugins/hud_scaling/HUD-FINDING.md`.
 
 ## House rules
 
@@ -125,10 +125,10 @@ spending an evening rediscovering something and reading one page.
 
 ## Building
 
-32-bit only, MSVC only. See `legacy/README.md` for why.
+32-bit only, MSVC only. See `runtime/README.md` for why.
 
 ```
-cd legacy
+cd runtime
 cmake -S . -B build -A Win32
 cmake --build build --config Release
 ```
@@ -136,7 +136,7 @@ cmake --build build --config Release
 Verified clean on MSVC 19.38 (VS2022) and 19.50 (VS2026) under `/W4 /WX`. `-A Win32` on its own
 takes the newest Visual Studio installed; pin an older one with `-G "Visual Studio 17 2022"`.
 Plugins in installs predating this note were built with MinGW GCC 13, under which the strict flags
-never applied; `legacy/README.md` says what that hid and why it cannot recur.
+never applied; `runtime/README.md` says what that hid and why it cannot recur.
 
 Everything lands in `build\dist\`, laid out as it installs. Copy
 `dinput8.dll`, `fellowship_reborn.ini` and `plugins\` next to `Fellowship.exe`.
@@ -148,7 +148,7 @@ To uninstall, delete `dinput8.dll`.
 `Fellowship.rfl` is a **PE32 DLL** despite the extension, ImageBase `0x10000000`.
 
 The engine is 32-bit and every offset in this tree assumes it.
-`legacy/src/common/engine_types.h` asserts it at compile time.
+`runtime/src/common/engine_types.h` asserts it at compile time.
 
 Both were built by **Visual C++ 6.0 with the Processor Pack**, linker 6.00, `/MD`, no `/GS`,
 optimised `/O2 /Gy /GX`. `documentation/TOOLCHAIN.md` has the Rich-header measurement behind that,

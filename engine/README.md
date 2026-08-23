@@ -41,7 +41,7 @@ Not starting from nothing, which is why the estimate is years rather than a deca
   reimplementation rather than being discarded.
 * **The data formats**, from the Blender importer: SRSC archives, models, textures, skeletons,
   animations, terrain and object placements.
-* **Working hook infrastructure** in `legacy/` — a loader and 17 plugins that already patch the
+* **Working hook infrastructure** in `runtime/`, a loader and 24 plugins that already patch the
   retail engine in place.
 
 ## Layout
@@ -52,9 +52,9 @@ Modules are added beside `proxy/` as subsystems come across, named for what they
 for where they sit in the retail image. Add one when there is something to put in it, not in
 anticipation.
 
-## Relationship to legacy/
+## Relationship to runtime/
 
-`legacy/` patches the retail engine from outside and is what makes the game playable today. This
+`runtime/` patches the retail engine from outside and is what makes the game playable today. This
 layer replaces the engine from inside. They are independent by design — nothing here links against
-`legacy/`'s shared library — because the two have opposite lifetimes: `legacy/` becomes unnecessary
+`runtime/`'s shared library — because the two have opposite lifetimes: `runtime/` becomes unnecessary
 exactly as this layer becomes complete.

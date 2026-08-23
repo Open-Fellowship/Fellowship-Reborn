@@ -1,6 +1,6 @@
 # Where the plugins patch, and what those functions are
 
-Every address `legacy/` writes to, mapped to the function that contains it.
+Every address `runtime/` writes to, mapped to the function that contains it.
 
 This exists because the two halves of the project answer different questions about the same
 bytes. A plugin proves what a site *does* - `black_screen` shows that the dword at `0x0043D2BC`

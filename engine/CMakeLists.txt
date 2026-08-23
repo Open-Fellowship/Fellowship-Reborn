@@ -1,12 +1,12 @@
 # OpenFellowship, engine layer: replacing the retail Riot Engine module.
 #
-# Separate from legacy/ on purpose. legacy/ patches the retail engine from
+# Separate from runtime/ on purpose. runtime/ patches the retail engine from
 # outside and shares a static library between its plugins; this layer replaces
 # the engine module itself and must not depend on any of that, because the two
-# have different lifetimes - legacy/ becomes unnecessary exactly as this layer
+# have different lifetimes: runtime/ becomes unnecessary exactly as this layer
 # becomes complete.
 #
-# 32 BIT ONLY, for the same reason as legacy/: the retail module is a 32-bit DLL
+# 32 BIT ONLY, for the same reason as runtime/: the retail module is a 32-bit DLL
 # and this one loads it into the same process. Configure with -A Win32.
 
 cmake_minimum_required(VERSION 3.15)

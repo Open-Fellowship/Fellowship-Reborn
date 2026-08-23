@@ -1,7 +1,7 @@
 # Branch notes: `experimental/engine-layer`
 
 **This branch is a snapshot, not a proposal.** It exists so the work is not sitting on one
-machine. Nothing here is asking to be merged, and the main line of the project — `legacy/`,
+machine. Nothing here is asking to be merged, and the main line of the project — `runtime/`,
 patching the retail engine from outside — is unaffected by all of it.
 
 Read this before reading anything else in `decomp/` or `engine/`. The individual documents are
@@ -127,7 +127,7 @@ Two things that will waste your time if you do not know them:
 
 ## What was not touched
 
-`legacy/` is unchanged except for one thing. `module_watch.c` now resolves the engine module as
+`runtime/` is unchanged except for one thing. `module_watch.c` now resolves the engine module as
 `Fellowship.orig.rfl` if it exists and `Fellowship.rfl` otherwise, so plugins find the real engine
 whether or not the proxy is installed. Without it, installing the proxy silently broke every plugin
 that hooks the rfl — `text_scaling` went from seven hooks to zero.
