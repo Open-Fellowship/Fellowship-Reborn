@@ -1,9 +1,8 @@
-/* memory.h: range checks and page protection, so no plugin has to call VirtualProtect itself.
+/* memory.h: range checks and page protection, so no plugin calls VirtualProtect itself.
  *
- * The rule these functions exist to enforce: validate the COMPLETE range you are about to touch.
- * Checking only the first address is not enough when reading a structure or an array. An engine
- * table can start in committed memory and end past the last committed page, and the read that
- * finds out is the one that kills the process.
+ * VALIDATE THE COMPLETE RANGE you are about to touch. Checking only the first address is not
+ * enough for a structure or an array: an engine table can start in committed memory and end past
+ * the last committed page, and the read that finds out is the one that kills the process.
  */
 #ifndef COMMON_MEMORY_H
 #define COMMON_MEMORY_H

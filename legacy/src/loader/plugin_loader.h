@@ -1,20 +1,13 @@
 /* plugin_loader.h: load every DLL in <game>\plugins and give each one its entry point.
  *
- * The loader is a jumping-off point and nothing else. It knows no engine addresses, patches no
- * bytes and has no opinion about what a plugin does. It:
+ * The loader knows no engine addresses, patches no bytes and has no opinion about what a plugin
+ * does. It enumerates in sorted order, LoadLibrary's each one, calls open_fellowship_install if
+ * present, and writes a line per plugin. A DLL without that export is loaded anyway and noted.
  *
- *   1. enumerates <game>\<PluginDirectory>\*.dll in sorted order, so the sequence is
- *      reproducible rather than dependent on the file system;
- *   2. LoadLibrary's each one;
- *   3. calls its `open_fellowship_install` export if it has one;
- *   4. writes one line per plugin to the shared log.
- *
- * A DLL without that export is loaded anyway and noted as such: an ordinary third-party DLL is a
- * legitimate thing to want in there.
- *
- * Order does not encode dependencies. Plugins are independent by construction: none calls into
- * another, and where two of them detour the same engine function, common/detour.c chains them so
- * the result is the same whichever loaded first.
+ * ORDER ENCODES NO DEPENDENCIES, and there is NO HOOK CHAINING MECHANISM. Where two plugins hook
+ * the same Direct3D vtable slot they chain by convention only: each saves the pointer it found
+ * and calls through it, so load order decides which runs first and nothing enforces that they
+ * agree. See README.md.
  */
 #ifndef LOADER_PLUGIN_LOADER_H
 #define LOADER_PLUGIN_LOADER_H

@@ -18,65 +18,22 @@
 
 #define PLUGIN_SECTION "hud_scaling"
 
-/* The control's pixels-per-unit, read from authored property 0x1C and stored raw:
- *
- *   rfl+789A7   fld  dword ptr [eax]          the authored value, 3.0 for the slider
- *   rfl+789A9   fstp dword ptr [esi+0x9C]     stored with no resolution term at all
- *
- * Eight bytes, which is three more than a branch needs, so the pair is relocated whole.
- *
- * WIDTH, not height: this factor governs a horizontal extent. Text is the opposite case and
- * scales by height, which is why text_scaling is a separate plugin with a separate reference -
- * two different references is correct here, not an inconsistency. */
+/* The control's pixels-per-unit, authored property 0x1C, stored raw at +0x9C with no
+ * resolution term. Eight bytes relocated whole, three more than a branch needs. See README.md. */
 #define HUD_HOOK_RVA   0x789A7u
 #define HUD_RETURN_RVA 0x789AFu
 #define HUD_HOOK_SIZE  8u
 
-/* THE OTHER HALF OF THE SAME DECISION - INVESTIGATED, MEASURED, NOT APPLIED
+/* TWO THINGS MEASURED AND DELIBERATELY NOT DONE. Both look like the obvious next fix.
  *
- * rfl+78950 sets a control's two scalars, and it has two ways of doing it:
+ * 1. rfl+789BB, the untemplated branch that sets pixels-per-unit to exactly 1. Hooking it was
+ *    written, shipped and measured, and IT CHANGED NOTHING: the in-game HUD is sized in fixed
+ *    texels on a different draw path this plugin cannot reach.
+ * 2. +0x98, which sits beside +0x9C and reads as the companion fix. Its one reader multiplies it
+ *    by frame time, so it is an APPROACH RATE, not a size. Scaling it would make every animated
+ *    control snap faster at 4K.
  *
- *     edi = get_template(this)
- *     if (edi) {                                  <- rfl+78987
- *         this->[0x98] = property 0x1B
- *         this->[0x9C] = property 0x1C            <- rfl+789A7, the hook below
- *     } else {                                    <- rfl+789B1
- *         this->[0x98] = 5.0f
- *         this->[0x9C] = 1.0f                     <- rfl+789BB
- *     }
- *
- * A control built without a template gets a pixels-per-unit of exactly 1, which never changed
- * with the resolution - so that branch looked like the reason the in-game HUD stayed small while
- * the templated slider scaled. A second hook at rfl+789BB was written, shipped and measured.
- *
- * IT CHANGED NOTHING. From the screenshots, against a 640x480 baseline:
- *
- *     health bar width      104 -> 598 px     x5.75      but it is natively a percentage of
- *     health bar height       6 ->   6 px     x1.00      the width: 16.3% at 640, 15.6% at 4K
- *     circle width           30 ->  29 px     x1.00
- *     circle height          29 ->  31 px     x1.00
- *
- * The circle is the same size in PIXELS at both resolutions, so it never passes through a
- * control's pixels-per-unit at all and nothing this plugin does can reach it. The in-game HUD is
- * positioned by percentage and sized in fixed texels - the same shape of bug as the inventory
- * cell art in _FixEnhancers/docs/12, and a different draw path from this one.
- *
- * So the hook came back out. The finding is kept here because the branch IS unscaled and someone
- * will find it again; what is written down with it is that fixing it does not fix the HUD.
- *
- * AND +0x98 IS A RATE, NOT A SIZE. It sits beside +0x9C, comes from the adjacent authored
- * property, and is set by the same function in the same two branches, so it reads as the obvious
- * companion fix. Its one reader says otherwise:
- *
- *     rfl+78BD7   fld   [this+0xA4]          target
- *                 fsub  [this+0xA8]          - current
- *                 fld   [frame_time]
- *     rfl+78BEB   fmul  [this+0x98]          * THIS
- *                 fmul  st(1)                * the difference
- *
- * Frame time multiplied by a difference is an approach rate, and 5.0 is a sensible one. Scaling
- * it by 6 at 4K would make every animated control snap six times faster, and nothing about that
- * symptom would look like a size bug. */
+ * The measurements are in README.md and HUD-FINDING.md. Read them before touching either. */
 
 static const uint8_t hud_hook_expected[HUD_HOOK_SIZE] = {
     0xD9, 0x00,                          /* fld  dword ptr [eax]      */
@@ -85,31 +42,15 @@ static const uint8_t hud_hook_expected[HUD_HOOK_SIZE] = {
 
 static int32_t g_reference_width = 640;
 
-/* OUR POINTER TO THE CAMERA, NOT THE ENGINE'S
+/* THE STUB READS THROUGH OUR POINTER, NEVER THE ENGINE'S CAMERA GLOBAL. That global is not
+ * always NULL-or-a-camera, and dereferencing garbage from a stub is an access violation with
+ * nothing to catch it.
  *
- * The stub reads the viewport width at the moment it runs, which is what the working version
- * did. Sampling it onto a timer instead was tried, in this plugin and in text_scaling, and it is
- * wrong for a specific reason: the pause menu renders the world into a sub-rectangle and the
- * camera's viewport IS that rectangle while the menu is drawn, so a value sampled a quarter of a
- * second earlier is a different number from the one the engine is using.
- *
- * What must not come back is the version that read the ENGINE's camera global. That global is
- * not always NULL-or-a-camera: a crash log from a second install reported a horizontal field of
- * view of 180.000 degrees through it, which only happens when the floats behind it are garbage,
- * and dereferencing that from a stub is an access violation with nothing to catch it.
- *
- * So the stub dereferences THIS. It is our variable. It is zero until a camera has passed every
- * check in camera_read(), it returns to zero the moment one stops passing, and a stub that finds
- * zero falls through unscaled - which is also the right answer at the menus, where a GUI built
- * with a divide-by-nothing would be a crash on the title screen. */
+ * Do not sample the width onto a timer either: the pause menu renders the world into a
+ * sub-rectangle and the viewport IS that rectangle while the menu is drawn. A stub that finds
+ * zero falls through unscaled, which is also the right answer at the menus. See README.md. */
 static volatile uintptr_t g_camera;
 
-/* push ebx / ebx = our validated camera / if none, fall through unscaled
- *     fld [eax] ; st0 *= viewportWidth / reference
- *   plain:
- *     fld [eax]
- *   done:
- *     pop ebx ; fstp [esi+0x9C] ; jmp back */
 static void *build_stub(uintptr_t stub_address, uintptr_t return_address)
 {
     uint8_t buffer[64];
@@ -165,7 +106,7 @@ static void on_rfl_loaded(uintptr_t rfl_base)
     patch_result_t result;
 
     if (!patch_validate_bytes(hook, hud_hook_expected, HUD_HOOK_SIZE)) {
-        log_error("rfl+%X does not hold the expected fld/fstp pair - not installing",
+        log_error("rfl+%X does not hold the expected fld/fstp pair, not installing",
                   HUD_HOOK_RVA);
         return;
     }
@@ -176,7 +117,7 @@ static void on_rfl_loaded(uintptr_t rfl_base)
         return;
     }
     if (build_stub(stub_address, rfl_site(rfl_base, HUD_RETURN_RVA)) == NULL) {
-        log_error("the stub did not fit its buffer - not installing");
+        log_error("the stub did not fit its buffer, not installing");
         return;
     }
 
@@ -213,7 +154,7 @@ void hud_scaling_install(void)
     /* Started before the hook exists, so the slot is already populated by the time the first
      * GUI is built. Until then it is zero and the HUD is drawn stock. */
     if (!camera_track(250, &g_camera, on_camera)) {
-        log_error("could not start the camera watch - the HUD would never be scaled");
+        log_error("could not start the camera watch; the HUD would never be scaled");
         return;
     }
 

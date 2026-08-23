@@ -1,22 +1,10 @@
 /* d3d8_min.h: as much of IDirect3DDevice8 as this plugin calls, and not one method more.
  *
- * WHY THIS FILE EXISTS RATHER THAN #include <d3d8.h>
+ * DO NOT REPLACE THIS WITH #include <d3d8.h>. That header shipped with the old DirectX SDK and
+ * is not in the modern Windows SDK, so a clean machine would not find it. The methods used here
+ * are declared by vtable index instead, which is what a COM call is anyway.
  *
- * `d3d8.h` shipped with the old DirectX SDK and is NOT in the modern Windows SDK, so a build of
- * this project on a clean machine would not find it. Rather than make everyone install a
- * twenty-year-old SDK to compile a dev menu, the handful of methods used here are declared by
- * their vtable index, which is what a COM call is anyway.
- *
- * The indices are not taken on faith. The executable itself calls three of them through the same
- * object, and the offsets it uses pin the whole table:
- *
- *     0047BDE3   mov  eax,[ecx+0x166]        the device, from the renderer at 0x54743C
- *     0047BDEC   call dword ptr [edx+0x8c]   0x8C / 4 = 35 = EndScene
- *                call dword ptr [edx+0x88]   0x88 / 4 = 34 = BeginScene
- *                call dword ptr [edx+0x3c]   0x3C / 4 = 15 = Present
- *
- * Three independent hits on the published IDirect3DDevice8 ordering, at three different indices.
- * Nothing else numbers its methods that way.
+ * The indices are pinned by the executable's own calls at 0x0047BDE3. See README.md.
  */
 #ifndef DEV_MENU_D3D8_MIN_H
 #define DEV_MENU_D3D8_MIN_H

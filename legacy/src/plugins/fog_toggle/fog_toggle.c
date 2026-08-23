@@ -14,13 +14,6 @@
 
 #define PLUGIN_SECTION "fog_toggle"
 
-/* SetFogEnable's first two instructions. Ten bytes, which is more than the five a branch needs,
- * so they are relocated into the stub whole and nothing is left half-overwritten.
- *
- *   0x48BEF0   8B 81 66 01 00 00    mov eax,[ecx+0x166]
- *   0x48BEF6   8B 54 24 04          mov edx,[esp+4]      <- the BOOL the engine passed
- *   0x48BEFA   ...                  first instruction the stub jumps back to
- */
 #define FOG_HOOK_VA   0x0048BEF0u
 #define FOG_RETURN_VA 0x0048BEFAu
 #define FOG_HOOK_SIZE 10u
@@ -51,25 +44,6 @@ static void __cdecl fog_poll(void)
     }
 }
 
-/* The stub, thirty-five bytes:
- *
- *     60                    pushad
- *     9C                    pushfd
- *     E8 rel32              call fog_poll
- *     9D                    popfd
- *     61                    popad
- *     8B 81 66 01 00 00     mov eax,[ecx+0x166]     relocated
- *     8B 54 24 04           mov edx,[esp+4]         relocated
- *     80 3D &flag 00        cmp byte ptr [flag],0
- *     75 02                 jne keep
- *     31 D2                 xor edx,edx             fog off: the argument becomes FALSE
- *   keep:
- *     E9 rel32              jmp 0x48BEFA
- *
- * pushad alone would not do: fog_poll returns with the flags set by whatever it did last, and
- * the relocated instructions are followed by our own cmp/jne. pushfd/popfd keeps the two
- * separate. The stack is back to the engine's own esp before `mov edx,[esp+4]` executes, which
- * is what makes reading the argument at +4 still correct. */
 static void *build_stub(uintptr_t return_address)
 {
     uint8_t *stub;
@@ -144,7 +118,7 @@ void fog_toggle_install(void)
     ini_read_string(PLUGIN_SECTION, "Key", "F1", key_name, sizeof(key_name));
     g_toggle_key = resolve_key(key_name);
     if (g_toggle_key == 0) {
-        log_error("Key=%s is not one of F1 F2 F3 F4 - not installing. The game binds F5 to F12 "
+        log_error("Key=%s is not one of F1 F2 F3 F4, not installing. The game binds F5 to F12 "
                   "to its own cheats, which is why the choice is narrow.", key_name);
         return;
     }
@@ -153,7 +127,7 @@ void fog_toggle_install(void)
 
     hook = exe_site(FOG_HOOK_VA);
     if (!patch_validate_bytes(hook, fog_hook_expected, FOG_HOOK_SIZE)) {
-        log_error("%08X does not hold SetFogEnable's prologue - not installing", (unsigned)hook);
+        log_error("%08X does not hold SetFogEnable's prologue, not installing", (unsigned)hook);
         return;
     }
 

@@ -52,24 +52,10 @@ static void __cdecl restore_and_load(void)
     plugin_loader_run_once();
 }
 
-/* ---------------------------------------------------------------------------------------------
- * The stub the entry point is redirected to.
- *
- * It must preserve every register and every flag, because it runs in place of the first
- * instruction of a program that has not started yet and has made no promises about what is live.
- *
- * Six instructions, fifteen bytes:
- *
- *     60              pushad
- *     9C              pushfd
- *     E8 rel32        call restore_and_load
- *     9D              popfd
- *     61              popad
- *     FF 25 imm32     jmp dword ptr [trigger_state.entry_point]
- *
- * The final branch is INDIRECT, through the saved address rather than relative to here, so it
- * stays correct however the linker places this function.
- * ------------------------------------------------------------------------------------------- */
+/* The stub the entry point is redirected to. It MUST preserve every register and every flag: it
+ * runs in place of the first instruction of a program that has not started and has promised
+ * nothing about what is live. The final branch is INDIRECT, through the saved address, so it
+ * stays correct however the linker places this function. See README.md. */
 static void __declspec(naked) entry_point_stub(void)
 {
     __asm {
@@ -128,7 +114,7 @@ bool early_trigger_arm(void)
     memcpy(trigger_state.original_bytes, (const void *)trigger_state.entry_point,
            sizeof(trigger_state.original_bytes));
 
-    /* Somebody else has already redirected the entry point - FellowshipPatcher, an ASI loader,
+    /* Somebody else has already redirected the entry point, FellowshipPatcher, an ASI loader,
      * a debugger's launch hook. Chaining onto that would mean guessing what they intend to do
      * with it; the DirectInput8Create fallback is the honest answer instead. */
     if (trigger_state.original_bytes[0] == JMP_REL32_OPCODE) {

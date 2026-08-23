@@ -40,13 +40,13 @@ circulation for years, and it is what this plugin does at run time instead, so n
 modified.
 
 `LevelList.txt` is the other half and always has been. It ships with the game, one level path per
-line, and the FixEnhancers readme documents renaming entries in it to get the proper level names
-to appear "in the menu level list". That list is this screen. Without a readable file the engine
-prints its error and no screen is created, patch or no patch.
+line, and renaming its entries is how the proper level names come to appear in the menu list.
+That list is this screen. Without a readable file the engine prints its error and no screen is
+created, patch or no patch.
 
 ## This one scans
 
-`engine_sites.h` says signature scanning is the upgrade path, worth doing once there is a second
+`engine_sites.h` says signature scanning is the upgrade path, to be done once there is a second
 build to be right about. There is now:
 
 | Fellowship.rfl | size | the branch |
@@ -63,20 +63,20 @@ unrelated. So the plugin searches the rfl's code section for
 ```
 
 and requires **exactly one** match before writing. Two matches means the sequence identifies
-nothing and it refuses; the search covers every byte rather than stopping at the first hit, which
+nothing and it refuses; the search covers every byte and does not stop at the first hit, which
 is the only way to know that.
 
-If no stock match is found it asks the second question rather than giving up: does this copy
+If no stock match is found it asks the second question instead of giving up: does this copy
 already carry the edit? A rfl that has been through the old file patcher, or that came out of a
 release which shipped an edited one, answers yes, and the log says so plainly instead of claiming
 a fix it did not make.
 
 ```
-[level_select] rfl+75FB4 already carries the edit - nothing to do on this copy
+[level_select] rfl+75FB4 already carries the edit, nothing to do on this copy
 [level_select] rfl+75B84  je -> nop/jmp: New Game now opens the level list
 ```
 
-## What this is not
+## What this does not do
 
 `Fellowship.dll` v0.92e has an `EnableMapSelection` key in `Fellowship.ini` and it does nothing
 at all. The DLL reads it into a global at `+0x7240` and never reads that global again: one

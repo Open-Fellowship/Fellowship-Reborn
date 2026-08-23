@@ -1,12 +1,11 @@
-/* game_speed.h: the simulation's fixed timestep, which is too coarse at modern frame rates.
+/* game_speed.h: the floor the engine puts under a frame delta.
  *
- * Ported from the community patcher ([Options] FixGameSpeedTiedToFPS). It is one constant:
+ * Ported from the community patcher ([Options] FixGameSpeedTiedToFPS). One constant at
+ * 0x51C764, 0.002 becoming 0.0001. It is NOT a fixed timestep; this engine has none. It is the
+ * lower clamp on the measured frame delta, and lowering it stops the engine inventing time it
+ * did not spend.
  *
- *     0x51C764   0.002   ->   0.0001
- *
- * A twentyfold finer step. The name the patcher gives it is the symptom rather than the cause -
- * with a step this coarse relative to the frame time, how much simulation happens per frame
- * depends on the frame rate, so the game runs at a different speed on different hardware.
+ * frame_timing removes the cause this treats. Both are useful, and README.md says why.
  */
 #ifndef GAME_SPEED_H
 #define GAME_SPEED_H

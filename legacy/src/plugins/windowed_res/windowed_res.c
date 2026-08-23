@@ -13,11 +13,6 @@
 
 #define PLUGIN_SECTION "windowed_res"
 
-/*   0x4BC49E   C7 05 74 5C 56 00 80 02 00 00   mov dword [0x565C74], 0x280   default width  640
- *   0x4BC4A8   C7 05 78 5C 56 00 E0 01 00 00   mov dword [0x565C78], 0x1E0   default height 480
- *   0x4BC5A1   83 FF 24                        cmp edi, 0x24    mode-list limit, 36 -> 12
- *   0x4BC4FF   the je resolution_unlock made unconditional, put back
- */
 #define WIDTH_IMMEDIATE_VA  0x004BC4A5u
 #define HEIGHT_IMMEDIATE_VA 0x004BC4AFu
 #define LIST_LIMIT_VA       0x004BC5A3u
@@ -46,7 +41,7 @@ void windowed_res_install(void)
     width  = ini_read_int(PLUGIN_SECTION, "Width", 640);
     height = ini_read_int(PLUGIN_SECTION, "Height", 480);
     if (width < 640 || height < 480 || width > 16384 || height > 16384) {
-        log_error("Width=%ld Height=%ld is outside 640x480 .. 16384x16384 - not installing. "
+        log_error("Width=%ld Height=%ld is outside 640x480 .. 16384x16384, not installing. "
                   "The engine rejects anything under 640x480 a few instructions later anyway.",
                   (long)width, (long)height);
         return;
@@ -75,7 +70,7 @@ void windowed_res_install(void)
     address = exe_site(MODE_BRANCH_VA);
     if (patch_validate_bytes(address, branch_unlocked, sizeof(branch_unlocked))) {
         log_warning("%08X was unlocked by resolution_unlock; putting the original branch back. "
-                    "These two plugins want opposite things here - run one or the other.",
+                    "These two plugins want opposite things here, run one or the other.",
                     (unsigned)address);
         patch_write_bytes(address, branch_original, sizeof(branch_original));
     }

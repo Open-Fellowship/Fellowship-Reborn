@@ -16,7 +16,7 @@ void template_plugin_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", true)) {
+    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
         log_info("Enabled=0, doing nothing");
         return;
     }
@@ -38,7 +38,8 @@ void template_plugin_install(void)
      * catches out everybody who tries to patch the rfl from here and cannot work out why the
      * pattern never matches. */
     if (GetModuleHandleA(fellowship_rfl_module_name()) == NULL) {
-        log_info("  %s not loaded yet - as expected at entry-point time", fellowship_rfl_module_name());
+        log_info("  %s not loaded yet, as expected at entry-point time",
+                 fellowship_rfl_module_name());
     } else {
         log_info("  %s already at %08X", fellowship_rfl_module_name(),
                  (unsigned)(uintptr_t)GetModuleHandleA(fellowship_rfl_module_name()));

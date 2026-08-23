@@ -2,7 +2,6 @@
 
 #include "common/engine_sites.h"
 #include "common/host_image.h"
-#include "common/ini.h"
 #include "common/logging.h"
 #include "common/memory.h"
 #include "common/patch.h"
@@ -37,10 +36,9 @@ void black_screen_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", true)) {
-        log_info("Enabled=0, doing nothing");
-        return;
-    }
+    /* No Enabled key, and do not add one: leaving it off on an NVIDIA card is a black screen
+     * at load with no clue as to why, and the two checks below already cover everything a
+     * switch would. See README.md. */
     if (!host_image_resolve()) {
         log_error("the host image could not be resolved; refusing to touch anything");
         return;
@@ -50,7 +48,7 @@ void black_screen_install(void)
     immediate_site = exe_site(IMMEDIATE_VA);
 
     if (!patch_validate_bytes(signature_site, signature, sizeof(signature))) {
-        log_error("%08X is not the 8-bit branch of the format mapper on this build - "
+        log_error("%08X is not the 8-bit branch of the format mapper on this build, "
                   "refusing to write", (unsigned)SIGNATURE_VA);
         return;
     }
@@ -63,7 +61,7 @@ void black_screen_install(void)
         /* The expected outcome on the build this project targets, and the reason this plugin is
          * a guard rather than a fix. Said plainly, so that nobody reading a log concludes their
          * black screen was dealt with here when it was not. */
-        log_info("%08X already answers D3DFMT_L8 (50) for 8-bit - nothing to do on this copy",
+        log_info("%08X already answers D3DFMT_L8 (50) for 8-bit, nothing to do on this copy",
                  (unsigned)IMMEDIATE_VA);
         log_info("  either a file patcher has been here before, or this executable shipped that "
                  "way. Nothing is wrong; a pristine copy holds 41 and gets corrected above.");
@@ -72,7 +70,7 @@ void black_screen_install(void)
 
     if (format != D3DFMT_P8) {
         log_warning("%08X answers %lu for 8-bit, which is neither D3DFMT_P8 (41) nor "
-                    "D3DFMT_L8 (50). Leaving it alone - an unrecognised value is more likely a "
+                    "D3DFMT_L8 (50). Leaving it alone; an unrecognised value is more likely a "
                     "different build than a bug this plugin understands.",
                     (unsigned)IMMEDIATE_VA, (unsigned long)format);
         return;

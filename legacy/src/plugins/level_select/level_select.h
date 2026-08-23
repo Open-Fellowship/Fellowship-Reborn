@@ -1,11 +1,10 @@
 /* level_select.h: New Game opens the developers' level list.
  *
- * A port of the community rfl edit, which is two bytes. The screen it reaches is the game's own,
- * finished and shipping in every copy of Fellowship.rfl; the list in it comes from LevelList.txt,
- * the plain text file already sitting next to Fellowship.exe.
+ * A port of the community rfl edit, two bytes. The screen it reaches is the game's own, shipping
+ * in every copy of Fellowship.rfl, and it is filled from LevelList.txt beside Fellowship.exe.
  *
- * This is the first plugin here that finds its site by SIGNATURE rather than by address, because
- * it is the first one with two builds to be right about. See level_select.c.
+ * The first plugin here that finds its site by SIGNATURE and not by address, because it is the
+ * first with two builds to be right about. See README.md.
  */
 #ifndef LEVEL_SELECT_H
 #define LEVEL_SELECT_H

@@ -13,26 +13,17 @@
 
 #define PLUGIN_SECTION "view_distance"
 
-/* Two floats that live in THIS DLL's data, not in a cave inside the game.
- *
- * The byte-patch generation had to find unused space inside .text to put these in, and then
- * repoint the engine's operands at that space. A plugin does not: the operand can point straight
- * at our own static, which is writable, correctly aligned, alive for the life of the process, and
- * costs nobody a cave that a second fix might also want.
- *
- * g_visibility_cells replaces the engine's authored 80.0; g_no_fade is large enough that every
- * comparison against it fails, which is what "ignore the authored fade distance" means here. */
 static float g_visibility_cells = 120.0f;
 static float g_no_fade          = 1.0e19f;
 
-/* fld [0x5432AC] - the visibility distance in cells. Seven readers, all the same instruction
+/* fld [0x5432AC], the visibility distance in cells. Seven readers, all the same instruction
  * form, so all seven are repointed together or the engine disagrees with itself about how far
  * away the world ends. The operand is at instruction + 2. */
 static const uint32_t visibility_readers[] = {
     0x458A63u, 0x485D0Au, 0x485E4Cu, 0x49AC23u, 0x4A13A3u, 0x4A1E81u, 0x4A25DFu
 };
 
-/* fld [0x5432B8] - the far plane, in the culling frustum and again in the software clipper. */
+/* fld [0x5432B8], the far plane, in the culling frustum and again in the software clipper. */
 static const uint32_t far_plane_readers[] = { 0x4A5C22u, 0x494808u };
 
 typedef struct branch_site {
@@ -155,7 +146,7 @@ void view_distance_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
+    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", true)) {
         log_info("Enabled=0, the engine keeps its own draw distances");
         return;
     }
@@ -178,7 +169,7 @@ void view_distance_install(void)
          * no reason, and above about 200 the cell walk costs more than the extra scenery is
          * worth; neither is enforced, but both are worth saying once in the log. */
         if (cells < 80.0f) {
-            log_warning("VisibilityCells=%g is BELOW the engine's own 80 - you are reducing "
+            log_warning("VisibilityCells=%g is BELOW the engine's own 80; you are reducing "
                         "the draw distance", (double)cells);
         }
         apply_visibility(cells);

@@ -1,17 +1,10 @@
 /* patch.h: every write into engine code or engine data goes through here.
  *
- * The three habits this module makes cheap, because they were expensive to learn:
+ * 1. VALIDATE BEFORE WRITING. That check is also what makes a patch idempotent.
+ * 2. WRITE THE WHOLE WORD, not a byte of it.
+ * 3. REPOINT, do not assume: refuse when the operand does not hold what the caller expected.
  *
- *   1. VALIDATE BEFORE WRITING. patch_write_expect() reads the current bytes and refuses when
- *      they are not what the caller expected. That single check is also what makes a patch
- *      idempotent: a second run finds the new bytes, not the expected old ones, and declines.
- *
- *   2. WRITE THE WHOLE WORD, not a byte of it. Poking one byte of a little-endian immediate is
- *      how a limit you meant to lower becomes one you raised.
- *
- *   3. REPOINT, do not assume. patch_repoint_operand() rewrites the 32-bit absolute address
- *      field of an instruction and refuses when the field does not currently hold the address
- *      the caller expected, which is what stops a patch landing on a different build's operand.
+ * README.md says what each of those cost to learn.
  */
 #ifndef COMMON_PATCH_H
 #define COMMON_PATCH_H

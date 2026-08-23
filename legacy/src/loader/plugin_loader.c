@@ -78,26 +78,6 @@ static bool collect_plugins(const char *directory, plugin_list_t *list)
     return true;
 }
 
-/* ------------------------------------------------------------------------------- which build
- *
- * Two file sizes, logged before anything else happens, because they decide whether any of the
- * rest of this log means what it says. Every site in this project was measured against one pair
- * of files, and a plugin that declines on a different pair is behaving correctly - but a reader
- * cannot tell that apart from a plugin that is broken unless the log says which files these are.
- *
- * The sizes are read off DISK rather than from the loaded image, because Fellowship.rfl is not
- * loaded yet at this point and will not be for several seconds.
- *
- * The retail values are recorded here so that the two builds anyone actually has are both named
- * rather than one of them being "unexpected":
- *
- *     Fellowship.exe   2,133,459   the No-CD executable, what this project targets
- *                      2,137,555   retail, SafeDisc. Its code is encrypted on disk, so every
- *                                  byte check made at the entry point fails.
- *     Fellowship.rfl   1,372,160   the v1.1 game, what this project targets
- *                      1,306,624   pre-1.1. Different addresses; eight of the nine rfl sites
- *                                  used here are not in that build at all.
- */
 #define EXE_SIZE_SUPPORTED   2133459u
 #define EXE_SIZE_RETAIL_CD   2137555u
 #define RFL_SIZE_SUPPORTED   1372160u
@@ -158,7 +138,7 @@ static void log_which_build(void)
         log_warning("this is not the pair everything here was measured against, which is "
                     "Fellowship.exe %u and Fellowship.rfl %u. Plugins that decline below are "
                     "declining correctly. The order that gets you there: install, apply the "
-                    "official v1.1 patch, then put the 1.1 No-CD executable in - the patch "
+                    "official v1.1 patch, then put the 1.1 No-CD executable in, the patch "
                     "replaces the executable, so the No-CD goes in last.",
                     (unsigned)EXE_SIZE_SUPPORTED, (unsigned)RFL_SIZE_SUPPORTED);
     }
@@ -196,7 +176,8 @@ void plugin_loader_run_once(void)
 {
     char          configured[MAX_PATH];
     char          directory[MAX_PATH];
-    plugin_list_t list;
+    /* static: 64 * MAX_PATH is 16 KB, which is a lot of stack for a function that runs once. */
+    static plugin_list_t list;
     size_t        index;
 
     if (loader_has_run) {
@@ -210,6 +191,11 @@ void plugin_loader_run_once(void)
     log_info("OpenFellowship loader");
     log_info("host %s", host_path());
     log_info("ini  %s", ini_path());
+    if (ini_using_legacy_name()) {
+        log_info("     that is the OLD name. fix_enhancers.ini is what this now looks for, and "
+                 "the old one is read only because the new one is not there. Renaming it is "
+                 "optional and loses nothing.");
+    }
 
     /* Before the ini, before the plugin list, before anything can fail: which two files is this?
      * Every bug report that starts with a log now answers that question in its first three
@@ -220,12 +206,12 @@ void plugin_loader_run_once(void)
      * legitimate way to run, but it must not look like the settings were read. */
     if (GetFileAttributesA(ini_path()) == INVALID_FILE_ATTRIBUTES) {
         log_warning("there is no configuration file at that path. Every plugin is running on its "
-                    "built-in defaults. Copy dist/open_fellowship.ini next to Fellowship.exe to "
+                    "built-in defaults. Copy dist/fix_enhancers.ini next to Fellowship.exe to "
                     "change anything.");
     }
 
     if (!ini_read_bool(LOADER_SECTION, "Enabled", true)) {
-        log_warning("Enabled=0 in [%s] - no plugin is loaded, the game runs exactly as before",
+        log_warning("Enabled=0 in [%s]; no plugin is loaded, the game runs exactly as before",
                     LOADER_SECTION);
         return;
     }

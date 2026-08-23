@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fellowship of the Ring (2002) - Riot Engine modding reference</title>
+<style>
+  :root{
+    --ink:#1d1c19; --dim:#6b6355; --rule:#ded6c7; --bg:#faf7f0; --panel:#fffdf8;
+    --accent:#8a5a2b; --good:#2f6b3a; --bad:#9a3226; --code:#f2ede1;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.62 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif}
+  #wrap{display:flex;align-items:flex-start;max-width:1220px;margin:0 auto}
+  nav{position:sticky;top:0;flex:0 0 250px;max-height:100vh;overflow:auto;
+      padding:34px 18px 40px 24px;font-size:13.5px;line-height:1.5;
+      font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+  nav h2{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);
+         margin:0 0 12px;font-weight:600}
+  nav a{display:block;color:var(--dim);text-decoration:none;padding:3px 0}
+  nav a:hover{color:var(--accent)}
+  nav a.sub{padding-left:14px;font-size:12.5px}
+  main{flex:1 1 auto;min-width:0;padding:34px 40px 120px;background:var(--panel);
+       border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
+  h1{font-size:31px;line-height:1.22;margin:0 0 6px;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:15px;margin:0 0 6px}
+  h2{font-size:23px;margin:52px 0 14px;padding-top:16px;border-top:1px solid var(--rule)}
+  h3{font-size:17.5px;margin:30px 0 8px}
+  h4{font-size:15px;margin:20px 0 6px;color:var(--accent)}
+  p,li{font-size:16px}
+  code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:13.5px;
+       background:var(--code);padding:1px 5px;border-radius:3px}
+  pre{background:var(--code);border:1px solid var(--rule);border-radius:6px;
+      padding:14px 16px;overflow:auto;font-size:13px;line-height:1.55}
+  pre code{background:none;padding:0;font-size:13px}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14.5px}
+  th,td{border-bottom:1px solid var(--rule);padding:7px 10px;text-align:left;vertical-align:top}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);font-weight:600}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .card{background:var(--bg);border:1px solid var(--rule);border-left:3px solid var(--accent);
+        border-radius:0 6px 6px 0;padding:14px 18px;margin:20px 0}
+  .card.good{border-left-color:var(--good)}
+  .card.bad{border-left-color:var(--bad)}
+  .card p:first-child{margin-top:0} .card p:last-child{margin-bottom:0}
+  .lede{font-size:17px;color:var(--dim);margin:14px 0 26px}
+  .tag{display:inline-block;font-family:ui-sans-serif,sans-serif;font-size:11px;
+       letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:10px;
+       background:var(--good);color:#fff;vertical-align:middle}
+  .tag.warn{background:var(--accent)}
+  .tag.old{background:var(--bad)}
+  .kv{display:grid;grid-template-columns:190px 1fr;gap:5px 18px;margin:14px 0;font-size:15px}
+  .kv div:nth-child(odd){color:var(--dim)}
+  footer{color:var(--dim);font-size:13.5px;margin-top:60px;padding-top:16px;
+         border-top:1px solid var(--rule)}
+  @media(max-width:900px){#wrap{display:block}nav{position:static;max-height:none;flex:none;
+    border-bottom:1px solid var(--rule)}main{border:none;padding:24px 20px 80px}}
+</style>
+</head>
+<body>
+<div id="wrap">
+<nav>
+  <h2>Contents</h2>
+  <a href="#status">Where this stands</a>
+  <a href="#quickstart">1 &middot; Getting a model in game</a>
+  <a href="#rules">2 &middot; Rules a model must obey</a>
+  <a href="#layout">3 &middot; Files and folders</a>
+  <a href="#srsc">4 &middot; The SRSC container</a>
+  <a href="#records">5 &middot; Model records</a>
+  <a href="#r200" class="sub">0x0200 header</a>
+  <a href="#r203" class="sub">0x0203 vertices</a>
+  <a href="#r204" class="sub">0x0204 polygons</a>
+  <a href="#r207" class="sub">0x0207 bounds</a>
+  <a href="#r208" class="sub">0x0208 character</a>
+  <a href="#strips">6 &middot; 0x0211 - the strips</a>
+  <a href="#evidence" class="sub">The evidence</a>
+  <a href="#writing" class="sub">Writing one</a>
+  <a href="#textures">7 &middot; Textures and slots</a>
+  <a href="#reskin" class="sub">Re-skinning a prop</a>
+  <a href="#conventions">8 &middot; Engine conventions</a>
+  <a href="#wrong">9 &middot; What I had wrong</a>
+  <a href="#verify">10 &middot; How it is verified</a>
+  <a href="#casestudy">11 &middot; Case study: the hotdog</a>
+  <a href="#open">12 &middot; Still unknown</a>
+  <a href="#sources">Sources</a>
+</nav>
+<main>
+
+<h1>The Lord of the Rings: The Fellowship of the Ring (2002)</h1>
+<p class="sub">Surreal Software &middot; Riot Engine &middot; asset format reference and Blender modding guide</p>
+<p class="lede">Everything needed to take a mesh built in Blender and have the retail game
+draw it correctly. The format sections are transcribed from <code>Fellowship.exe</code> and
+checked against every matching record in the shipped data, not inferred from a few samples.</p>
+
+<h2 id="status">Where this stands</h2>
+
+<div class="kv">
+  <div>Import</div><div>Meshes, textures, skeletons, animations, whole levels - working</div>
+  <div>Export</div><div>Vertex-only and whole-mesh, generated triangle strips, texture writing and texture-slot rewriting - working</div>
+  <div>Add-on version</div><div>1.7.4 (<code>fotr_riot_importer.zip</code>), Blender 5.0+</div>
+  <div>Format coverage</div><div><code>0x0200</code>, <code>0x0203</code>, <code>0x0204</code>, <code>0x0207</code>, <code>0x0208</code>, <code>0x0211</code>, textures, levels, animations</div>
+  <div>Proven in game</div><div>Hobbiton scarecrow and pumpkins replaced with custom models and custom textures, drawing correctly</div>
+</div>
+
+<div class="card good">
+<p><strong>The thing that was blocking everything</strong> was record <code>0x0211</code>. It
+is the triangle strip list - the only form the renderer actually draws. Earlier versions
+of the exporter deleted it, believing it to be an optional cache, and that is what produced the
+torn-ribbon rendering that looked like a culling bug. It is now decoded in full and generated
+on every whole-mesh export.</p>
+</div>
+
+<h2 id="quickstart">1 &middot; Getting a model in game</h2>
+
+<h3>Install</h3>
+<p>Drag <code>fotr_riot_importer.zip</code> into a Blender window, or
+<strong>Edit ▸ Preferences ▸ Get Extensions ▸ ⌄ ▸ Install from Disk...</strong>
+Blender 5.0 or newer. 4.3 renders cutout transparency wrongly, so foliage and hair come out
+as opaque black cards even when the imported data is correct.</p>
+
+<h3>The loop</h3>
+<ol>
+<li><strong>Back up the archive.</strong> Copy the <code>.mdu</code> and <code>.tdu</code>
+you are about to edit. The exporter can also keep a <code>.bak</code> for you.</li>
+<li><strong>File ▸ Import ▸ LOTR Fellowship Model (.mdu)</strong>, point it at the archive,
+type part of a name into <em>Find</em>, pick the model.</li>
+<li><strong>Edit in Blender.</strong> Sculpt, re-cut, replace the geometry entirely -
+whatever you like, as long as the result obeys <a href="#rules">the rules below</a>.</li>
+<li><strong>File ▸ Export ▸ LOTR Fellowship Model (.mdu)</strong>, choose the same archive
+and the same model from the dropdown.</li>
+<li><strong>Mode.</strong> <em>Vertices Only</em> moves existing vertices and is the only
+option for rigged characters. <em>Whole Mesh</em> rewrites vertices, faces, UVs, material
+assignments, bounds and strips. <em>Automatic</em> picks between them.</li>
+<li><strong>Verify</strong> reads the file back and reports the worst vertex error, which
+should be zero. <strong>Dry Run</strong> reports what would change and writes nothing.</li>
+</ol>
+
+<h3>Where the models live</h3>
+<table>
+<tr><th>Archive</th><th>What is inside</th></tr>
+<tr><td><code>Common\NPC\NPCs.mdu</code></td><td>Characters - Legolas, Gimli, Balrog, Cave Troll, orcs, villagers</td></tr>
+<tr><td><code>Common\System\System.mdu</code></td><td>Frodo, Gandalf, Aragorn</td></tr>
+<tr><td><code>Common\Resources\Resources.mdu</code></td><td>Weapons, items, inventory props</td></tr>
+<tr><td><code>World Common\World Common\World Common.mdu</code></td><td>Shared trees, rocks, grass, barrels, carts</td></tr>
+<tr><td><code>World Common\Shire Common\Shire Common.mdu</code></td><td>Shire props - the scarecrow lives here</td></tr>
+<tr><td><code>Levels\&lt;World&gt;\&lt;Level&gt;\&lt;Level&gt;.mdu</code></td><td>That level's own buildings, trees and props</td></tr>
+</table>
+<p>A level's <code>.mdu</code> is only the prop <em>library</em>, everything piled at the
+origin. The <code>.lvl</code> is what places it. <strong>File ▸ Import ▸ LOTR Fellowship
+Level (.lvl)</strong> brings in the terrain and every placement - Hobbiton is about
+950 objects on 83k terrain triangles in roughly eight seconds.</p>
+
+<h3>Re-texturing</h3>
+<p>Textures live in the <code>.tdu</code> next to the <code>.mdu</code>. A texture record can
+be repainted in place as long as the replacement keeps the original's size and bit depth,
+which leaves the rest of the archive byte-for-byte unchanged. Before repainting, check which
+models reference that texture - many are shared, and the scarecrow's
+<code>c_dirtycanvas_edge</code> being exclusive to it is what made the hotdog safe.</p>
+
+<h2 id="rules">2 &middot; Rules a model must obey</h2>
+
+<p>These are engine constraints, not style preferences. Break one and the model draws
+wrongly or not at all.</p>
+
+<table>
+<tr><th>Rule</th><th>Why</th></tr>
+<tr><td><strong>Every face must be a triangle or a quad.</strong></td>
+    <td>The loader reads polygon indices only when the vertex count is 3 or 4. Anything else
+        and the indices are skipped entirely. All 517,135 polygons in the retail data are
+        triangles; the exporter triangulates.</td></tr>
+<tr><td><strong>One strip group reaches at most 255 vertices.</strong></td>
+    <td>A strip index is a single byte and 0 is the separator. 224 is the largest window in
+        the retail data. Bigger meshes are cut into several groups - the exporter does
+        this automatically.</td></tr>
+<tr><td><strong>Faces must be grouped by texture.</strong></td>
+    <td>842 of the 843 LODs in the retail data use each texture in exactly one unbroken run.
+        A mesh that returns to a texture it already used renders with faces missing. The
+        exporter sorts stably by texture.</td></tr>
+<tr><td><strong>Winding is clockwise-front.</strong></td>
+    <td>Opposite to OBJ and to Blender's default. Inward-wound faces are invisible in game
+        but look fine in Blender's viewport, which makes this easy to miss.</td></tr>
+<tr><td><strong>Rigged and multi-LOD models cannot have their face list replaced.</strong></td>
+    <td>Vertex weights and LOD ranges are indexed against the old faces. Move vertices
+        instead. The exporter refuses the unsafe case rather than producing a broken file.</td></tr>
+<tr><td><strong>UVs must not be degenerate.</strong></td>
+    <td>Cap fans whose pole shares the ring's <em>v</em> give zero-area UV triangles, which
+        render as smears.</td></tr>
+<tr><td><strong>A face carries a slot number, not a texture.</strong></td>
+    <td>Material slots map onto the model's texture list in order, so a one-material mesh
+        puts every face on slot 0. If slot 0 points into another archive - the
+        scarecrow's does - nothing you paint into the archive beside the model can
+        appear on it.</td></tr>
+<tr><td><strong>No face may index past the texture list.</strong></td>
+    <td>The engine looks the slot number up in the array directly. 20 materials against a
+        3-entry list reads past the end. No shipped model does this.</td></tr>
+<tr><td><strong>There is no vertex budget.</strong></td>
+    <td>The apparent budget was the fallback path being overrun because the strip record was
+        missing. With strips written, the heaviest thing the game itself ships is the Dark
+        Rider at 3684 vertices / 6783 triangles, and that is a reference point rather than
+        a limit.</td></tr>
+</table>
+
+<h2 id="layout">3 &middot; Files and folders</h2>
+
+<pre><code>Fellowship\
+├── Fellowship.exe / Fellowship.rfl      RFL = "Riot Function Library" (compiled game logic)
+├── Fellowship.rrc                       top-level resource container (SRSC)
+├── LevelList.txt                        plaintext list of the 23 levels
+├── Common\
+│   ├── FX\          FX.db + FX.{gdu,mdu,odu,sdu,tdu,xdu}
+│   ├── Interface\   Interface.db + .{gdu,odu,sdu,tdu,vdu,xdu}
+│   ├── NPC\         NPCs.db + NPCs.{adu,gdu,mdu,odu,sdu,tdu}      ← all characters
+│   ├── Resources\   Resources.db + .{adu,gdu,lst,mdu,odu,sdu,tdu,wdu,xdu}
+│   ├── Sounds\      Sound.db + Sound.{gdu,odu,sdu}
+│   └── System\      System.db + System.{adu,gdu,mdu,odu,sdu,tdu,vdu,xdu}
+├── World Common\    {World Common, Shire Common, Moria Common, Proc Textures}\ ...
+└── Levels\&lt;World&gt;\&lt;Level&gt;\
+        &lt;Level&gt;.lvl                      level geometry + object placements (SRSC)
+        &lt;Level&gt;.db                       manifest listing this level's dependencies
+        &lt;Level&gt;.{mdu,tdu,sdu,vdu,odu,gdu,qdu}
+        &lt;Level&gt;_level.{ldu,tdu,db}       terrain lighting + terrain textures</code></pre>
+
+<p>A <code>.db</code> file is <strong>plaintext</strong> and ties a folder together:</p>
+<pre><code>version 1.1
+id 5
+dependencies 4
+..\Resources\Resources
+..\FX\FX
+..\System\System
+..\Sounds\Sound</code></pre>
+<p>The <code>id</code> is that database's global number. Asset cross-references are
+<code>(record_id, db_id)</code> pairs, so a model in <code>NPCs.mdu</code> (db 5) pointing at
+texture <code>(6745, 5)</code> means texture id 6745 in database 5 →
+<code>Common\NPC\NPCs.tdu</code>.</p>
+
+<h3>Extension → asset type</h3>
+<table>
+<tr><th>Ext</th><th>Contains</th><th>Record types</th></tr>
+<tr><td><code>.mdu</code></td><td><strong>Models / meshes</strong></td><td><code>0x0200, 0203, 0204, 0207, 0208, 0211, 0214</code></td></tr>
+<tr><td><code>.tdu</code></td><td><strong>Textures</strong></td><td><code>0x0040</code> pixels, <code>0x0041</code> name + source</td></tr>
+<tr><td><code>.sdu</code></td><td>Sounds</td><td><code>0x0301, 0x0302</code></td></tr>
+<tr><td><code>.adu</code></td><td>Skeletal animations</td><td><code>0x0501, 0x0502, 0x0505</code></td></tr>
+<tr><td><code>.odu</code></td><td>Object / class definitions</td><td><code>0x0102, 0x0103</code></td></tr>
+<tr><td><code>.gdu</code></td><td>Group names (editor folders)</td><td><code>0x0080</code></td></tr>
+<tr><td><code>.vdu</code></td><td>Voice / dialogue streams</td><td><code>0x0342, 0x0343</code></td></tr>
+<tr><td><code>.xdu</code></td><td>Localised text</td><td><code>0x0400</code></td></tr>
+<tr><td><code>.wdu</code></td><td>Procedural-texture definitions</td><td><code>0x0060</code></td></tr>
+<tr><td><code>.qdu</code></td><td>Cutscene sequences</td><td><code>0x0311</code></td></tr>
+<tr><td><code>.ldu</code></td><td>Terrain lighting / lightmaps</td><td><code>0x0052</code></td></tr>
+<tr><td><code>.lvl</code></td><td>Level geometry + placements</td><td><code>0x0000-0x0020</code></td></tr>
+<tr><td><code>.rfl</code></td><td>Compiled game logic - <strong>not</strong> an SRSC archive</td><td>none</td></tr>
+</table>
+
+<h2 id="srsc">4 &middot; The SRSC container</h2>
+
+<p>Nothing in this game is compressed. Every <code>.mdu</code> / <code>.tdu</code> /
+<code>.sdu</code> is an SRSC archive: a plain file table at the end and raw record bodies in
+front of it.</p>
+
+<pre><code>// header, offset 0
+char     magic[4];          // 'SRSC'
+uint16   version;           // 0x0101 in Fellowship (0x0100 in Drakan)
+uint32   directory_offset;
+uint16   record_count;
+// ... raw record bodies, each starting on an 8-byte boundary ...
+// at directory_offset:
+struct dir_entry {          // 14 bytes each, record_count of them
+    uint16 type;            // what kind of asset chunk this is
+    uint16 id;              // asset id - all chunks of one model share an id
+    uint16 group_id;        // editor folder, cosmetic
+    uint32 body_offset;     // absolute file offset
+    uint32 body_size;
+};</code></pre>
+
+<p>All integers little-endian, floats IEEE-754. Strings are a <code>uint16</code> length
+followed by that many bytes, padded to an even length with NULs (the padding is counted in
+the length).</p>
+
+<div class="card">
+<p>The directory entry is <strong>14</strong> bytes, not 12. OpenDrakan's document sums the
+fields correctly but states 12 in the total line; using 12 desyncs you immediately.</p>
+</div>
+
+<h2 id="records">5 &middot; Model records</h2>
+<p>A model is several records sharing one <code>id</code>. 796 models carry a
+<code>0x0200</code> header across the retail data.</p>
+
+<h3 id="r200"><code>0x0200</code> - model header</h3>
+<pre><code>string  name;               // "Legolas"
+string  source_path;        // "\\LION\Fellowship\Graphics\Models\...\Legolas.rec"
+uint64  filetime;           // Windows FILETIME
+string  author;             // "heron", "alan", "todd", "BenC" ...
+uint16  shading_flags;      // 0x8000 always set; 0x01 flat, 0x02 smooth
+uint16  unknown;
+uint32  unknown;            // 1 when the model has textures, 0 otherwise
+uint32  texture_count;
+struct { uint16 tex_id; uint16 db_id; } textures[texture_count];
+uint32  trailing[1..3];     // unidentified</code></pre>
+<p><strong>Changed in v1.1.</strong> Drakan kept the texture list in its own
+<code>0x0206</code> record. Fellowship has no <code>0x0206</code> at all - the list
+moved into <code>0x0200</code>, and polygons index into it.</p>
+
+<div class="card">
+<p><strong>The texture list is not at a fixed offset.</strong> Six of the 796 shipped models
+- <em>Lembas</em>, <em>Cram</em>, <em>Mushroom</em> and three others, all in
+<code>Resources.mdu</code> - carry one extra dword before the count, a float that reads
+as 40960.0. Assume the usual offset on those and you get a count of 1193279488 and a list of
+garbage references. Probe instead: read the dword where the count should be, accept it only
+if it is plausible (small, with room in the record for that many pairs), otherwise try four
+bytes later. All 796 resolve to exactly one candidate, and rewriting each record with the
+list it already has reproduces it byte for byte.</p>
+</div>
+
+<p><strong>A texture reference is <code>(texture_id, database_id)</code>, not just an id.</strong>
+The database id comes from the <code>.db</code> manifests, so a model can point at a texture in
+a sibling archive - the scarecrow keeps its sackcloth in <code>Shire Common.tdu</code> and
+its wooden pole in <code>World Common.tdu</code>. Matching on the texture id alone is unsafe:
+the numbering spaces overlap, so one id can name two different pictures in two archives.</p>
+
+<h4>How many textures a model declares</h4>
+<table>
+<tr><th>Textures</th><th class="num">Models</th><th>Notes</th></tr>
+<tr><td>0</td><td class="num">40</td><td>markers, collision hulls</td></tr>
+<tr><td>1</td><td class="num">430</td><td>the shape a single-material Blender mesh should be written as</td></tr>
+<tr><td>2</td><td class="num">137</td><td></td></tr>
+<tr><td>3</td><td class="num">83</td><td></td></tr>
+<tr><td>4</td><td class="num">48</td><td></td></tr>
+<tr><td>5-9</td><td class="num">49</td><td></td></tr>
+<tr><td>10-14</td><td class="num">9</td><td>14 is the most anything ships with</td></tr>
+</table>
+<p><strong>No shipped model has a face indexing past its own texture list</strong>, and the
+engine looks that index up in the array directly - so exceeding it reads past the end.</p>
+
+<h3 id="r203"><code>0x0203</code> - vertices</h3>
+<pre><code>uint16  count;
+vec3f   positions[count];   // planar: all positions first
+uint32  normals[count];     // then one packed normal per vertex</code></pre>
+<p>Drakan interleaved 12-byte vertices. Fellowship stores 16 bytes per vertex but
+<strong>split into two planar blocks</strong>. Read it as an interleaved 16-byte stride and
+you get sane values for the first three quarters of the array and then NaNs - that is
+the tell.</p>
+<h4>Packed normals</h4>
+<p>Three <code>int8</code> scaled by 1/127 then <code>0x7F</code> padding:
+<code>x | y&lt;&lt;8 | z&lt;&lt;16 | 0x7F&lt;&lt;24</code>. A vertex no polygon references stores
+four zero bytes instead - there are 66 such vertices on the Orc alone. The stored vector
+is not exactly unit length (decode-and-re-encode moves a byte by at most 1 LSB across all
+926,505 normals in the retail data) and it points along the <em>negated</em>
+counter-clockwise cross product, matching the engine's clockwise-front winding.</p>
+
+<h3 id="r204"><code>0x0204</code> - polygons</h3>
+<pre><code>uint16 count;
+struct {
+    uint16 flags;           // 0x0002 = double sided; 0x0004 selects the UV pair count
+    uint16 vertex_count;    // MUST be 3 or 4 or the indices are not read at all
+    uint16 texture_index;   // index into the 0x0200 texture list
+    uint16 vertex_index[vertex_count];   // relative to this LOD's first_vertex
+} polys[count];
+uint16 uncached_polys;      // see below - NOT a separator
+vec2f  uvs[total_polygon_corners];       // every corner, in polygon order</code></pre>
+<p>Drakan interleaved the UVs with the indices. Fellowship moved them to a separate trailing
+block, one <code>(u,v)</code> pair per corner in the same order. <code>v</code> is flipped
+relative to OBJ.</p>
+
+<div class="card">
+<p><strong><code>uncached_polys</code> is the number of these polygons that the model's
+<code>0x0211</code> strip record does <em>not</em> draw.</strong> It is zero on 771 of the 796
+models. The two models that draw only part of their face list from strips pin the meaning
+down exactly: <em>Hill Troll Hammer</em> draws 379 of 458 and reports 79; <em>Boat</em> draws
+444 of 460 and reports 16. For a model with no strip record at all it is the full polygon
+count. The exporter writes <strong>0</strong>, because the strips it generates cover
+everything.</p>
+</div>
+
+<h3 id="r207"><code>0x0207</code> - bounds</h3>
+<pre><code>uint32 id, zero;
+vec3f  sphere_centre; float sphere_radius;   // centroid, not the box centre
+vec3f  box_origin;                           // == AABB min
+vec3f  box_axis[3];                          // axis-aligned: (sx,0,0) (0,sy,0) (0,0,sz)
+uint32 sub_volume_count;  /* then that many entries */</code></pre>
+<p>A fixed 72-byte prefix then a variable list of sub-volumes. Collision-hull models
+(<code>*_collider</code>, <code>*.reo</code>) have <strong>empty</strong> <code>0x0203</code>
+and <code>0x0204</code> and carry their shape only here - which is why 21 of the 107
+NPC "models" export no geometry. Nothing is missing.</p>
+
+<h3 id="r208"><code>0x0208</code> - character data</h3>
+<p>Only on animated characters. Bone tree, per-bone vertex weights, per-LOD vertex and
+polygon ranges, animation references, channels and bounding spheres. Legolas checks out
+exactly: LOD0 = verts 0-1760 / polys 0-3157, LOD1 = 1760+932 / 3157+1646, LOD2 = 2692+252 /
+4803+475, totalling the 2944 vertices and 5278 polygons in the raw records.</p>
+
+<h2 id="strips">6 &middot; <code>0x0211</code> - the triangle strips <span class="tag">fully decoded</span></h2>
+
+<p>This is what the renderer draws. 735 of the 796 models carry one. It is read by
+<code>FUN_004782d0</code>, reached from the model dispatch table at <code>0x477800</code>,
+with <code>FUN_00478950</code> per entry, <code>FUN_004784b0</code> per group and
+<code>FUN_00478760</code> per extra.</p>
+
+<pre><code>uint32 entry_count;                 // one entry per LOD
+
+// ENTRY
+uint32 n; struct { uint32 first_vertex, count; } span[n];   // vertex spans to upload
+uint32 n; GROUP group[n];
+uint32 n; EXTRA extra[n];
+
+// GROUP
+uint32 texture_slot;                // the same slot 0x0204 uses
+uint32 n; struct { uint8 span_index, window_base; } place[n];
+uint32 triangle_count;
+uint32 n; uint8 strip[n];           // 1-based, 0 separates, padded to a multiple of 64
+uint32 n; struct { float u, v; } uv[n];    // one per strip byte
+
+// EXTRA   (present in the reader, zero of them in all retail data)
+uint32 a;
+uint32 n; struct { uint32, uint32 } pair[n];
+uint32 n; uint32 single[n];</code></pre>
+
+<h3>How the indexing works</h3>
+<p>The engine keeps a small window of vertices - a hardware vertex buffer. A group's
+<code>place[]</code> entries say which spans it copies in and where each one lands in that
+window. Then:</p>
+<pre><code>strip byte b  →  window slot b-1  →  vertex  span.first_vertex + (b - 1 - window_base)</code></pre>
+<p><strong>The window persists across the groups of an entry.</strong> A group lists only the
+spans it needs to upload, and may index slots an earlier group left resident. Assuming each
+group is self-contained explains 2083 of the 2678 groups; allowing the window to persist
+explains all 2678.</p>
+<p>A run of <code>k</code> indices is <code>k-2</code> triangles with alternating winding.
+Runs may repeat an index - those degenerate triangles are how the artists' tool stitched
+several strips into one run, and the hardware discards them.</p>
+
+<div class="card">
+<p><strong>The one-byte index is the real constraint.</strong> A strip index is a single byte
+and 0 is reserved as the separator, so one group addresses at most 255 vertices. 224 is the
+largest window in the retail data. This is why big models are cut into many groups -
+and it is what every "vertex budget" measurement was actually bumping into.</p>
+</div>
+
+<h3 id="evidence">The evidence</h3>
+<p>Every claim above is checked against every <code>0x0211</code> in the retail game, not a
+sample.</p>
+<table>
+<tr><th>Claim</th><th class="num">Result</th></tr>
+<tr><td>Parses to the exact final byte</td><td class="num">735 / 735</td></tr>
+<tr><td>Re-encodes byte for byte</td><td class="num">735 / 735</td></tr>
+<tr><td><code>sum(len(strip) - 2)</code> equals the stored triangle count</td><td class="num">735 / 735</td></tr>
+<tr><td>Exactly one entry per LOD</td><td class="num">735 / 735</td></tr>
+<tr><td>Groups decode, through the persistent window, to faces that exist in <code>0x0204</code></td><td class="num">2678 / 2678</td></tr>
+<tr><td>Strips draw <em>every</em> polygon in <code>0x0204</code></td><td class="num">733 / 735</td></tr>
+<tr><td><code>texture_slot</code> equals the slot its faces use (single-texture groups)</td><td class="num">2490 / 2490</td></tr>
+<tr><td>Rebuilding a model's strips from its own face list reproduces that face set</td><td class="num">735 / 735</td></tr>
+</table>
+<p>The two models that draw a subset are <em>Hill Troll Hammer</em> and <em>Boat</em>, and
+their shortfalls are exactly the <code>uncached_polys</code> values in their
+<code>0x0204</code> records - 79 and 16.</p>
+
+<h3 id="writing">Writing one</h3>
+<p>The add-on's generator, in <code>fotr/strip.py</code>:</p>
+<ol>
+<li>Sort faces by texture, then by lowest vertex index. The second key is what keeps the span
+count down - a modeller's vertex numbering follows the parts of the mesh, so faces that
+sort together reference vertices that sit together. Without it, big characters need more than
+256 spans and overflow the span index; with it the worst model in the game needs 195.</li>
+<li>Cut each texture run into chunks whose vertices fit a window of 224 slots.</li>
+<li>Express each chunk's vertices as contiguous spans, bridging gaps of up to 8 vertices
+rather than starting a new span - slots are cheap, span indices are not.</li>
+<li>Emit each triangle as its own three-index strip. A run of three is exactly one triangle,
+so the engine's arithmetic is identical to a merged run; longer runs only save bus bandwidth,
+which mattered in 2002 and does not now.</li>
+<li>Pad the strip and UV arrays to a multiple of 64, as retail does.</li>
+</ol>
+
+<h2 id="textures">7 &middot; Textures (<code>.tdu</code>)</h2>
+<p><code>0x0041</code> holds the texture's name and the artist's original path.
+<code>0x0040</code> holds the image:</p>
+<pre><code>uint32 width, height, pitch, bits_per_pixel;   // 8 or 32 in this game
+... ~64 bytes of flags/refs ...
+// 8-bit:  256-entry BGRA palette (alpha 0..127), then pitch*height index bytes
+// 32-bit: pitch*height bytes of BGRA</code></pre>
+<p><strong>Different from Drakan:</strong> the Drakan spec ends with a zlib stream. Fellowship
+stores textures uncompressed. Read them from the <em>end</em> of the record - the last
+<code>pitch × height</code> bytes are the pixels, and for 8bpp the 1024 bytes immediately
+before that are the palette. The field that looks like a palette-entry count is not reliable;
+one texture reports 50 while carrying a full 256-entry palette.</p>
+<p>Repainting an 8-bit texture means re-quantising to 256 colours. Warm gradients with a
+little noise survive that well; smooth ramps band badly, so dither them.</p>
+
+<div class="card">
+<p><strong>Textures belong to the archive, not to a model.</strong> Nothing in a
+<code>.tdu</code> records who uses a texture - that only exists as references pointing
+<em>in</em> from <code>.mdu</code> files. Repainting one to re-skin a prop re-skins every
+other model sharing it: <code>b_pumpkin_top</code> is on both <em>Pumpkin</em> and
+<em>pumkins_group</em>, and world textures like <code>c_good_wood</code> are on dozens of
+fences, carts and barrels. Scan the <code>.mdu</code> beside the <code>.tdu</code> before
+editing anything.</p>
+</div>
+
+<h3 id="reskin">Re-skinning a prop</h3>
+<p>Two facts decide whether this works, and both were learned the hard way.</p>
+
+<h4>A face carries a slot number, not a texture</h4>
+<p>Blender material slots map onto the model's texture list in order, so a mesh with
+<strong>one material puts every face on slot 0</strong> - whatever slot 0 happens to
+be. Two Hobbiton props, identical procedure, opposite outcomes:</p>
+<table>
+<tr><th>Model</th><th>Slot 0</th><th>Archive</th><th>Repaint locally?</th></tr>
+<tr><td>Pumpkin</td><td><code>b_pumpkin_top</code></td><td>Shire Common.tdu</td><td>works</td></tr>
+<tr><td>scarecrow</td><td><code>c_good_wood</code></td><td>World Common.tdu</td><td><strong>does nothing</strong></td></tr>
+</table>
+<p>The scarecrow declares five slots; three are local sackcloth textures and two come from
+World Common. Every face of a one-material replacement lands on slot 0, the wooden one, so
+repainting all three local textures changes nothing visible. The fix is not to repaint the
+shared world texture - it is on dozens of props - but to cut the model's texture
+list down to the one local texture it should use, which is what 430 of the 796 shipped
+models look like anyway.</p>
+
+<h4>More materials than slots is a buffer overrun</h4>
+<p>The engine indexes the texture array with the face's slot number. Twenty materials against
+a three-entry list means faces asking for slot 19 of an array with three in it. Either grow
+the list to match the materials, or collapse it to a single slot. The exporter refuses the
+mismatch rather than writing a file whose only symptom is a crash.</p>
+
+<h4>What the add-on gives you</h4>
+<p>On <strong>model export</strong>, the panel lists the target's slots with their texture
+names, marking the ones in another archive, and <em>Texture Slots</em> chooses: leave the
+list alone, point everything at one texture, or build one slot per material (matched by
+name, falling back to the old slot and saying which it guessed at).</p>
+<p>On <strong>texture export</strong>, <em>Replace One</em> puts any image into any texture
+regardless of names, and <em>Re-skin A Model</em> narrows the list to just the textures a
+chosen model uses. <em>Match By Name</em> - which rewrites everything it recognises
+- can be limited to the selection or a name filter, because an image left over from an
+earlier import will otherwise silently revert an edit you made in the archive.</p>
+
+<h2 id="conventions">8 &middot; Engine conventions</h2>
+<table>
+<tr><th>Thing</th><th>Value</th></tr>
+<tr><td>Up axis</td><td>Y-up (Blender is Z-up)</td></tr>
+<tr><td>World scale</td><td>2048 world units = 1 model unit</td></tr>
+<tr><td>Object rotation</td><td>XYZ Euler, with a -90° yaw offset</td></tr>
+<tr><td>Winding</td><td>Clockwise-front</td></tr>
+<tr><td>Bind matrices</td><td>Column-major</td></tr>
+<tr><td>UV <code>v</code></td><td>Flipped relative to OBJ; the importer applies <code>v → 1-v</code></td></tr>
+<tr><td>Record alignment</td><td>Every body starts on an 8-byte boundary</td></tr>
+</table>
+
+<h2 id="wrong">9 &middot; What I had wrong <span class="tag old">retracted</span></h2>
+<p>Kept deliberately, because each of these fitted the data for a while and someone else
+working from the same files will reach for them too.</p>
+
+<h4>"<code>0x0211</code> is an optional cache of merged coplanar faces."</h4>
+<p>Wrong, and the cause of every torn-ribbon build. The <em>Light Source</em> marker's
+8-vertex cube really is 12 triangles in <code>0x0204</code> and six runs here, which is what
+made "merged quads" look convincing - but a strip of four indices is two triangles, not
+a quad. About 30 shipped models have no <code>0x0211</code> and do render, which is what made
+it look optional. Nineteen of those are billboards and markers, and the two real props among
+them are placed once each. The exception set was selected by the very property that mattered.</p>
+
+<h4>"Vertices × placements &lt; ~2048."</h4>
+<p>A curve through ten data points that failed on the eleventh. There is no budget. The
+fallback path used by a model with no strip record overruns its buffers, which is why the
+corruption changed with screen resolution - a clean cap does not do that - and why
+the apparent limit moved every time it was measured. The real constraint is the one-byte strip
+index, and the exporter handles it.</p>
+
+<h4>"The trailing <code>uint16</code> in <code>0x0204</code> is a separator."</h4>
+<p>Half wrong. It is zero on 771 of 796 models, which is why it reads as one, but it is a
+count - of polygons the strip record does not draw.</p>
+
+<h4>"Slots in another archive should be hidden from the list."</h4>
+<p>A design decision, not a format claim, and wrong for the same reason. Hiding the
+unreachable slots meant a model with five showed three, and a slot missing from a list is
+indistinguishable from a slot that did not take. They are listed and labelled now.</p>
+
+<h4>Real defects that were not the cause</h4>
+<p>Texture-run grouping and degenerate cap-fan UVs were both genuine bugs, found and fixed
+while chasing the wrong theory. Fixing them improved individual builds just enough to keep
+the wrong theory alive.</p>
+
+<div class="card bad">
+<p><strong>The method lesson.</strong> All of the above came from inferring structure by
+fitting patterns to data. Every one of them survived a plausibility check and then failed in
+game. What settled it was reading <code>Fellowship.exe</code> in Ghidra, transcribing the
+loader, and then testing the transcription against <em>all</em> the data rather than a sample
+- a rule that fits 10 of 11 cases is not a rule.</p>
+</div>
+
+<h2 id="verify">10 &middot; How it is verified</h2>
+<p>Four suites, all passing on version 1.6.6.</p>
+<table>
+<tr><th>Suite</th><th>What it proves</th></tr>
+<tr><td><code>strip_test.py</code></td><td>The eight <code>0x0211</code> claims above, against all 735 retail records</td></tr>
+<tr><td><code>mesh_export_test.py</code></td><td>No-op export is lossless; edits land; rigged models refuse topology rewrites; normals face outwards; no collateral damage to other models</td></tr>
+<tr><td><code>quad_test.py</code></td><td>Everything written is a triangle and no geometry is lost</td></tr>
+<tr><td><code>poll_test.py</code></td><td>The export menu is enabled in the right circumstances and Automatic picks the safe mode</td></tr>
+<tr><td><code>roundtrip_test.py</code></td><td>Rebuilding an archive with no changes reproduces it byte for byte, and an inserted record lands beside its model</td></tr>
+<tr><td><code>texlist_test.py</code></td><td>All 796 <code>0x0200</code> headers rewrite byte-for-byte, and a single-entry edit reads back as asked</td></tr>
+<tr><td><code>texslot_test.py</code></td><td>The export panel's slot list, and pointing materials at a chosen texture</td></tr>
+<tr><td><code>tex_export_test.py</code></td><td>Replace One, Re-skin A Model, per-slot and every-slot writes, and that a limited Match By Name cannot revert an unrelated edit</td></tr>
+<tr><td><code>manytex_test.py</code></td><td>A 20-material mesh over a 3-slot model: refused when it would overrun, correct when the list is grown or collapsed</td></tr>
+<tr><td><code>missing_tdu_test.py</code></td><td>A moved or unreachable <code>.tdu</code> is reported rather than silently ignored</td></tr>
+</table>
+<p>Plus a whole-game import sweep: every archive, textures on - 756 objects, 1540
+materials, 586 images, zero objects left without a material.</p>
+<p>Plus an end-to-end acceptance run against the shipped zip rather than the working tree:
+import a model that ships <em>without</em> strips and export it (strips get added), import one
+that ships <em>with</em> them, subdivide it to 1156 vertices and export (18 groups over 160
+spans), then read both back the way the engine does and confirm no other model in the archive
+moved.</p>
+
+<h2 id="casestudy">11 &middot; Case study: the hotdog scarecrow</h2>
+<p>Hobbiton's scarecrow, replaced with a purpose-built low-poly hotdog. Useful as a worked
+example because almost everything that can go wrong did.</p>
+<table>
+<tr><th>Build</th><th>What it did</th><th>Result</th></tr>
+<tr><td>Early</td><td>Whole-mesh export at 2119 vertices, strip record deleted</td><td class="num">Torn ribbons</td></tr>
+<tr><td>Q</td><td>Scarecrow vertices moved only, faces untouched</td><td class="num">Drew correctly</td></tr>
+<tr><td>Decimated</td><td>Cut down until it drew - the "budget" that was not one</td><td class="num">Drew, wrong shape</td></tr>
+<tr><td>T</td><td>First build with a generated <code>0x0211</code></td><td class="num">Geometry correct</td></tr>
+<tr><td>U</td><td><code>uncached_polys</code> corrected to 0</td><td class="num">Geometry correct</td></tr>
+<tr><td>V</td><td>Texture actually written into the <code>.tdu</code></td><td class="num">Correct in game</td></tr>
+<tr><td>yours</td><td>Own hotdog model and texture, slot 0 repointed at a local texture</td><td class="num">Correct in game</td></tr>
+</table>
+<p>The final model is 220 vertices and 404 triangles in four connected parts - two bun
+halves, a sausage and a mustard ribbon - on a single 128×128 8-bit texture laid out as
+an atlas: bun across the top of the image, sausage through the middle, mustard along the
+bottom strip. The model's texture list was cut from five entries to one so its only slot is 0,
+matching the 359 single-group static models in the retail data.</p>
+<p>The last row is where the texture half was settled. A custom hotdog exported over the
+scarecrow drew a brown wood texture no matter what was painted into
+<code>Shire Common.tdu</code>, because its single material landed on slot 0 and slot 0 was
+<code>c_good_wood</code> in World Common. Reading the two files was what found it in a
+minute, after three exchanges of reasoning had not.</p>
+<p>Two lessons worth keeping. <strong>T and U looked identical in game</strong> because the
+field that differed is not read on the path that draws - correctness in the file and
+visible difference on screen are not the same test. And <strong>V's bug was not in any format
+at all</strong>: the painted texture never got written into the archive I shipped, so hotdog
+geometry wore the scarecrow's sackcloth. Hashing the texture in the shipped file against the
+retail one found it in seconds; three more rounds of format theorising would not have.</p>
+
+<h2 id="open">12 &middot; Still unknown</h2>
+<ul>
+<li><strong><code>0x0214</code></strong> - one record per file, purpose unidentified.</li>
+<li><strong>The <code>EXTRA</code> block in <code>0x0211</code></strong> - parsed and
+round-tripped correctly, but every retail record has zero of them, so there is nothing to
+learn its meaning from.</li>
+<li><strong>The trailing <code>uint32</code>s in <code>0x0200</code></strong> - read and
+preserved, meaning unidentified.</li>
+<li><strong>Adding a brand-new model</strong> rather than replacing an existing one. That
+needs the <code>.odu</code> class definitions and the level's placement records too.</li>
+<li><strong>Why <em>Hill Troll Hammer</em> and <em>Boat</em> leave part of their face lists
+unstripped.</strong> The format handles it; the artistic or technical reason is unknown.</li>
+<li><strong>The extra dword in six <code>0x0200</code> headers</strong> - a float
+reading 40960.0. Detected and stepped over, meaning unidentified.</li>
+<li><strong>Whether a model can carry more than 14 textures.</strong> That is the most
+anything ships with. The exporter will write more and says plainly that it is untested.</li>
+</ul>
+
+<h2 id="sources">Sources</h2>
+<ul>
+<li><code>Fellowship.exe</code> - model dispatch table at <code>0x477800</code>; record
+handlers <code>FUN_004782d0</code>, <code>FUN_00478950</code>, <code>FUN_004784b0</code>,
+<code>FUN_00478760</code>. ImageBase <code>0x400000</code>, <code>.text</code> at VA
+<code>0x401000</code> / raw <code>0x1000</code>.</li>
+<li>The retail game data itself - 796 models, 735 strip records, 517,135 polygons,
+926,505 normals.</li>
+<li><a href="https://github.com/Zalasus/opendrakan">Zalasus/opendrakan</a> - Riot Engine
+recreation, and its <code>riot_database_format.txt</code> and <code>lvl_format.txt</code>,
+which describe the Drakan-era (SRSC <code>0x0100</code>) layout that Fellowship's
+<code>0x0101</code> drifts from.</li>
+<li><a href="https://drakan.fandom.com/wiki/Riot_Engine">Riot Engine - Drakan Wiki</a></li>
+</ul>
+
+<footer>
+Fellowship of the Ring (2002) modding reference &middot; companion to the Blender add-on
+<code>fotr_riot_importer</code> 1.7.4 &middot; format sections transcribed from the executable
+and validated against the complete retail dataset.
+</footer>
+
+</main>
+</div>
+</body>
+</html>

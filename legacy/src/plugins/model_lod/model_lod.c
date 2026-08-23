@@ -10,12 +10,6 @@
 
 #define PLUGIN_SECTION "model_lod"
 
-/* The engine walks a chain of LOD levels, stepping finer or coarser as an object's screen size
- * crosses a threshold. Rather than move the thresholds - which are per-model authored data - the
- * two branches that decide the step are settled: always take the finer one, never the coarser.
- *
- * 0x485B97  75 54  -> 90 90   the "do not step finer" branch, removed
- * 0x485C46  7A     -> EB      the "step coarser" conditional, made unconditional the other way */
 void model_lod_install(void)
 {
     static const uint8_t finer_expected[2]   = { 0x75, 0x54 };
@@ -28,8 +22,9 @@ void model_lod_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    /* Off by default: it costs frame rate, and unlike edge_popin nothing is broken without it. */
-    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
+    /* On by default: the project ships an improved picture out of the box, and this is one of the
+     * cheapest parts of it. It does cost frame rate in crowded scenes, so it has a switch. */
+    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", true)) {
         log_info("Enabled=0, models keep the engine's own LOD stepping");
         return;
     }
@@ -48,7 +43,7 @@ void model_lod_install(void)
     } else {
         /* Half of this patch is worse than none: one branch settled and the other not means the
          * engine can step coarser and never come back. Say so loudly. */
-        log_error("PARTIAL - finer %s, coarser %s. The LOD chain is now inconsistent; "
+        log_error("PARTIAL, finer %s, coarser %s. The LOD chain is now inconsistent; "
                   "set Enabled=0 and restart.",
                   patch_result_text(finer), patch_result_text(coarser));
     }

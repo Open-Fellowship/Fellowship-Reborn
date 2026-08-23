@@ -2,8 +2,7 @@
 
 Notes on how the Riot Engine is put together, independent of any one fix.
 
-Current contents live in `_FixEnhancers/docs` and are being moved here as they
-are generalised. The pieces worth reading first:
+Start here:
 
 * **The virtual screen.** The engine lays out in a space that is always 128
   units wide. `camera+0x228` (`halfW`) is 64.0 at every resolution;
@@ -22,3 +21,8 @@ are generalised. The pieces worth reading first:
 * **`Fellowship.rfl` is game code, not data.** It is an ordinary PE32 DLL
   holding the GUI, the inventory, the item system and the quest logic, reaching
   the engine through vtables handed to it at load.
+
+* **The camera is not where it looks.** `camera.md` has the measurements: the
+  camera object holds no world position, the engine renders camera relative
+  because of float precision at 400,000-unit coordinates, and culling follows
+  the field of view, not the frustum planes.

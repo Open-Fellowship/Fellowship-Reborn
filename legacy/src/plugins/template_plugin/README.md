@@ -8,7 +8,7 @@ It changes nothing about the game. It exists for two reasons:
    satisfies the loader contract.
 2. **It is the loader's own test.** When a real plugin does not appear to work, the first
    question is whether it was loaded at all. If this one's lines are in
-   `open_fellowship.log`, the loader, the plugin folder, the entry-point export and the ini
+   `fix_enhancers.log`, the loader, the plugin folder, the entry-point export and the ini
    reader are all working, and the fault is in the plugin.
 
 ## What it writes
@@ -17,7 +17,7 @@ It changes nothing about the game. It exists for two reasons:
 [template_plugin] installed
 [template_plugin]   host image   00400000 .. 00606000
 [template_plugin]   code section 00401000 + 0011B000
-[template_plugin]   Fellowship.rfl not loaded yet - as expected at entry-point time
+[template_plugin]   Fellowship.rfl not loaded yet, as expected at entry-point time
 [template_plugin]   Greeting = hello from plugins\
 ```
 
@@ -30,5 +30,5 @@ A plugin that patches `Fellowship.rfl` must wait for the module to exist.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `Enabled` | `1` | `0` and the plugin returns without doing anything |
+| `Enabled` | `0` | `1` and it logs its greeting. A loader self-test, not a fix |
 | `Greeting` | `hello from plugins\` | Echoed to the log, so you can see the ini being read |

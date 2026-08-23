@@ -9,7 +9,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#define LOG_FILE_NAME "open_fellowship.log"
+/* Renamed alongside the ini. The log needs no fallback the way the ini does: it is written from
+ * scratch every run, so an old one lying beside it is a stale file rather than lost settings. */
+#define LOG_FILE_NAME "fix_enhancers.log"
 
 static char        log_file_path[MAX_PATH];
 static const char *log_prefix = "?";
@@ -61,11 +63,6 @@ void log_init(const char *feature_name, bool truncate)
     log_ready = true;
 }
 
-void log_shutdown(void)
-{
-    log_ready = false;
-}
-
 void log_info(const char *format, ...)
 {
     va_list arguments;
@@ -88,9 +85,4 @@ void log_error(const char *format, ...)
     va_start(arguments, format);
     write_line("ERROR", format, arguments);
     va_end(arguments);
-}
-
-const char *log_path(void)
-{
-    return log_file_path;
 }

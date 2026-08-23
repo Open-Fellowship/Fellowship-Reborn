@@ -1,5 +1,7 @@
 #include "common/camera.h"
 
+#include "common/compiler.h"
+
 #include "common/engine_sites.h"
 #include "common/host_image.h"
 #include "common/memory.h"
@@ -12,7 +14,7 @@
  * than each field being hoped for individually. */
 #define CAMERA_SPAN 0x260u
 
-/* Plausible bounds. These are deliberately generous - the job is to reject uninitialised memory
+/* Plausible bounds. These are deliberately generous; the job is to reject uninitialised memory
  * and stale pointers, not to second-guess someone's monitor. 64x64 is below the engine's own
  * 640x480 floor and 32768 is past any display that exists, so anything in between is allowed. */
 #define DIMENSION_MIN 64
@@ -51,13 +53,8 @@ static bool dimension_ok(int32_t value)
     return value >= DIMENSION_MIN && value <= DIMENSION_MAX;
 }
 
-/* The first dword of an object with virtual functions is its vtable pointer, and a vtable both
- * lives in the host image and holds addresses in the host image. Two indirections, both checked.
- *
- * Checking against one known vtable address would be stronger, and is wrong: the engine has more
- * than one camera class and only one of them was ever dumped. "Points at a table of code
- * addresses inside Fellowship.exe" is the strongest claim that is true of all of them, and it
- * already rejects every value uninitialised memory is likely to hold. */
+/* Two indirections, both checked. Checking against one known vtable address would be stronger
+ * and is wrong: the engine has more than one camera class. See README.md. */
 static bool looks_like_an_object(uintptr_t object)
 {
     uint32_t vtable;
@@ -127,14 +124,9 @@ bool camera_read(camera_view_t *out)
         return false;
     }
 
-    /* A last cross-check no individual range can make: halfH/halfW IS the aspect ratio, so it has
-     * to agree with the rectangle the camera claims to be rendering into. A camera caught half
-     * way through SetViewport - old dimensions, new halves, or the reverse - passes every test
-     * above and fails this one.
-     *
-     * Either rectangle is accepted, because the viewport and the device disagree legitimately
-     * whenever the game renders into a sub-rect, and a factor of two of slack is left in on top:
-     * this is here to reject garbage, not to police a rounding difference. */
+    /* halfH/halfW IS the aspect ratio, so it must agree with the rectangle the camera claims
+     * to render into. This catches a camera read half way through SetViewport, which passes
+     * every other test. Either rectangle is accepted, with slack. See README.md. */
     if (!aspect_agrees(&view, view.viewport_width, view.viewport_height)
         && !aspect_agrees(&view, view.device_width, view.device_height)) {
         return false;
@@ -144,14 +136,7 @@ bool camera_read(camera_view_t *out)
     return true;
 }
 
-/* C4702 is emitted by the code generator, not the parser, so it cannot be suppressed at the
- * statement - the pragma has to sit outside the function. See the note on the return below:
- * this loop provably never exits and the return exists only to satisfy the signature.
- * MSVC 19.50 reports it where earlier compilers did not. */
-#if defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(disable : 4702)
-#endif
+OF_NORETURN_THREAD_BEGIN
 static DWORD WINAPI watch_thread(LPVOID parameter)
 {
     camera_view_t last;
@@ -194,17 +179,7 @@ static DWORD WINAPI watch_thread(LPVOID parameter)
      * would leave a non-void function with no return statement, which is worse. */
     return 0;
 }
-#if defined(_MSC_VER)
-#pragma warning(pop)
-#endif
-
-bool camera_watch(unsigned interval_ms, camera_watch_callback_t on_change)
-{
-    if (on_change == NULL) {
-        return false;
-    }
-    return camera_track(interval_ms, NULL, on_change);
-}
+OF_NORETURN_THREAD_END
 
 bool camera_track(unsigned interval_ms, volatile uintptr_t *slot,
                   camera_watch_callback_t on_change)

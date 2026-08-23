@@ -1,0 +1,65 @@
+name: build
+
+# The failure this catches has happened twice: a branch that built on the machine it was
+# written on and had never been built from a clean checkout, because a file was missing from
+# the commit and a warning only fires under MSVC. This does the clean checkout every push.
+
+on:
+  push:
+    branches: [main, development, "experimental/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  msvc:
+    name: MSVC 32-bit, /W4 /WX
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S legacy -B legacy/build -A Win32
+
+      - name: Build
+        run: cmake --build legacy/build --config Release
+
+      - name: Check the loader and the plugins were produced
+        shell: pwsh
+        run: |
+          $dist = "legacy/build/dist"
+          if (-not (Test-Path "$dist/dinput8.dll")) {
+              throw "dinput8.dll was not produced"
+          }
+          $plugins = @(Get-ChildItem "$dist/plugins/*.dll" -ErrorAction SilentlyContinue)
+          if ($plugins.Count -lt 20) {
+              throw "expected at least 20 plugins, found $($plugins.Count)"
+          }
+          if (-not (Test-Path "$dist/fix_enhancers.ini")) {
+              throw "fix_enhancers.ini was not staged into dist"
+          }
+          "loader + $($plugins.Count) plugins + ini"
+
+      - name: Upload the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenFellowship-win32
+          path: legacy/build/dist
+          if-no-files-found: error
+
+  analyze:
+    name: Static analysis
+    runs-on: windows-latest
+    # Advisory. /analyze reports GetTickCount overflow advice that does not apply here, because
+    # every comparison in the tree is an unsigned (now - stored) difference, so this does not
+    # gate a merge.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure with /analyze
+        run: cmake -S legacy -B legacy/build-analyze -A Win32 -DCMAKE_C_FLAGS="/analyze"
+
+      - name: Build
+        run: cmake --build legacy/build-analyze --config Release

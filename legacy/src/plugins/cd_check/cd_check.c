@@ -2,7 +2,6 @@
 
 #include "common/engine_sites.h"
 #include "common/host_image.h"
-#include "common/ini.h"
 #include "common/logging.h"
 #include "common/patch.h"
 
@@ -27,12 +26,9 @@ void cd_check_install(void)
 
     log_init(PLUGIN_SECTION, false);
 
-    /* Off by default. A No-CD executable does not need it, and that is the common case for this
-     * game; turning it on where it is not needed just means one more patch that can be wrong. */
-    if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
-        log_info("Enabled=0. Not needed on a No-CD executable, which is the usual case.");
-        return;
-    }
+    /* No Enabled key, and do not add one: a key whose only purpose is to disarm a patch
+     * invites turning off the one that was working. patch_redirect_call already declines when
+     * the call site is not there. See README.md. */
     if (!host_image_resolve()) {
         log_error("the host image could not be resolved; refusing to touch anything");
         return;

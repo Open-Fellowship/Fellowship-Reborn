@@ -7,70 +7,34 @@
 
 #include <windows.h>
 
-/* ==================================================================================== the object
+/* 0x5449A8 IS the object, in the executable's own data, with names at +0xD4 and values at
+ * +0xE0.
  *
- * Unlike the cheat command object, this one is not a pointer to be chased: 0x5449A8 IS the
- * object, sitting in the executable's own data. Both of its arrays hang off it:
- *
- *     0x5449A8 + 0xD4   ->  const char *names[124]
- *     0x5449A8 + 0xE0   ->  int32_t     values[124]
- *
- * The getter at 0x411BA0 proves the value array's shape:
- *
- *     00411BA0   mov eax,[esp+4]        the index
- *                cmp eax,0x2F
- *                je  0x411BB5           one flag is special-cased to a global
- *                mov ecx,[ecx+0xE0]     the array
- *                mov eax,[ecx+eax*4]    values[index]
- *
- * and the setter at 0x411800 both writes it and does the work each flag implies:
- *
- *     00411800   mov eax,[esp+4]        index
- *                mov esi,ecx            this
- *                mov edi,[esp+0x14]     value
- *                mov ecx,[esi+0xE0]
- *                dec eax
- *                cmp eax,0x6D
- *                mov [ecx+eax*4+4],edi  values[index] = value
- *                ja  <no side effects>
- *                ...                    a jump table, one case per flag
- *
- * That jump table is why this module calls the setter instead of writing the array. Flag 13 sets
- * two others. The screenshot flag takes a screenshot. The cache flags flush caches. Writing the
- * number directly would set the number and do none of the work.
- */
+ * ALWAYS CALL THE SETTER, never write the values array: the setter carries a jump table of
+ * per-flag side effects. Flag 13 sets two others, the screenshot flag takes a screenshot, the
+ * cache flags flush caches. Writing the number directly sets the number and does none of the
+ * work. See README.md. */
 #define FLAG_OBJECT_VA   0x005449A8u
 #define FLAG_NAMES_AT    0xD4u
 #define FLAG_VALUES_AT   0xE0u
 #define FLAG_SETTER_VA   0x00411800u
 
-typedef void (__thiscall *set_flag_fn)(void *self, int index, int32_t value);
+/* `__fastcall` with a dead EDX parameter, standing in for the engine's `__thiscall`.
+ * MSVC does not accept `__thiscall` on a function-pointer typedef in C; the substitution is
+ * exact on x86, `this` in ECX either way, the real arguments in the same stack slots, callee
+ * cleanup either way, and EDX is caller-saved and never read. See the longer note in
+ * cheats.c. */
+typedef void (__fastcall *set_flag_fn)(void *self, void *unused_edx, int index, int32_t value);
 
 /* 99, 100 and 101 are X, Y and Z: the destination the Teleport entry (98) reads when it builds
  * "tele %d %d %d". They are the only entries here holding a number that means something in the
- * world rather than a mode, and toggling one between 0 and 1 - which is what the dispatcher's
- * default case does to them - throws the coordinate away. They get typed into instead. */
+ * world rather than a mode, and toggling one between 0 and 1, which is what the dispatcher's
+ * default case does to them, throws the coordinate away. They get typed into instead. */
 static const int g_numbers[] = { 99, 100, 101 };
 
-/* AND THEY DO NOT LIVE IN THE VALUES ARRAY.
- *
- * Setting values[99..101] and pressing Teleport does nothing, which is exactly what happened.
- * The Teleport case reads three fields out of the flag object itself:
- *
- *     00411C7A   mov eax,[edi+0x11C]        edi is the flag object, 0x5449A8
- *                mov ecx,[edi+0x118]
- *                mov edx,[edi+0x114]
- *                push eax / push ecx / push edx
- *                push 0x52F618              "tele %d %d %d"
- *                push <stack buffer>
- *                call sprintf
- *                ...
- *                call [edx+0x68]            the command object, as every other cheat does
- *
- * Arguments are pushed right to left, so the first %d is [+0x114] and the last is [+0x11C]:
- * X, Y, Z in that order. The object is static, so those are three fixed addresses, and the
- * values array never enters into it.
- */
+/* THE TELEPORT COORDINATES ARE NOT IN THE VALUES ARRAY. Setting values[99..101] does nothing.
+ * Teleport reads three fields out of the flag object itself, at +0x114, +0x118 and +0x11C, which
+ * are X, Y and Z in that order. See README.md. */
 static const uint32_t g_number_field[] = { 0x00544ABCu, 0x00544AC0u, 0x00544AC4u };
 
 static uint32_t number_address(int index)
@@ -82,7 +46,6 @@ static uint32_t number_address(int index)
     }
     return 0;
 }
-
 
 static bool arrays(uintptr_t *names, uintptr_t *values)
 {
@@ -179,7 +142,7 @@ bool flags_set(int index, int32_t value)
 
     /* Same for writing: into the object's own field, not the values array, or Teleport builds its
      * command from whatever was there before. No setter call, because there is no per-flag side
-     * effect for these - the coordinate is read straight out of the object when Teleport runs. */
+     * effect for these; the coordinate is read straight out of the object when Teleport runs. */
     {
         uint32_t field = number_address(index);
 
@@ -198,56 +161,24 @@ bool flags_set(int index, int32_t value)
     }
 
     setter = (set_flag_fn)exe_site(FLAG_SETTER_VA);
-    setter((void *)exe_site(FLAG_OBJECT_VA), index, value);
+    setter((void *)exe_site(FLAG_OBJECT_VA), NULL, index, value);
 
     log_info("flag %d %s = %ld", index, flags_name(index) ? flags_name(index) : "(unnamed)",
              (long)value);
     return true;
 }
 
-/* ================================================================== what pressing one actually does
- *
- * Setting the number is not what the game's own menu does, and for most of these entries it is
- * not enough. Pressing an entry goes through the dispatcher:
- *
- *     00411BC0   mov  edi,ecx                    the flag object
- *                push ebp                        the index
- *                call [[edi]]                    getter: esi = current value
- *                cmp  ebp,0x6F
- *                ja   default
- *                movzx ecx, byte [0x4120C0+ebp]  a case number per entry
- *                jmp  [0x41205C + ecx*4]         25 cases
- *     ...
- *     00412046   push esi / push ebp             the common tail:
- *                call 0x411800                   SetFlag(index, newValue)
- *
- * Twenty-five cases for a hundred and twelve entries, and reading them is what turns this list
- * from numbers into controls. What they do:
- *
- *   0x41202A  67 entries  the default: value = !value. A plain switch.
- *   0x411FBD  21 entries  switch, AND sets flag 0x39 with it - the statistics rows, which need
- *                         their master flag on to display at all. This is why stepping one of
- *                         those by hand did nothing.
- *   0x411F2E / 0x411F57 / 0x411F8A   wireframe, strips, render groups: a switch that also sets
- *                         0x0F, 0x39, 0x3D, 0x45 around it
- *   0x411DA5  0 and 51    cycle 0..2          0x411DB6  16   cycle 0..2
- *   0x411BF2  1           cycle 0..6          0x411C03  2    cycle 0..3
- *   0x411FD2  47          cycle 0..3, and writes 0x543434, which is the one value the getter
- *                         special-cases
- *   0x411DC7  108         cycle 0..3 through a second jump table
- *   0x411D28 / 0x411D56 / 0x411D84   the profiler switches, each clearing the other's global
- *   0x411FE2  23          hardware lighting: switches, then talks to the device
- *   0x411E4A  59          take a screenshot. An action; the value is not the point.
- *   0x411C50, 0x411C65, 0x411CB6, 0x411C7A, 0x411CD4, 0x411CE9, 0x411CFE, 0x411D13, 0x411C14
- *                         the cheats, which send a command string - the same eight this menu
- *                         already has as buttons on the other page
- *
- * So one call does the right thing for every entry, and this table is only used to LABEL them.
- * Nothing here decides behaviour; the engine does.
- */
+/* Pressing an entry goes through the engine's own dispatcher at 0x411BC0, which has 25 cases
+ * for 112 entries. This table only LABELS them; the engine decides what pressing one means.
+ * README.md lists the cases and what each does. */
 #define FLAG_ACTIVATE_VA 0x00411BC0u
 
-typedef void (__thiscall *activate_fn)(void *self, int index);
+/* `__fastcall` with a dead EDX parameter, standing in for the engine's `__thiscall`.
+ * MSVC does not accept `__thiscall` on a function-pointer typedef in C; the substitution is
+ * exact on x86, `this` in ECX either way, the real arguments in the same stack slots, callee
+ * cleanup either way, and EDX is caller-saved and never read. See the longer note in
+ * cheats.c. */
+typedef void (__fastcall *activate_fn)(void *self, void *unused_edx, int index);
 
 static const struct { int index; int range; } g_cycles[] = {
     {   0, 3 }, {  51, 3 }, {  16, 3 },
@@ -303,7 +234,7 @@ bool flags_activate(int index)
     flags_value(index, &before);
 
     activate = (activate_fn)exe_site(FLAG_ACTIVATE_VA);
-    activate((void *)exe_site(FLAG_OBJECT_VA), index);
+    activate((void *)exe_site(FLAG_OBJECT_VA), NULL, index);
 
     flags_value(index, &after);
 

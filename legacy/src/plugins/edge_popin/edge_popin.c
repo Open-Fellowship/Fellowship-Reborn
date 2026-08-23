@@ -10,19 +10,6 @@
 
 #define PLUGIN_SECTION "edge_popin"
 
-/* The guard rect the renderer tests an object's screen bounds against before drawing it. The
- * immediates are the corners of a box of fixed size in pixels:
- *
- *     0x48B984   left/top      -1024   ->  -32768
- *     0x48B992   right/bottom   3072   ->   32768
- *
- * Above 3072 pixels wide the margin goes negative and the outer part of each side is culled,
- * which is the 4K edge pop-in. The replacement values are not "bigger to be safe": they are the
- * extremes of the 16-bit range the engine's own coordinates live in, so the test can no longer
- * fail for a reason that has nothing to do with what is on screen.
- *
- * 0x485867 is the companion: a branch that made objects use the guard rect instead of the real
- * view frustum. Forced to always take the frustum path. */
 typedef struct site {
     const char *name;
     uint32_t    preferred_va;

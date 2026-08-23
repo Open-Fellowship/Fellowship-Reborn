@@ -1,12 +1,8 @@
 /* cheats.h: the game's own cheat commands, called the way the game calls them.
  *
- * The engine has a debug menu whose entries do not reach any shipping build's UI, and every one
- * of them ends in the same two instructions: put a command string on the stack and call one
- * vtable slot on one global object. This is that call, and nothing else. No state of the game is
- * written directly, no flag is flipped behind its back; the game is asked, in its own words.
- *
- * Blank's Fellowship.dll bound these to F5 through F12. This project puts them in the dev menu
- * instead, so they can be seen and clicked rather than remembered.
+ * Every entry of the engine's unreachable debug menu ends in the same two instructions: a command
+ * string on the stack and one vtable slot on one global object. This is that call and nothing
+ * else. No game state is written directly. See README.md.
  */
 #ifndef DEV_MENU_CHEATS_H
 #define DEV_MENU_CHEATS_H
@@ -31,7 +27,7 @@ const char *cheat_label(cheat_id_t id);
 bool cheat_is_toggle(cheat_id_t id);
 
 /* What we last sent, for the two toggles. NOT read back from the game, which offers no way to
- * ask - so it is what the menu believes, and the menu says so. */
+ * ask, so it is what the menu believes, and the menu says so. */
 bool cheat_believed_state(cheat_id_t id);
 
 /* The command object and its vtable entry, checked now. False means the button should be dead

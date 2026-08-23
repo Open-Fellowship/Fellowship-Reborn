@@ -1,7 +1,10 @@
 #include "dev_menu.h"
+#include "common/compiler.h"
 #include "cheats.h"
 #include "flags.h"
 #include "messages.h"
+#include "player.h"
+#include "timing.h"
 #include "d3d8_min.h"
 #include "dinput8_min.h"
 #include "overlay.h"
@@ -23,14 +26,14 @@
 
 #define PLUGIN_SECTION "dev_menu"
 
-/* The key immediately below Escape. VK_OEM_3 is that key on both US and UK layouts - backquote
+/* The key immediately below Escape. VK_OEM_3 is that key on both US and UK layouts, backquote
  * there, and whatever sits in that position elsewhere. The game's own cheats are F5 to F12 and
  * fog_toggle took F1, so this position is free. */
 #define DEFAULT_TOGGLE_KEY VK_OEM_3
 
 #define PANEL_X       24
 #define PANEL_Y       24
-#define PANEL_W       760
+#define PANEL_W       860
 /* The panel's height is computed rather than fixed, because FontHeight is configurable and a
  * constant here would cut the cheat buttons off at anything above the default. */
 #define PADDING       16
@@ -69,7 +72,10 @@ static float g_fov_degrees;          /* the slider's position, once the user has
 #define TAB_CAMERA   0
 #define TAB_FLAGS    1
 #define TAB_MESSAGES 2
-#define TAB_COUNT    3
+/* This was TAB_PLAYER while the page held only the size sliders. It now holds anything of ours
+ * that the engine has no notion of, which is what "fix enhancers" names. */
+#define TAB_FIXES    3
+#define TAB_COUNT    4
 
 static int  g_tab;
 static int  g_flag_page;
@@ -88,22 +94,13 @@ static int   g_mouse_x;
 static int   g_mouse_y;
 static bool  g_dragging;
 
-/* RAW INPUT, NOT THE SYSTEM CURSOR
+/* NOT GetCursorPos: the game holds the mouse through DirectInput in EXCLUSIVE mode, which
+ * freezes the system cursor and stops mouse window messages, so the menu drew and could not be
+ * clicked.
  *
- * The first version read GetCursorPos and the menu drew perfectly and could not be clicked. That
- * is the documented behaviour of a DirectInput device acquired in EXCLUSIVE mode, which is how
- * this game takes the mouse: the system cursor stops moving and mouse movement stops generating
- * window messages. GetCursorPos then returns the same frozen point forever, which is exactly
- * what a menu that draws but cannot be interacted with looks like.
- *
- * Raw input sits underneath all of that. WM_INPUT delivers the device's own relative movement
- * whatever DirectInput has done with the cursor, so this plugin keeps its OWN pointer position,
- * accumulated from those deltas and drawn by the overlay - the system cursor is invisible and
- * frozen, and is no longer anything to do with us.
- *
- * The window that receives it is a message-only window of our own on our own thread. Subclassing
- * the game's window would also have worked and would have put our code in its message loop; this
- * way nothing of the game's is touched. */
+ * The shipping path is our own DirectInput device. Raw input is kept as a fallback, through a
+ * message-only window of our own, because it costs nothing and a different setup may not have
+ * the registration conflict that made it useless here. See README.md. */
 static void         *g_mouse_device;          /* our own DirectInput mouse, not the game's */
 static void         *g_game_mouse;            /* the game's, so its reads can be silenced   */
 static bool          g_take_mouse = true;
@@ -122,8 +119,8 @@ static int           g_view_h = 1080;
 
 /* --------------------------------------------------------------------------- finding things */
 
-/* DirectInput wants a window to hang a cooperative level on. Not for coordinates - there are no
- * coordinates any more, only movement - just for the association. */
+/* DirectInput wants a window to hang a cooperative level on. Not for coordinates; there are no
+ * coordinates any more, only movement, just for the association. */
 static BOOL CALLBACK pick_window(HWND window, LPARAM parameter)
 {
     DWORD process = 0;
@@ -138,24 +135,12 @@ static BOOL CALLBACK pick_window(HWND window, LPARAM parameter)
     return TRUE;
 }
 
-/* ------------------------------------------------- silencing the game's own mouse reads
+/* Silencing the game's own mouse reads at the source, because asking DirectInput for it
+ * exclusively is refused: the game got there first.
  *
- * Asking DirectInput for the mouse EXCLUSIVELY is the polite way to stop the game seeing it, and
- * on this game it does not work: the game got there first and holds it exclusively itself, so our
- * request is refused and we fall back to sharing. Sharing means the menu works and the world
- * swings around underneath it, which is worse than either extreme.
- *
- * So the game's own reads are silenced at the source. The executable imports exactly ONE symbol
- * from DINPUT8.dll - DirectInput8Create - and a plugin installed at the entry point runs long
- * before the game calls it. Rewriting that import slot gives us the interface it is handed, the
- * interface gives us the CreateDevice call, and CreateDevice gives us the mouse device itself.
- * From there, one vtable entry decides whether the game hears anything.
- *
- * Every hook forwards. While the menu is closed the game reads its mouse exactly as it always
- * did; while it is open, the two functions that return mouse data return nothing. And the check
- * is on the DEVICE, not the vtable, because DirectInput gives every device of a class the same
- * vtable - silencing the vtable outright would take the keyboard with it, and our own mouse.
- */
+ * EVERY HOOK FORWARDS, and the check is on the DEVICE, not the vtable: DirectInput gives every
+ * device of a class the same vtable, so silencing the vtable would take the keyboard with it,
+ * and our own mouse. See README.md. */
 
 static direct_input8_create_t g_original_create;
 static di8_create_device_t    g_original_create_device;
@@ -297,7 +282,7 @@ static void install_input_intercept(void)
     void **slot = find_import_slot("DINPUT8.dll", "DirectInput8Create");
 
     if (slot == NULL) {
-        log_warning("DirectInput8Create is not imported where expected - the game will keep "
+        log_warning("DirectInput8Create is not imported where expected; the game will keep "
                     "seeing the mouse while the menu is open");
         return;
     }
@@ -382,7 +367,7 @@ static bool open_mouse(void)
     }
 
     /* Exclusive first. If the game is not holding the mouse exclusively we take it, and it stops
-     * seeing the movement while the menu is open - which is the point of a menu. If it is, we
+     * seeing the movement while the menu is open, which is the point of a menu. If it is, we
      * share, and the game keeps reacting to the same movement we do. Either way the pointer
      * works; only whether the world moves underneath it changes. */
     if (SUCCEEDED(((di8_set_coop_t)(*(void ***)device)[DI8_DEV_SETCOOPLEVEL])(
@@ -399,8 +384,8 @@ static bool open_mouse(void)
 
     g_mouse_device = device;
     log_info("mouse opened through DirectInput, %s",
-             g_mouse_exclusive ? "exclusively - the game will not see it while the menu is open"
-                               : "shared - the game still sees the same movement");
+             g_mouse_exclusive ? "exclusively; the game will not see it while the menu is open"
+                               : "shared, the game still sees the same movement");
     return true;
 }
 
@@ -432,7 +417,6 @@ static bool poll_mouse(int *dx, int *dy, bool *button)
     *button = (state.buttons[0] & 0x80) != 0;
     return true;
 }
-
 
 /* The device, reached the way the engine reaches it, with every step checked. A wrong guess here
  * is a call through a pointer that is not a vtable, so nothing is believed until all of it is. */
@@ -579,7 +563,7 @@ static float clampf(float value, float low, float high)
     return value;
 }
 
-/* Only degrees are needed here. This plugin never turns an angle into a focal length - that is
+/* Only degrees are needed here. This plugin never turns an angle into a focal length; that is
  * field_of_view's job, and keeping the conversion in one place is the point of the channel. */
 static double to_degrees(double radians) { return radians * 180.0 / 3.14159265358979323846; }
 
@@ -680,11 +664,25 @@ static void messages_button_rect(int *x, int *y, int *w, int *h)
     *y = PANEL_Y + PADDING + row_step() + 4;
 }
 
+static const char *const g_tab_labels[TAB_COUNT] = {
+    " camera ", " engine flags ", " messages ", " fix enhancers "
+};
+
+/* Each tab is as wide as ITS OWN label, and sits after the ones before it.
+ *
+ * Every tab used to be given the width of " engine flags ", which was fine while that was the
+ * longest. The fourth tab is longer, so its text ran out of its box and over the button beside
+ * it. Measuring per tab means adding another one, or renaming one, can never do that again. */
 static void tab_rect(int index, int *x, int *y, int *w, int *h)
 {
-    *w = overlay_text_width(" engine flags ", 1) + 10;
+    int i;
+
+    *x = PANEL_X + PADDING;
+    for (i = 0; i < index && i < TAB_COUNT; ++i) {
+        *x += overlay_text_width(g_tab_labels[i], 1) + 10 + 8;
+    }
+    *w = overlay_text_width(g_tab_labels[index < TAB_COUNT ? index : 0], 1) + 10;
     *h = overlay_line_height() + 4;
-    *x = PANEL_X + PADDING + index * (*w + 8);
     *y = PANEL_Y + PADDING + row_step() + 4;
 }
 
@@ -712,16 +710,443 @@ static void cheat_button_rect(int index, int *bx, int *by, int *bw, int *bh)
     *bh = overlay_line_height() + 6;
 }
 
-/* --------------------------------------------------------------------------- the flags page
- *
- * A row is a name and a switch, exactly like the cheat buttons: press it and the engine does
- * whatever that entry means. The seven entries that hold a range rather than a state get a second
- * line underneath with the number and a pair of steppers, because those are the only ones where
- * a number is the point.
- *
- * Rows are therefore not all the same height, so the page is laid out once per frame into a
- * table that the drawing and the hit testing both read. Nothing computes a rectangle twice.
- */
+/* Defined further down with the rest of the input helpers, and declared here because this page is
+ * laid out above them. Released inside the box, which is what a button is, as opposed to
+ * inside(), which is a hover and fires every frame. */
+static bool clicked(int x, int y, int w, int h);
+
+#define SIZE_OPTION_COUNT 3
+
+/* Which size the user last chose. Re-applied every frame from the EndScene hook, because the
+ * engine rewrites the orientation matrix from animation and would otherwise undo it within a
+ * frame. -1 means "not chosen", which is different from Normal: Normal actively holds the matrix
+ * at unit scale, and not-chosen leaves the engine entirely alone. */
+/* Size is height, build is width on top of it. Both are held as FLOATS rather than as a chosen
+ * button, because the sliders below can land anywhere between the presets and the buttons are
+ * just quick ways to reach a value. A button lights up when the value happens to be its own. */
+static float g_size_value  = 1.0f;
+static float g_build_value = 1.0f;
+
+/* Whether something non-neutral is currently written. Restoring has to happen ONCE when the
+ * values come back to 1, not every frame afterwards; the scale vector is not something the
+ * engine rewrites, so there is nothing to keep correcting once it is back. */
+static bool  g_player_active;
+
+/* 0 none, 1 size, 2 build. Grab anywhere on a track and keep the grab until the button comes up,
+ * so a fast drag that wanders off the track vertically does not drop the knob, the same rule the
+ * field of view slider follows. */
+static int   g_player_drag;
+
+/* Named for the sliders rather than for the rows, because SIZE_MAX is a standard
+ * library macro from <stdint.h> and redefining it is a warning this tree treats as an
+ * error. */
+#define HEIGHT_LOW   0.10f
+#define HEIGHT_HIGH   4.00f
+#define WIDTH_LOW  0.25f
+#define WIDTH_HIGH  10.00f
+
+static float chosen_height(void)
+{
+    return g_size_value;
+}
+
+static float chosen_girth(void)
+{
+    return g_size_value * g_build_value;
+}
+
+/* One place decides where every row of this page sits, and the drawing and the hit testing both
+ * read it. A rectangle computed twice is a button that looks right and cannot be clicked. */
+static int player_row(int n)
+{
+    return content_top() + n * (row_step() + 6);
+}
+
+/* Laid out like the field of view slider so the two feel the same: a label, a track, and the
+ * number on the right. `row` is which row of the page the track sits on. */
+/* Close enough to have come from a reset rather than from a drag that happened to land near 1.0.
+ * Half a percent is under one pixel of travel on either track. */
+static bool is_preset(float value, float preset)
+{
+    return (float)fabs((double)(value - preset)) < 0.005f;
+}
+
+static void player_reset_rect(int row, int *bx, int *by, int *bw, int *bh)
+{
+    *bw = overlay_text_width(" reset ", 1) + 10;
+    *bh = overlay_line_height() + 6;
+    *bx = PANEL_X + panel_width() - PADDING - *bw;
+    *by = player_row(row) - 3;
+}
+
+static void player_slider_rect(int row, int *tx, int *ty, int *tw)
+{
+    int bx;
+    int by;
+    int bw;
+    int bh;
+
+    player_reset_rect(row, &bx, &by, &bw, &bh);
+    *tx = PANEL_X + PADDING + 110;
+    *ty = player_row(row) + overlay_line_height() / 2 - 3;
+    /* Up to the number, which sits just left of the reset button. Derived from the button's own
+     * rectangle rather than from a second guess at the same arithmetic. */
+    *tw = (bx - 10 - overlay_text_width("00.00", 1) - 10) - *tx;
+}
+
+static void draw_player_slider(int row, const char *label, float value, float low, float high,
+                               bool usable)
+{
+    char  line[64];
+    int   tx;
+    int   ty;
+    int   tw;
+    int   knob;
+    float fraction;
+
+    player_slider_rect(row, &tx, &ty, &tw);
+    if (tw < 20) {
+        return;
+    }
+    fraction = (clampf(value, low, high) - low) / (high - low);
+    knob     = tx + (int)(fraction * (float)(tw - 10));
+
+    overlay_text(PANEL_X + PADDING, player_row(row), 1, COLOUR_LABEL, label);
+    overlay_rect(tx, ty, tw, 6, COLOUR_TRACK);
+    overlay_rect(tx, ty, knob - tx + 10, 6, usable ? COLOUR_FILL : COLOUR_TRACK);
+    overlay_rect(knob, ty - 7, 10, 20, usable ? COLOUR_KNOB : COLOUR_DIM);
+
+    sprintf(line, "%.2f", (double)value);
+    {
+        int bx;
+        int by;
+        int bw;
+        int bh;
+
+        player_reset_rect(row, &bx, &by, &bw, &bh);
+        overlay_text(bx - 10 - overlay_text_width("00.00", 1), player_row(row), 1,
+                     usable ? COLOUR_VALUE : COLOUR_DIM, line);
+
+        /* Dim unless there is something to undo, so the button says whether it would do anything
+         * before it is pressed. */
+        overlay_rect(bx, by, bw, bh,
+                     (usable && !is_preset(value, 1.0f)) ? COLOUR_BUTTON : COLOUR_TRACK);
+        overlay_text(bx + 6, by + 3, 1,
+                     (usable && !is_preset(value, 1.0f)) ? COLOUR_VALUE : COLOUR_DIM, "reset");
+    }
+}
+
+static void draw_player(void)
+{
+    int         x      = PANEL_X + PADDING;
+    const char *why    = "";
+    uintptr_t   object = player_object(&why);
+    bool        usable = (object != 0);
+
+    overlay_text(x, player_row(0), 1, COLOUR_TITLE, "Player size");
+    if (!usable) {
+        overlay_text(x + overlay_text_width("Player size    ", 1), player_row(0), 1, COLOUR_DIM,
+                     why[0] != 0 ? why : "no player");
+    }
+
+    draw_player_slider(1, "Height", g_size_value,  HEIGHT_LOW, HEIGHT_HIGH, usable);
+    draw_player_slider(2, "Width",  g_build_value, WIDTH_LOW,  WIDTH_HIGH,  usable);
+
+    overlay_text(x, player_row(3), 1, COLOUR_DIM,
+                 "width is on top of height; the camera holds its distance either way");
+}
+
+#define FPS_ROW_TITLE   4
+#define FPS_ROW_SLIDER  5
+#define FPS_ROW_BUTTONS 6
+#define FPS_ROW_STATS   7
+#define FPS_ROW_HINT    8
+#define FPS_ROW_COUNT   9
+
+#define FPS_PRESET_COUNT 4
+static const int g_fps_presets[FPS_PRESET_COUNT] = { 30, 60, 120, 144 };
+
+static int g_fps_drag;   /* 1 while the frame rate track is grabbed, 0 otherwise */
+
+static void fps_uncapped_rect(int *bx, int *by, int *bw, int *bh)
+{
+    *bw = overlay_text_width(" uncapped ", 1) + 10;
+    *bh = overlay_line_height() + 6;
+    *bx = PANEL_X + panel_width() - PADDING - *bw;
+    *by = player_row(FPS_ROW_SLIDER) - 3;
+}
+
+static void fps_slider_rect(int *tx, int *ty, int *tw)
+{
+    int bx;
+    int by;
+    int bw;
+    int bh;
+
+    fps_uncapped_rect(&bx, &by, &bw, &bh);
+    *tx = PANEL_X + PADDING + 110;
+    *ty = player_row(FPS_ROW_SLIDER) + overlay_line_height() / 2 - 3;
+    *tw = (bx - 10 - overlay_text_width("0000", 1) - 10) - *tx;
+}
+
+static void fps_preset_rect(int index, int *bx, int *by, int *bw, int *bh)
+{
+    int width = overlay_text_width(" 000 ", 1) + 10;
+
+    *bw = width;
+    *bh = overlay_line_height() + 6;
+    *bx = PANEL_X + PADDING + index * (width + 8);
+    *by = player_row(FPS_ROW_BUTTONS) - 3;
+}
+
+static void fps_save_rect(int *bx, int *by, int *bw, int *bh)
+{
+    *bw = overlay_text_width(" save as default ", 1) + 10;
+    *bh = overlay_line_height() + 6;
+    *bx = PANEL_X + panel_width() - PADDING - *bw;
+    *by = player_row(FPS_ROW_BUTTONS) - 3;
+}
+
+static void draw_frame_rate(void)
+{
+    char     line[160];
+    int      x    = PANEL_X + PADDING;
+    float    target = timing_target();
+    unsigned rate = timing_tick_rate();
+    int      tx;
+    int      ty;
+    int      tw;
+    int      bx;
+    int      by;
+    int      bw;
+    int      bh;
+    int      index;
+
+    /* ---- the title, and which clock the engine is on. That second part is the honest answer to
+     * "is the fix even installed", read out of the engine rather than out of our own state. */
+    overlay_rect(x, player_row(FPS_ROW_TITLE) - 8, panel_width() - PADDING * 2, 1, COLOUR_TRACK);
+    overlay_text(x, player_row(FPS_ROW_TITLE), 1, COLOUR_TITLE, "Frame rate");
+
+    if (rate == 0u) {
+        sprintf(line, "the engine timer has not been built yet");
+    } else if (rate <= 1000u) {
+        sprintf(line, "clock: GetTickCount at %u Hz, frame_timing is not installed, so the "
+                      "delta below is quantised to 15.6 ms", rate);
+    } else {
+        sprintf(line, "clock: QueryPerformanceCounter at %u Hz", rate);
+    }
+    overlay_text(x + overlay_text_width("Frame rate    ", 1), player_row(FPS_ROW_TITLE), 1,
+                 (rate > 1000u) ? COLOUR_DIM : COLOUR_EDGE, line);
+
+    /* ---- the slider */
+    fps_slider_rect(&tx, &ty, &tw);
+    if (tw >= 20) {
+        float fraction = (clampf(target <= 0.0f ? TIMING_FPS_HIGH : target,
+                                 TIMING_FPS_LOW, TIMING_FPS_HIGH) - TIMING_FPS_LOW)
+                         / (TIMING_FPS_HIGH - TIMING_FPS_LOW);
+        int   knob     = tx + (int)(fraction * (float)(tw - 10));
+        bool  capped   = (target > 0.0f);
+
+        overlay_text(x, player_row(FPS_ROW_SLIDER), 1, COLOUR_LABEL, "Target");
+        overlay_rect(tx, ty, tw, 6, COLOUR_TRACK);
+        overlay_rect(tx, ty, knob - tx + 10, 6, capped ? COLOUR_FILL : COLOUR_TRACK);
+        overlay_rect(knob, ty - 7, 10, 20, capped ? COLOUR_KNOB : COLOUR_DIM);
+
+        if (capped) {
+            sprintf(line, "%d", (int)(target + 0.5f));
+        } else {
+            sprintf(line, "off");
+        }
+        fps_uncapped_rect(&bx, &by, &bw, &bh);
+        overlay_text(bx - 10 - overlay_text_width("0000", 1), player_row(FPS_ROW_SLIDER), 1,
+                     capped ? COLOUR_VALUE : COLOUR_DIM, line);
+
+        overlay_rect(bx, by, bw, bh, capped ? COLOUR_BUTTON : COLOUR_ON);
+        overlay_text(bx + 6, by + 3, 1, COLOUR_VALUE, "uncapped");
+    }
+
+    /* ---- the presets, and the save button */
+    for (index = 0; index < FPS_PRESET_COUNT; ++index) {
+        bool on = (target > 0.0f)
+                  && (float)fabs((double)(target - (float)g_fps_presets[index])) < 0.5f;
+
+        fps_preset_rect(index, &bx, &by, &bw, &bh);
+        sprintf(line, "%d", g_fps_presets[index]);
+        overlay_rect(bx, by, bw, bh, on ? COLOUR_ON : COLOUR_BUTTON);
+        overlay_text(bx + (bw - overlay_text_width(line, 1)) / 2, by + 3, 1, COLOUR_VALUE, line);
+    }
+
+    fps_save_rect(&bx, &by, &bw, &bh);
+    overlay_rect(bx, by, bw, bh, timing_saved() ? COLOUR_TRACK : COLOUR_BUTTON);
+    overlay_text(bx + 6, by + 3, 1, timing_saved() ? COLOUR_DIM : COLOUR_VALUE,
+                 "save as default");
+
+    /* ---- what the engine's own counter says */
+    {
+        float engine = timing_engine_fps();
+
+        if (engine > 0.0f) {
+            sprintf(line, "engine fps %.1f", (double)engine);
+        } else {
+            sprintf(line, "engine fps not yet sampled");
+        }
+        overlay_text(x, player_row(FPS_ROW_STATS), 1, COLOUR_DIM, line);
+    }
+
+    overlay_text(x, player_row(FPS_ROW_HINT), 1, COLOUR_DIM,
+                 "the slider drives fps_limit; save writes MaxFPS into fix_enhancers.ini");
+}
+
+static void handle_frame_rate_input(void)
+{
+    int   bx;
+    int   by;
+    int   bw;
+    int   bh;
+    int   tx;
+    int   ty;
+    int   tw;
+    int   index;
+    float target = timing_target();
+
+    fps_uncapped_rect(&bx, &by, &bw, &bh);
+    if (clicked(bx, by, bw, bh)) {
+        /* Off turns on at whatever the slider last showed, and 60 when it has never shown one,
+         * so the button is a toggle rather than a one-way door. */
+        timing_set_target(target > 0.0f ? 0.0f : 60.0f);
+        return;
+    }
+
+    for (index = 0; index < FPS_PRESET_COUNT; ++index) {
+        fps_preset_rect(index, &bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) {
+            timing_set_target((float)g_fps_presets[index]);
+            return;
+        }
+    }
+
+    fps_save_rect(&bx, &by, &bw, &bh);
+    if (clicked(bx, by, bw, bh)) {
+        timing_save();
+        return;
+    }
+
+    /* Grab on the way down and hold it until the button comes up, exactly as the two sliders
+     * above do. Dragging the track also takes it off uncapped, because moving a slider is an
+     * unambiguous request for the value under the knob. */
+    fps_slider_rect(&tx, &ty, &tw);
+    if (g_mouse_down && !g_mouse_was_down && inside(tx - 6, ty - 10, tw + 12, 26)) {
+        g_fps_drag = 1;
+    }
+    if (!g_mouse_down) {
+        g_fps_drag = 0;
+    }
+    if (g_fps_drag != 0 && tw > 12) {
+        float fraction = (float)(g_mouse_x - tx) / (float)(tw - 10);
+        float value    = clampf(TIMING_FPS_LOW + fraction * (TIMING_FPS_HIGH - TIMING_FPS_LOW),
+                                TIMING_FPS_LOW, TIMING_FPS_HIGH);
+
+        /* Whole frames per second. A fractional target is meaningless to a person and makes the
+         * preset buttons impossible to light up. */
+        value = (float)(int)(value + 0.5f);
+        if (value != target) {
+            timing_set_target(value);
+        }
+    }
+}
+
+/* Both sliders, and the buttons, all end here. Writing on every frame rather than only on change
+ * is what makes a drag smooth: the value moves with the mouse and the next frame shows it. */
+static void apply_player(void)
+{
+    const char *why = "";
+
+    if (!player_apply_size(chosen_girth(), chosen_height(), &why)) {
+        log_info("player size: %s", why);
+    }
+}
+
+static void handle_player_input(void)
+{
+    int row;
+    int bx;
+    int by;
+    int bw;
+    int bh;
+    int tx;
+    int ty;
+    int tw;
+
+    for (row = 1; row <= 2; ++row) {
+        player_reset_rect(row, &bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) {
+            if (row == 1) {
+                g_size_value = 1.0f;
+            } else {
+                g_build_value = 1.0f;
+            }
+            apply_player();
+            return;
+        }
+    }
+
+    /* Grab on the way down, anywhere on the track, and hold it until the button comes up. */
+    if (g_mouse_down && !g_mouse_was_down) {
+        for (row = 1; row <= 2; ++row) {
+            player_slider_rect(row, &tx, &ty, &tw);
+            if (inside(tx - 6, ty - 10, tw + 12, 26)) {
+                g_player_drag = row;
+                break;
+            }
+        }
+    }
+    if (!g_mouse_down) {
+        g_player_drag = 0;
+    }
+
+    if (g_player_drag != 0) {
+        float low  = (g_player_drag == 1) ? HEIGHT_LOW  : WIDTH_LOW;
+        float high = (g_player_drag == 1) ? HEIGHT_HIGH : WIDTH_HIGH;
+
+        player_slider_rect(g_player_drag, &tx, &ty, &tw);
+        if (tw > 12) {
+            float fraction = (float)(g_mouse_x - tx) / (float)(tw - 10);
+            float value    = clampf(low + fraction * (high - low), low, high);
+
+            if (g_player_drag == 1) {
+                g_size_value = value;
+            } else {
+                g_build_value = value;
+            }
+            apply_player();
+        }
+    }
+}
+
+/* Called every frame from the EndScene hook, whether or not the menu is open; a size has to
+ * survive the menu closing, and the engine rewrites the transform from animation regardless of
+ * what is on screen. */
+static void player_hold_size(void)
+{
+    const char *why = "";
+
+    if (is_preset(g_size_value, 1.0f) && is_preset(g_build_value, 1.0f)) {
+        /* Back to normal. Restore ONCE and then leave the engine alone: the scale vector is not
+         * something it rewrites, so there is nothing to keep correcting, and writing neutral
+         * values sixty times a second would be sixty pointless writes into a live object. */
+        if (g_player_active) {
+            player_apply_size(1.0f, 1.0f, &why);
+            g_player_active = false;
+        }
+        return;
+    }
+    if (player_apply_size(chosen_girth(), chosen_height(), &why)) {
+        g_player_active = true;
+    }
+}
+
+/* Rows are not all the same height, so the page is laid out once per frame into a table that
+ * the drawing and the hit testing both read. Nothing computes a rectangle twice. */
 #define FLAG_MAX_ROWS   64
 #define FLAG_MAX_PAGES  16
 #define FLAG_SWITCH_W   52
@@ -732,7 +1157,7 @@ typedef struct flag_row {
     int  y;
     int  w;
     int  line;          /* height of one line: the switch sits on this */
-    bool has_picker;    /* a second line underneath with value, - and + */
+    bool has_picker;    /* a second line underneath with value,, and + */
 } flag_row_t;
 
 static flag_row_t g_rows[FLAG_MAX_ROWS];
@@ -864,6 +1289,11 @@ static int panel_height(void)
     if (g_tab == TAB_FLAGS || g_tab == TAB_MESSAGES) {
         return content_top() - PANEL_Y + flag_rows() * step + step + 6 + PADDING;
     }
+    /* This page is a fixed number of rows, so it says so rather than inheriting the camera
+     * page's height and hoping the frame rate readout lands inside it. */
+    if (g_tab == TAB_FIXES) {
+        return player_row(FPS_ROW_COUNT) - PANEL_Y + PADDING;
+    }
     return cheats_top() - PANEL_Y + step + cheat_rows() * (step + 4) + PADDING;
 }
 
@@ -878,7 +1308,7 @@ static void draw_cheats(int x, bool have_camera)
     overlay_text(x, y, 1, COLOUR_TITLE, "Cheats");
     overlay_text(x + overlay_text_width("Cheats    ", 1), y, 1, COLOUR_DIM,
                  available ? "the game's own commands"
-                           : "load a level - the game has nothing to send them to");
+                           : "load a level; the game has nothing to send them to");
 
     for (index = 0; index < CHEAT_COUNT; ++index) {
         int bx;
@@ -917,7 +1347,6 @@ static void draw_cheats(int x, bool have_camera)
 
 static void draw_tabs(void)
 {
-    static const char *labels[TAB_COUNT] = { " camera ", " engine flags ", " messages " };
     int index;
 
     for (index = 0; index < TAB_COUNT; ++index) {
@@ -929,7 +1358,7 @@ static void draw_tabs(void)
         tab_rect(index, &bx, &by, &bw, &bh);
         overlay_rect(bx, by, bw, bh, (g_tab == index) ? COLOUR_FILL : COLOUR_BUTTON);
         overlay_text(bx + 5, by + 2, 1, (g_tab == index) ? COLOUR_VALUE : COLOUR_DIM,
-                     labels[index]);
+                     g_tab_labels[index]);
     }
 
     {
@@ -1066,16 +1495,16 @@ static void draw_flags(void)
 
     overlay_text(bx + bw + 16 + overlay_text_width("page 0 of 0        ", 1), by + 3, 1,
                  COLOUR_DIM, overlay_overflowed()
-                             ? "overlay batch full - some rows are missing"
+                             ? "overlay batch full, some rows are missing"
                              : (g_edit_flag >= 0
-                                ? "type a number, Enter to set it - Escape also opens the game's pause menu"
+                                ? "type a number, Enter to set it, Escape also opens the game's pause menu"
                                 : "click a row to press it, as the game's own menu would"));
 }
 
 /* ------------------------------------------------------------------------- engine messages
  *
- * Its own box, at the bottom of the screen, drawn whenever "Engine Debug Messages" is not zero -
- * with the menu open or closed, because a log you can only see while a menu covers the game is
+ * Its own box, at the bottom of the screen, drawn whenever "Engine Debug Messages" is not zero,
+* with the menu open or closed, because a log you can only see while a menu covers the game is
  * not much of a log.
  */
 #define MESSAGE_PANEL_W   900
@@ -1086,7 +1515,6 @@ static int message_step(void)
 {
     return overlay_line_height() * MESSAGE_SCALE + 6;
 }
-
 
 static int message_lines_shown(void)
 {
@@ -1234,15 +1662,9 @@ static void draw_messages(void)
     }
 }
 
-/* OUR switch, deliberately not the engine's flag 0.
- *
- * Flag 0 turns on the engine's OWN message display, and that display is what corrupted the
- * lighting and then took the game down: it is a dev feature this build cannot draw. Capturing
- * the text does not need it - the hooks see every message whatever the flag says - so the box is
- * driven from here and flag 0 is left alone.
- *
- * Belt and braces: switching the box on also puts flag 0 back to 0, so a stray click on the
- * flags page cannot bring the broken display back while the box is up. */
+/* OUR switch, NOT the engine's flag 0. Flag 0 turns on the engine's own message display, which
+ * on this build corrupts the lighting and then takes the game down. Capturing does not need it.
+ * Switching the box on also puts flag 0 back to 0, so a stray click cannot bring it back. */
 static bool messages_wanted(void)
 {
     return g_show_messages && messages_enabled();
@@ -1331,7 +1753,7 @@ static void draw_channels(void)
     overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
     overlay_text(bx + 4, by + 3, 1, COLOUR_VALUE, " none ");
 
-    sprintf(line, "%u channels - switched off means not recorded at all, not merely hidden", count);
+    sprintf(line, "%u channels, switched off means not recorded at all, not merely hidden", count);
     overlay_text(bx + bw + 16, by + 3, 1, COLOUR_DIM, line);
 }
 
@@ -1364,6 +1786,12 @@ static void draw_menu(const camera_view_t *view, bool have_camera)
 
     if (g_tab == TAB_MESSAGES) {
         draw_channels();
+        return;
+    }
+
+    if (g_tab == TAB_FIXES) {
+        draw_player();
+        draw_frame_rate();
         return;
     }
 
@@ -1414,7 +1842,7 @@ static void draw_menu(const camera_view_t *view, bool have_camera)
                 g_intercepting ? "   game muted" : "   game still reading");
         overlay_text(x, y, 1, COLOUR_DIM, line);
     } else {
-        overlay_text(x, y, 1, COLOUR_DIM, "no camera yet - load a save");
+        overlay_text(x, y, 1, COLOUR_DIM, "no camera yet, load a save");
         y += step;
         overlay_text(x, y, 1, COLOUR_DIM, "the menus have none");
     }
@@ -1425,7 +1853,7 @@ static void draw_menu(const camera_view_t *view, bool have_camera)
     y = cheats_top() + row_step() + cheat_rows() * (row_step() + 4);
 
     if (overlay_overflowed()) {
-        overlay_text(x, y, 1, COLOUR_EDGE, "overlay batch full - some of this is missing");
+        overlay_text(x, y, 1, COLOUR_EDGE, "overlay batch full, some of this is missing");
     }
 
 }
@@ -1547,7 +1975,7 @@ static void handle_flags_input(void)
         }
 
         /* A typed number: the field takes the click, the steppers nudge, and the rest of the row
-         * does nothing - pressing it would run the dispatcher's default case and flatten the
+         * does nothing, pressing it would run the dispatcher's default case and flatten the
          * coordinate to 0 or 1. */
         if (flag_is_number(row->index)) {
             flag_field_rect(row, &bx, &by, &bw, &bh);
@@ -1634,7 +2062,7 @@ static void handle_input(bool have_camera)
         }
     }
 
-    /* The message box's clear button. It is not on either page - the box is its own panel - so
+    /* The message box's clear button. It is not on either page; the box is its own panel, so
      * it is checked before the page split. */
     if (messages_wanted()) {
         int bx;
@@ -1657,6 +2085,15 @@ static void handle_input(bool have_camera)
 
     if (g_tab == TAB_FLAGS) {
         handle_flags_input();
+        return;
+    }
+
+    if (g_tab == TAB_FIXES) {
+        /* Frame rate first. It owns the right hand end of two rows the player half does not
+         * reach, and checking it first means a click there can never be swallowed by a slider
+         * grab belonging to the rows above. */
+        handle_frame_rate_input();
+        handle_player_input();
         return;
     }
 
@@ -1715,24 +2152,24 @@ static void handle_input(bool have_camera)
      * and that is the only reason calling into the engine from here is reasonable at all. A
      * button pressed on a key thread would be calling engine code from underneath the engine. */
     if (g_mouse_was_down && !g_mouse_down && have_camera) {
-        int index;
+        int cheat;   /* not `index`: the tab loop above already has one, and shadowing it is C4456 */
 
-        for (index = 0; index < CHEAT_COUNT; ++index) {
+        for (cheat = 0; cheat < CHEAT_COUNT; ++cheat) {
             int bx;
             int by;
             int bw;
             int bh;
 
-            cheat_button_rect(index, &bx, &by, &bw, &bh);
+            cheat_button_rect(cheat, &bx, &by, &bw, &bh);
             if (inside(bx, by, bw, bh)) {
-                cheat_send((cheat_id_t)index);
+                cheat_send((cheat_id_t)cheat);
                 break;
             }
         }
     }
 
-    /* Arrow keys do the same job. Not a fallback in spirit - a slider is for finding the value
-     * and a key is for landing on it - but it is also what still works if the cursor turns out
+    /* Arrow keys do the same job. Not a fallback in spirit; a slider is for finding the value
+     * and a key is for landing on it, but it is also what still works if the cursor turns out
      * to be somewhere this plugin cannot see it. */
     if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
         g_fov_degrees = clampf(g_fov_degrees - 0.25f, FOV_MIN, FOV_MAX);
@@ -1757,6 +2194,12 @@ static HRESULT STDMETHODCALLTYPE hooked_end_scene(void *device)
         d3d8_viewport_t viewport;
 
         show_messages = messages_wanted();
+
+        /* Before the early return, not after: a chosen size has to hold whether or not the menu
+         * is open, and the engine rewrites the matrix from animation every frame regardless of
+         * what is on screen. This is also the game's own thread, which is the only place writing
+         * into a live game object is reasonable at all. */
+        player_hold_size();
 
         if (!g_visible && !show_messages) {
             return g_original_end_scene(device);
@@ -1816,7 +2259,7 @@ static bool install_hook(void)
 
     device = find_device();
     if (device == NULL) {
-        log_error("the Direct3D device could not be verified - the menu will not open. "
+        log_error("the Direct3D device could not be verified; the menu will not open. "
                   "Nothing has been changed.");
         g_hook_failed = true;
         return false;
@@ -1833,7 +2276,7 @@ static bool install_hook(void)
         g_hook_failed = true;
         return false;
     }
-    /* One aligned pointer-sized store, which is atomic on x86 - so a render thread calling
+    /* One aligned pointer-sized store, which is atomic on x86, so a render thread calling
      * EndScene at this instant gets either the old function or ours, never half of each. */
     g_vtable[D3D8_ENDSCENE] = (void *)hooked_end_scene;
     VirtualProtect(&g_vtable[D3D8_ENDSCENE], sizeof(void *), protection, &protection);
@@ -1846,6 +2289,7 @@ static bool install_hook(void)
 
 /* ------------------------------------------------------------------------------- the thread */
 
+OF_NORETURN_THREAD_BEGIN
 static DWORD WINAPI poll_thread(LPVOID parameter)
 {
     bool previous = false;
@@ -1859,7 +2303,7 @@ static DWORD WINAPI poll_thread(LPVOID parameter)
      * queue up and the pointer would never move. */
     raw_window = create_raw_window();
     if (raw_window == NULL) {
-        log_warning("raw mouse input is unavailable - the arrow keys still work, the pointer "
+        log_warning("raw mouse input is unavailable, the arrow keys still work, the pointer "
                     "will not");
     }
 
@@ -1889,7 +2333,7 @@ static DWORD WINAPI poll_thread(LPVOID parameter)
                     /* Opened here rather than at startup so that, when we do get the mouse
                      * exclusively, the game only loses it for as long as the menu is up. */
                     if (!open_mouse()) {
-                        log_warning("no mouse could be opened - the arrow keys still work");
+                        log_warning("no mouse could be opened, the arrow keys still work");
                     }
                     g_visible = true;
                 }
@@ -1910,6 +2354,7 @@ static DWORD WINAPI poll_thread(LPVOID parameter)
     /* Not reached; the thread lives as long as the process. */
     return 0;
 }
+OF_NORETURN_THREAD_END
 
 void dev_menu_install(void)
 {
@@ -1965,9 +2410,14 @@ void dev_menu_install(void)
 
     g_channel = channel_open();
     if (g_channel == NULL) {
-        log_warning("the shared channel could not be opened - the slider will have nothing to "
+        log_warning("the shared channel could not be opened; the sliders will have nothing to "
                     "drive, though the menu will still open and report");
     }
+
+    /* Starts the frame rate slider where the ini already has it, so opening the menu shows what
+     * the game is doing rather than a default that disagrees with it. Nothing is published until
+     * the slider is actually moved. */
+    timing_init(g_channel);
 
     thread = CreateThread(NULL, 0, poll_thread, NULL, 0, NULL);
     if (thread == NULL) {

@@ -121,13 +121,9 @@ static FARPROC chain_procedure(const char *name)
     return GetProcAddress(chain_module, name);
 }
 
-/* ---------------------------------------------------------------------------------------------
- * The fallback trigger. The plugins are normally loaded before this, by early_trigger.c at the
- * host's entry point: graphics startup runs before input startup, so a loader that waits for
- * this call installs after the display mode and the first viewport already exist.
- * plugin_loader_run_once() is idempotent, so this call costs nothing when the early trigger
- * worked and saves the run when it did not.
- * ------------------------------------------------------------------------------------------- */
+/* The fallback trigger. early_trigger.c normally gets there first, at the host's entry point;
+ * this call costs nothing when it did and saves the run when it did not, because
+ * plugin_loader_run_once() is idempotent. See README.md. */
 HRESULT WINAPI proxy_direct_input8_create(HINSTANCE instance, DWORD version,
                                           const void *interface_id, void **out_interface,
                                           void *outer)

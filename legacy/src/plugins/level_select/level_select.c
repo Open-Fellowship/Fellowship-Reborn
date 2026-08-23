@@ -15,31 +15,6 @@
 
 #define PLUGIN_SECTION "level_select"
 
-/* ================================================================================== the branch
- *
- * The main menu's New Game handler asks whether a level was configured to start, and if one was,
- * skips past the level list to load it:
- *
- *     mov  eax,[ebp+0x70]           "Level to Load for New Game"
- *     test eax,eax
- *     je   <level list>             not configured -> the level selection screen
- *     ...                           configured     -> load that level
- *
- * Retail configures one, so the screen is never reached. Two bytes fix that: the conditional
- * becomes a nop and an unconditional jump, keeping the same six-byte length and the same
- * displacement, which is why the community edit looks the way it does in a hex editor.
- *
- *     0F 84 D6 00 00 00     je  +0xD6
- *     90 E9 D6 00 00 00     nop / jmp +0xD6
- *
- * ================================================================= why this one scans for it
- *
- * engine_sites.h says signature scanning is the upgrade path and is worth nothing until a second
- * build turns up to test against. One has. The same eleven bytes sit at rfl+0x75B7F in the
- * 1,306,624-byte retail Fellowship.rfl and at rfl+0x75FAF in the 1,372,160-byte one, so an
- * address would have been right about exactly one of them, and the sequence occurs exactly once
- * in each. That is what makes scanning correct here rather than merely fashionable.
- */
 #define BRANCH_OFFSET   5u    /* into the pattern, where the two bytes live */
 
 static const uint8_t stock_branch[] = {
@@ -141,7 +116,7 @@ static void on_rfl_loaded(uintptr_t rfl_base)
     patch_result_t result;
 
     if (!code_section(rfl_base, &code, &size)) {
-        log_error("could not find the code section of Fellowship.rfl at %08X - not installing",
+        log_error("could not find the code section of Fellowship.rfl at %08X, not installing",
                   (unsigned)rfl_base);
         return;
     }
@@ -153,21 +128,21 @@ static void on_rfl_loaded(uintptr_t rfl_base)
          * here? Copies that have been through the community patcher, or that came out of a
          * release that shipped an edited rfl, land in this branch. */
         if (find_all(code, size, edited_branch, sizeof(edited_branch), &site) > 0) {
-            log_info("rfl+%05X already carries the edit - nothing to do on this copy",
+            log_info("rfl+%05X already carries the edit, nothing to do on this copy",
                      (unsigned)(site - rfl_base));
             log_info("  New Game already opens the level list here. If it does not, the missing "
                      "piece is LevelList.txt next to Fellowship.exe, which is what fills it in.");
             return;
         }
 
-        log_error("the New Game branch is not in this Fellowship.rfl - not installing. Looked "
+        log_error("the New Game branch is not in this Fellowship.rfl, not installing. Looked "
                   "for 8B 45 70 85 C0 0F 84 D6 00 00 00 across %u bytes of code.",
                   (unsigned)size);
         return;
     }
 
     if (matches > 1) {
-        log_error("that byte sequence appears %u times in this build, so it identifies nothing - "
+        log_error("that byte sequence appears %u times in this build, so it identifies nothing, "
                   "refusing to write", matches);
         return;
     }

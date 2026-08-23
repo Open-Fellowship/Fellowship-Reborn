@@ -1,7 +1,7 @@
 /* trampoline.h: executable memory for stubs assembled at run time.
  *
  * The byte-patch generation of this project wrote its stubs into unused space inside the game's
- * own .text - the zero region at 0x51B302 in the executable, the slack past VirtualSize in the
+ * own .text, the zero region at 0x51B302 in the executable, the slack past VirtualSize in the
  * rfl. That worked, and it is exactly what a loader removes the need for: caves are finite, two
  * fixes can collide in one, and a fix that owns a cave cannot be uninstalled.
  *

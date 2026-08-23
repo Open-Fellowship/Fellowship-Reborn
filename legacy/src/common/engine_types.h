@@ -1,11 +1,8 @@
 /* engine_types.h: the assumptions every other file in this tree is allowed to make.
  *
- * The Riot Engine build we target is 32-bit. Every offset, every operand repoint and every
- * pointer written into engine memory in this project assumes a 4-byte pointer. Getting that
- * wrong does not produce a compile error on its own, it produces a 64-bit DLL that cannot be
- * loaded by the game at all, or worse, a structure whose fields have quietly moved.
- *
- * The assertion below is the cheapest possible place to find that out.
+ * The engine is 32-bit. Every offset and every pointer written into engine memory assumes a
+ * 4-byte pointer, and getting that wrong is not a compile error on its own. The assertion below
+ * is the cheapest place to find out. See README.md.
  */
 #ifndef COMMON_ENGINE_TYPES_H
 #define COMMON_ENGINE_TYPES_H
@@ -18,10 +15,8 @@ _Static_assert(sizeof(void *) == 4,
 _Static_assert(sizeof(float) == 4, "engine floats are IEEE 754 single precision");
 
 /* Fellowship.exe, No-CD, 2,133,459 bytes. Both bases are the PREFERRED bases from the PE
- * headers; nothing in this tree may assume the module actually landed there. Ask
- * host_image_base() or GetModuleHandle instead. They are here because the byte-patch tooling in
- * _FixEnhancers speaks in absolute addresses and the arithmetic to convert has to live
- * somewhere obvious. */
+ * headers; nothing here may assume the module landed there. Ask host_image_base() or
+ * GetModuleHandle instead. */
 #define FELLOWSHIP_EXE_PREFERRED_BASE ((uintptr_t)0x00400000u)
 #define FELLOWSHIP_RFL_PREFERRED_BASE ((uintptr_t)0x10000000u)
 
@@ -33,13 +28,12 @@ _Static_assert(sizeof(float) == 4, "engine floats are IEEE 754 single precision"
 #define FELLOWSHIP_RFL_MODULE "Fellowship.rfl"
 
 /* What the retail engine is called once engine/'s proxy has taken its name. Do not compare
- * against these two by hand: ask fellowship_rfl_module_name() in common/module_watch.h, which
- * picks the right one and is correct whether or not the proxy is installed. */
+ * against these two by hand: ask fellowship_rfl_module_name() in common/module_watch.h,
+ * which picks the right one and is correct whether or not the proxy is installed. */
 #define FELLOWSHIP_RFL_PROXIED_MODULE "Fellowship.orig.rfl"
 
-/* The engine's virtual screen is always 128 units wide, so the authored 640x480 interface maps
- * at exactly 5 pixels per unit and the field of view is horizontal. Several plugins need these
- * and none of them should be spelling them out again.
+/* The virtual screen is always 128 units wide, so the authored field of view is horizontal and
+ * the 640x480 interface maps at 5 pixels per unit. Several plugins need these. See README.md.
  *
  *     camera+0x228  halfW = 64.0                 always
  *     camera+0x22C  halfH = 64.0 * H / W         48.0 at 4:3, 36.0 at 16:9

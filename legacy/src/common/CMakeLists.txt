@@ -14,6 +14,7 @@ add_library(open_fellowship_common STATIC
     trampoline.c
     emit.c
     module_watch.c
+    platform.c
     camera.c
     channel.c
 )

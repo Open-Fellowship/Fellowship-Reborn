@@ -9,41 +9,60 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define INI_FILE_NAME "open_fellowship.ini"
+#define INI_FILE_NAME   "fix_enhancers.ini"
+#define INI_LEGACY_NAME "open_fellowship.ini"
 
 static char ini_file_path[MAX_PATH];
+static bool ini_is_legacy;
 
+static bool file_exists(const char *path)
+{
+    DWORD attributes = GetFileAttributesA(path);
+
+    return attributes != INVALID_FILE_ATTRIBUTES
+           && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+}
+
+/* Resolved once. A plugin that reads twenty keys must not stat the directory twenty times, and
+ * more importantly must not change its mind halfway through because a file appeared. */
 const char *ini_path(void)
 {
     if (ini_file_path[0] == '\0') {
+        char legacy[MAX_PATH];
+
         host_image_resolve();
         snprintf(ini_file_path, sizeof(ini_file_path), "%s%s", host_directory(), INI_FILE_NAME);
         ini_file_path[sizeof(ini_file_path) - 1] = '\0';
+
+        if (!file_exists(ini_file_path)) {
+            snprintf(legacy, sizeof(legacy), "%s%s", host_directory(), INI_LEGACY_NAME);
+            legacy[sizeof(legacy) - 1] = '\0';
+            if (file_exists(legacy)) {
+                memcpy(ini_file_path, legacy, sizeof(ini_file_path));
+                ini_is_legacy = true;
+            }
+        }
     }
     return ini_file_path;
 }
 
-/* A sentinel nobody would type. GetPrivateProfileString cannot otherwise distinguish "the key
- * says nothing" from "there is no key", and those are different: the first is a deliberate empty
- * value and the second means fall back to the built-in default.
+bool ini_using_legacy_name(void)
+{
+    (void)ini_path();      /* so the answer is never "not yet decided" */
+    return ini_is_legacy;
+}
+
+/* A sentinel nobody would type: GetPrivateProfileString cannot otherwise tell "the key says
+ * nothing" from "there is no key".
  *
- * Split across two string literals on purpose: "\x02absent" would be read as the single hex
- * escape \x02a, which is a different character and an error at -Werror. */
+ * Split across two string literals on purpose: "\x02absent" reads as the single escape \x02a,
+ * which is a different character and an error under /WX. */
 #define INI_ABSENT "\x01\x02" "absent"
 
-/* The profile API returns everything after the '=' verbatim, INLINE COMMENT AND ALL, and this
- * project walked straight into that with its own documentation:
- *
- *     LogMessages=1                ; Mirrors what the engine prints...
- *
- * comes back as "1                ; Mirrors what the engine prints...". The numeric readers get
- * away with it, because strtol and strtod stop at the space - which is why KeyCode=192 with a
- * comment has always worked. The BOOLEAN reader compared the whole string against "1" and quietly
- * fell back to its default, so EVERY DOCUMENTED BOOLEAN in the shipped ini was ignored. That is
- * why LogMessages appeared to do nothing however many times it was set.
- *
- * A comment here is a ';' or '#' at the start of the value or following whitespace. Trailing
- * whitespace goes with it. */
+/* The profile API returns everything after the '=' verbatim, INLINE COMMENT AND ALL. The
+ * numeric readers survive it because strtol stops at the space; the boolean reader did not, and
+ * every documented boolean in the shipped ini was ignored until this was added. A comment is a
+ * ';' or '#' at the start of the value or following whitespace. See README.md. */
 static void strip_inline_comment(char *value)
 {
     size_t end = strlen(value);
@@ -146,13 +165,6 @@ float ini_read_float(const char *section, const char *key, float default_value)
         return default_value;
     }
     return (float)parsed;
-}
-
-bool ini_write_int(const char *section, const char *key, int32_t value)
-{
-    char text[64];
-    snprintf(text, sizeof(text), "%ld", (long)value);
-    return WritePrivateProfileStringA(section, key, text, ini_path()) != 0;
 }
 
 bool ini_write_float(const char *section, const char *key, float value, int decimal_places)

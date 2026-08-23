@@ -1,8 +1,7 @@
 /* template_plugin.h: the smallest thing that satisfies the loader contract.
  *
- * Copy this directory to start a real plugin. The shape to keep is the split between dll_main.c,
- * which is the entry point and nothing else, and this file, which is the behaviour. Every plugin
- * in this tree follows it, so a reader always knows which file to open first.
+ * Copy this directory to start a real plugin. Keep the split: dll_main.c is the entry point and
+ * nothing else, this file is the behaviour. Every plugin here follows it. See README.md.
  */
 #ifndef TEMPLATE_PLUGIN_H
 #define TEMPLATE_PLUGIN_H

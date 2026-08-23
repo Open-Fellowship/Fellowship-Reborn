@@ -13,8 +13,8 @@
 
 #define PLUGIN_SECTION "game_speed"
 
-/* .rdata, so it is one float and not an instruction: no boundary to respect and no length to
- * match. 0x3B03126F is 0.002; the patcher writes 0x38D1B717, which is 0.0001. */
+/* .rdata, so it is one float and no instruction boundary to respect. The key and the plugin
+ * keep the patcher's names. */
 #define TIMESTEP_VA 0x0051C764u
 
 void game_speed_install(void)
