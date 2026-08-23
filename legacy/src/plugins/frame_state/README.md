@@ -63,7 +63,7 @@ afterwards.
 ## Who asked for the change
 
 Reading the executable does not find the code that turns bit 3 on. One function writes that word,
-the setter at `0x4049F0`, and no cross-reference to it pushes a value with bit 3 in it - it
+the setter at `0x4049F0`, and no cross-reference to it pushes a value with bit 3 in it, it
 arrives computed in a register from a caller nothing static reaches. So the running game is asked
 instead.
 

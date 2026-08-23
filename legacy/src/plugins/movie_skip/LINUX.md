@@ -30,24 +30,24 @@ end it; the mechanism is in "The main menu: solved" below.
 
 The frame limiter only ever looked one way. Falling *behind* is the obvious case and was handled.
 Running *ahead* was not: the hook is one call site, and the engine is under no obligation to reach
-it once per drawn frame - during start-up it goes round far more often than that, with nothing
+it once per drawn frame, during start-up it goes round far more often than that, with nothing
 being presented. Every one of those calls added a whole frame period to the target while almost no
 real time passed, so the schedule ran away, a single `Sleep` grew to several seconds, and the game
 sat in it behind a black screen. The limiter now resyncs in both directions and reports the first
 few resyncs with the call count, so a site reached far more often than the frame rate says so.
 
-### `ini` inline comments - our own configuration file was lying
+### `ini` inline comments, our own configuration file was lying
 
 `GetPrivateProfileString` returns everything after the `=`, comment and all. The numeric readers
 survived it because `strtol` stops at the first space. The boolean reader compared the whole
 string against `"1"` and silently fell back to its default, so **every documented boolean in the
-shipped ini was ignored** - which is why `LogMessages=1` did nothing for a week of runs. Fixed in
+shipped ini was ignored**, which is why `LogMessages=1` did nothing for a week of runs. Fixed in
 `common/ini.c`.
 
 ## The main menu: solved
 
 The last stretch turned out to be `movie_skip` itself. Its first version stopped Begin from
-setting the "movie playing" bit, so the engine drew every frame - but the movie was still
+setting the "movie playing" bit, so the engine drew every frame, but the movie was still
 "current" in the media manager, whose per-frame tick kept running MoviePC::Update, which kept
 creating and failing the Windows Media reader in silence and **never fired the completion
 callback** the rfl was waiting on. The opening-movie sequence never handed over to the Main Menu
@@ -69,7 +69,7 @@ Confirmed on the Steam Deck: with `movie_skip` v2 the game reaches the main menu
   archives, and skipping them means no opening, no cutscenes and, if the menu background was a
   loop, a black one. The clean route is a `movie_player` plugin that hooks the same Begin /
   Update / callback seam, plays a converted file from a `Movies\` folder and presents it on the
-  D3D8 device - the same shape as OpenPhantom's `fmv_player`.
+  D3D8 device, the same shape as OpenPhantom's `fmv_player`.
 
 ## The instruments
 

@@ -8,7 +8,7 @@
  * game and a black screen.
  *
  * A windowed device makes no such bargain. So the presentation parameters are rewritten on their
- * way into CreateDevice and Reset - windowed, at the size of the desktop - and the window itself
+ * way into CreateDevice and Reset, windowed, at the size of the desktop, and the window itself
  * is restyled to a borderless popup covering the screen. The game is told nothing: it asked for
  * 1280x800 and it gets a 1280x800 back buffer filling the screen, which is what it wanted.
  *

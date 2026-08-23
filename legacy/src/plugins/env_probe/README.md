@@ -45,7 +45,7 @@ and when it fails, which is the case worth catching:
 ```
 
 A refused device leaves the game running with nothing to draw into. From outside that is a black
-screen and no other symptom - no crash, no message, the process still alive. It is the single
+screen and no other symptom, no crash, no message, the process still alive. It is the single
 most useful line this project can produce about a machine nobody here owns.
 
 **The window the device is attached to.** A windowed device asked for `0x0` is not a mistake: it
@@ -108,7 +108,7 @@ than numbered:
 are worth recognising on sight.
 
 **And where that thread actually is.** A game that answers messages and does not draw is waiting
-for something and will not say what, so the stall report asks the only witness there is - the
+for something and will not say what, so the stall report asks the only witness there is, the
 instruction pointer of the thread that presented the last frame:
 
 ```

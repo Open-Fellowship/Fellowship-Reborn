@@ -32,14 +32,14 @@
 /* ------------------------------------------------------------------------------ Direct3D 8
  *
  * Only the two entries needed to see the answer. IDirect3D8's vtable is the COM order, so
- * CreateDevice is slot 15 and GetAdapterIdentifier is slot 5 - not addresses in this game, so
+ * CreateDevice is slot 15 and GetAdapterIdentifier is slot 5, not addresses in this game, so
  * they are the same on any implementation.
  */
 #define D3D8_GETADAPTERIDENTIFIER 5
 #define D3D8_CREATEDEVICE         15
 
 /* IDirect3DDevice8, same COM ordering. Reset is where a windowed device becomes a fullscreen one,
- * and Present is the proof that frames are still being produced at all - which is the difference
+ * and Present is the proof that frames are still being produced at all, which is the difference
  * between a game that has hung and a game that is drawing into something nobody can see. */
 #define D3D8_DEVICE_RESET         14
 #define D3D8_DEVICE_PRESENT       15
@@ -96,8 +96,8 @@ static unsigned           g_frames;
 static DWORD              g_last_report;
 
 /* The window the device draws into, kept so that the frames and the window can be reported
- * together. A window that is 320x200 and hidden when the device is made is not yet a problem -
- * plenty of games create one that way and show it afterwards - but a window still that size once
+ * together. A window that is 320x200 and hidden when the device is made is not yet a problem,
+* plenty of games create one that way and show it afterwards, but a window still that size once
  * frames are going out is the whole answer. */
 static HWND               g_watch_window;
 
@@ -138,7 +138,7 @@ static void log_platform(void)
     MEMORYSTATUSEX memory;
 
     if (wine != NULL) {
-        log_info("running under WINE %s - Proton, a Steam Deck, or a Linux desktop", wine);
+        log_info("running under WINE %s, Proton, a Steam Deck, or a Linux desktop", wine);
         log_environment_variable("SteamGameId");
         log_environment_variable("SteamAppId");
         log_environment_variable("SteamDeck");
@@ -376,7 +376,7 @@ static void hook_device(void *device)
     }
     if (!VirtualProtect(&vtable[D3D8_DEVICE_RESET], 2 * sizeof(void *), PAGE_READWRITE,
                         &protection)) {
-        log_warning("the device vtable could not be made writable - not watching Reset/Present");
+        log_warning("the device vtable could not be made writable, not watching Reset/Present");
         return;
     }
 
@@ -395,7 +395,7 @@ static void hook_device(void *device)
  *
  * A log that simply stops is ambiguous. The game might be stuck before its render loop, or it
  * might be drawing perfectly into a window nobody can see, and from outside both are a black
- * screen. Present answers that - but only if it is ever called, and "never called" is exactly
+ * screen. Present answers that, but only if it is ever called, and "never called" is exactly
  * the case that leaves no line behind. So a thread of our own asks the question out loud.
  */
 static bool g_watching = true;
@@ -577,7 +577,7 @@ static void identify_window(const char *label, HWND window)
 
     log_info("  %s %08X, class \"%s\", title \"%s\", process %lu%s (thread %lu)",
              label, (unsigned)(uintptr_t)window, class_name, title, (unsigned long)process,
-             (process == GetCurrentProcessId()) ? " - THIS GAME" : " - another process",
+             (process == GetCurrentProcessId()) ? ", THIS GAME" : ", another process",
              (unsigned long)thread);
 }
 
@@ -637,7 +637,7 @@ static bool window_is_pumping(HWND window)
 }
 
 /* Ticks every five seconds for the life of the process. It says nothing while the frame counter
- * is moving, and speaks up when it stops - once when the stall starts and once thirty seconds in,
+ * is moving, and speaks up when it stops, once when the stall starts and once thirty seconds in,
  * so a game that is wedged says so twice rather than five hundred times. If frames start again the
  * whole thing re-arms. */
 static DWORD WINAPI watchdog_thread(void *unused)
@@ -666,7 +666,7 @@ static DWORD WINAPI watchdog_thread(void *unused)
 
         if (g_frames == 0) {
             log_error("%u seconds after the device was created and NOT ONE frame has been "
-                      "presented. The game is not drawing at all - it is stuck before its render "
+                      "presented. The game is not drawing at all; it is stuck before its render "
                       "loop rather than drawing into something invisible.", quiet_ticks * 5u);
         } else {
             log_error("%u frames presented and then nothing for %u seconds. The game STOPPED "
@@ -687,7 +687,7 @@ static DWORD WINAPI watchdog_thread(void *unused)
         log_info("  main thread %s", window_is_pumping(g_watch_window)
                      ? "is still pumping messages, so the process is alive and waiting on "
                        "something else"
-                     : "did NOT answer a message in a second - it is blocked or gone");
+                     : "did NOT answer a message in a second; it is blocked or gone");
 
         /* Every thread once, then the drawing thread again a second later. One sample says where
          * it is; two say whether it is sitting still or going round a loop, and those are
@@ -760,7 +760,7 @@ static void hook_device_creation(void *d3d8)
 
     vtable = *(void ***)d3d8;
     if (!memory_is_readable_range((uintptr_t)vtable, (D3D8_CREATEDEVICE + 1) * sizeof(void *))) {
-        log_warning("the IDirect3D8 vtable is not readable - not watching device creation");
+        log_warning("the IDirect3D8 vtable is not readable, not watching device creation");
         return;
     }
 
@@ -777,7 +777,7 @@ static void hook_device_creation(void *d3d8)
     }
 
     if (!VirtualProtect(&vtable[D3D8_CREATEDEVICE], sizeof(void *), PAGE_READWRITE, &protection)) {
-        log_warning("the IDirect3D8 vtable could not be made writable - not watching device "
+        log_warning("the IDirect3D8 vtable could not be made writable, not watching device "
                     "creation");
         return;
     }
@@ -890,7 +890,7 @@ void env_probe_install(void)
     }
 
     if (slot == NULL) {
-        log_warning("Direct3DCreate8 is not imported by name - device creation will not be "
+        log_warning("Direct3DCreate8 is not imported by name, device creation will not be "
                     "reported. The rest of this plugin still works.");
     } else {
         g_original_create = (direct3d_create8_t)*slot;

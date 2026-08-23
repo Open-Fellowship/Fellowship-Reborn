@@ -56,7 +56,7 @@ static int g_height;
 
 /* The size the GAME asked for, which is the size its viewport will be and therefore the size the
  * window has to be. Forcing a bigger back buffer than the game's own mode leaves it drawing into
- * one corner of a surface it never clears - the rest stays black, which is exactly what it looked
+ * one corner of a surface it never clears; the rest stays black, which is exactly what it looked
  * like from the outside. */
 static int g_back_width;
 static int g_back_height;
@@ -184,7 +184,7 @@ static void make_windowed(const char *what, present_parameters_t *parameters, HW
     }
 
     if (!parameters->windowed) {
-        log_info("%s asked for FULLSCREEN %ux%u - same size, as a window", what,
+        log_info("%s asked for FULLSCREEN %ux%u, same size, as a window", what,
                  parameters->back_buffer_width, parameters->back_buffer_height);
         parameters->windowed                          = TRUE;
         parameters->full_screen_refresh_rate           = 0;  /* refused on a windowed device */
@@ -199,7 +199,7 @@ static void make_windowed(const char *what, present_parameters_t *parameters, HW
  * first version of this plugin left a small window with a title bar and a black inside. */
 /* A window this plugin has shaped can still be reshaped by the runtime, the window manager or the
  * game itself, and on Wine it is. So the shape is re-asserted on a slow timer rather than trusted
- * to hold - four times a second, doing nothing at all while it already looks right. */
+ * to hold, four times a second, doing nothing at all while it already looks right. */
 OF_NORETURN_THREAD_BEGIN
 static DWORD WINAPI keeper_thread(void *unused)
 {
@@ -259,7 +259,7 @@ static void hook_device(void *device)
         return;
     }
     if (!VirtualProtect(&vtable[D3D8_DEVICE_RESET], sizeof(void *), PAGE_READWRITE, &protection)) {
-        log_warning("the device vtable could not be made writable - a later Reset could still go "
+        log_warning("the device vtable could not be made writable; a later Reset could still go "
                     "full screen");
         return;
     }
@@ -304,11 +304,11 @@ static void hook_device_creation(void *d3d8)
     }
     vtable = *(void ***)d3d8;
     if (!memory_is_readable_range((uintptr_t)vtable, (D3D8_CREATEDEVICE + 1) * sizeof(void *))) {
-        log_warning("the IDirect3D8 vtable is not readable - not installing");
+        log_warning("the IDirect3D8 vtable is not readable, not installing");
         return;
     }
     if (!VirtualProtect(&vtable[D3D8_CREATEDEVICE], sizeof(void *), PAGE_READWRITE, &protection)) {
-        log_warning("the IDirect3D8 vtable could not be made writable - not installing");
+        log_warning("the IDirect3D8 vtable could not be made writable, not installing");
         return;
     }
 
@@ -406,7 +406,7 @@ void borderless_install(void)
         return;
     }
     if (platform_is_wine()) {
-        log_info("this is WINE %s, where exclusive full screen loses its window to the focus - "
+        log_info("this is WINE %s, where exclusive full screen loses its window to the focus, "
                  "so this is on unless the ini says otherwise", platform_wine_version());
     }
     if (!host_image_resolve()) {
@@ -422,7 +422,7 @@ void borderless_install(void)
         slot = find_import_slot("d3d8.dll", "Direct3DCreate8");
     }
     if (slot == NULL) {
-        log_error("Direct3DCreate8 is not imported by name - cannot install");
+        log_error("Direct3DCreate8 is not imported by name, cannot install");
         return;
     }
 

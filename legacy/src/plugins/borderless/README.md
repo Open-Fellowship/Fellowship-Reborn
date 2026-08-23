@@ -1,6 +1,6 @@
 # borderless
 
-**Produces:** `borderless.dll`. Off by default.
+**Produces:** `borderless.dll`. On under Wine, off on Windows, unless the ini says otherwise.
 
 The game keeps the size it asked for and stops taking the screen exclusively.
 
@@ -47,6 +47,6 @@ found and forwards, so this and `env_probe` chain in load order rather than figh
 
 | Key | Default | |
 |---|---|---|
-| `Enabled` | `0` | |
+| `Enabled` | auto | absent means on under Wine and off on Windows. `1` forces it on, `0` off |
 | `Width` | `0` | 0 = the width of the desktop |
 | `Height` | `0` | 0 = the height of the desktop |

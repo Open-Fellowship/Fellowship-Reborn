@@ -13,7 +13,7 @@
 #define PLUGIN_SECTION "screen_test"
 
 /* COM vtable positions on IDirect3DDevice8. Present is 15 and Clear is 36, counted from
- * QueryInterface at 0 - the same on every implementation, which is the whole reason this works
+ * QueryInterface at 0; the same on every implementation, which is the whole reason this works
  * against wined3d and DXVK alike. */
 #define D3D8_CREATEDEVICE     15
 #define D3D8_DEVICE_PRESENT   15
@@ -53,7 +53,7 @@ static HRESULT STDMETHODCALLTYPE hooked_present(void *self, const RECT *source,
     device_clear_t  clear;
 
     /* Painted BEFORE the frame goes out, and over the top of whatever the game drew, because the
-     * question is not what the game drew - it is whether anything at all arrives on the panel. */
+     * question is not what the game drew; it is whether anything at all arrives on the panel. */
     clear = (device_clear_t)vtable[D3D8_DEVICE_CLEAR];
     clear(self, 0, NULL, D3DCLEAR_TARGET, g_colours[step], 1.0f, 0);
 
@@ -76,12 +76,12 @@ static void hook_device(void *device)
     }
     vtable = *(void ***)device;
     if (!memory_is_readable_range((uintptr_t)vtable, (D3D8_DEVICE_CLEAR + 1) * sizeof(void *))) {
-        log_warning("the device vtable is not readable - not painting anything");
+        log_warning("the device vtable is not readable, not painting anything");
         return;
     }
     if (!VirtualProtect(&vtable[D3D8_DEVICE_PRESENT], sizeof(void *), PAGE_READWRITE,
                         &protection)) {
-        log_warning("the device vtable could not be made writable - not painting anything");
+        log_warning("the device vtable could not be made writable, not painting anything");
         return;
     }
 
@@ -206,7 +206,7 @@ void screen_test_install(void)
     log_init(PLUGIN_SECTION, false);
 
     if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
-        log_info("Enabled=0. A diagnostic that PAINTS OVER THE GAME - only ever turn it on to "
+        log_info("Enabled=0. A diagnostic that PAINTS OVER THE GAME, only ever turn it on to "
                  "find out whether the screen works at all.");
         return;
     }
@@ -225,7 +225,7 @@ void screen_test_install(void)
         slot = find_import_slot("d3d8.dll", "Direct3DCreate8");
     }
     if (slot == NULL) {
-        log_error("Direct3DCreate8 is not imported by name - cannot install");
+        log_error("Direct3DCreate8 is not imported by name, cannot install");
         return;
     }
 
@@ -235,5 +235,5 @@ void screen_test_install(void)
         return;
     }
 
-    log_info("installed. THE GAME WILL BE UNPLAYABLE while this is on - that is the point.");
+    log_info("installed. THE GAME WILL BE UNPLAYABLE while this is on; that is the point.");
 }

@@ -160,7 +160,7 @@ add_fellowship_plugin(env_probe
 # Rewrites the presentation parameters on their way into CreateDevice and Reset so the device is
 # never exclusive full screen, and restyles the window to a borderless popup filling the screen.
 # Exclusive full screen hands the window's fate to the focus, and this engine draws nothing while
-# its window is down - which under Wine is a black screen rather than an alt-tab annoyance.
+# its window is down, which under Wine is a black screen rather than an alt-tab annoyance.
 add_fellowship_plugin(borderless
     dll_main.c
     borderless.c

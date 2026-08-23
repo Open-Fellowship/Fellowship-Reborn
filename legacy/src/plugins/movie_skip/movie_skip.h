@@ -16,7 +16,7 @@
  *     0047B9DF  ret 8
  *
  * With that bit set the per-frame function returns without drawing, and the movie's own update
- * clears it again when playback ends - at 0x47BA72, 0x47BC4D and 0x47BCB8, three exits of the
+ * clears it again when playback ends, at 0x47BA72, 0x47BC4D and 0x47BCB8, three exits of the
  * same function.
  *
  * On Wine that end never comes. `wmvcore` is a stub there, so the movie neither plays nor fails,

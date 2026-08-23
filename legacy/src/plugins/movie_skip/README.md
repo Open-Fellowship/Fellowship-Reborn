@@ -3,8 +3,8 @@
 **Produces:** `movie_skip.dll`. Off by default on Windows, **on by default under Wine**.
 
 Three bytes that make every movie report "finished" on its first tick, through the engine's own
-path for a movie that could not be loaded. The game never waits on a movie again, and - the part
-that mattered - whoever asked for the movie is told that it ended.
+path for a movie that could not be loaded. The game never waits on a movie again, and, the part
+that mattered, whoever asked for the movie is told that it ended.
 
 ## Why this exists
 
@@ -25,7 +25,7 @@ MoviePC's Begin (slot 15, `0x47B9B0`) and clears it when playback ends. On Wine 
 
 ## The first version, and why it was not enough
 
-v1 patched Begin to return 0 without setting bit 3. The engine then drew every frame - and the
+v1 patched Begin to return 0 without setting bit 3. The engine then drew every frame, and the
 main menu was still black. The reason is that the rfl does not talk to the movie object directly.
 It calls the **media manager** (object `0x5403A0`, vtable `0x51EB40`), slot 17 at `0x47AB30`:
 
@@ -35,7 +35,7 @@ movie->slot10()
 return movie->Begin(a, b)         ; <- v1 made this return 0, and nothing else changed
 ```
 
-and every frame - from the bit-3 branch (`0x404672`) **and** from the normal frame (`0x47F258`) -
+and every frame, from the bit-3 branch (`0x404672`) **and** from the normal frame (`0x47F258`),
 the manager ticks its current movie (`0x47AB70`):
 
 ```
@@ -72,8 +72,8 @@ chunk type `0x342` inside the `.vdu` archives, and read through `WMVCore.DLL`
 (vtable `0x51ECB0`). Two things stack up on Wine:
 
 * `WMCreateReaderPriv` is only as good as the 32-bit GStreamer behind it. A Lutris prefix on
-  SteamOS very often has none, so reader creation fails before the game's stream is touched -
-  which matches "no error of any kind" in the engine log.
+  SteamOS very often has none, so reader creation fails before the game's stream is touched,
+which matches "no error of any kind" in the engine log.
 * Even with a codec, the game's `IStream` is a forward-only, double-buffered window:
   `STREAM_SEEK_END` returns `STG_E_INVALIDFUNCTION` at `0x47C530`, and `STREAM_SEEK_SET` outside
   the two buffered ranges is "MoviePC::Seek == MISSED OUR BUFFER RANGE" at `0x47C6AB`. Windows'
@@ -102,7 +102,7 @@ Update is made to take that path unconditionally, before it dereferences anythin
 At `0x47BA29` all four pushes and `mov esi,ecx` have already happened, and `0x47BA43` uses esi as
 `this` and ends in the function's own epilogue, so the stack is exactly as the engine expects.
 Begin (`0x47B9B0`) is left alone: it returns 1, sets bit 3 for one frame, and the very next tick
-reports the movie over and clears the bit - precisely what happens on Windows when a movie
+reports the movie over and clears the bit, precisely what happens on Windows when a movie
 resource is missing (see the rfl's own "No Ring Death Movie! ... Proceeding with normal, boring
 death.").
 

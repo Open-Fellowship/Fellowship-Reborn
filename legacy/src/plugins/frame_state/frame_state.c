@@ -28,8 +28,8 @@
  *     00404A70  mov  [0x53EE84], ebx
  *     00404A79  ret  4
  *
- * Five bytes of prologue, which is exactly a jump, so the value and - the point of the exercise -
- * the address of whoever asked for it can be written down. Reading the binary did not find the
+ * Five bytes of prologue, which is exactly a jump, so the value and, the point of the exercise,
+* the address of whoever asked for it can be written down. Reading the binary did not find the
  * caller that turns bit 3 on: it arrives computed in a register from somewhere no cross-reference
  * reaches. So ask the running game instead. */
 #define MODE_SETTER_VA    0x004049F0u
@@ -174,14 +174,14 @@ static void watch_the_setter(void)
 
     if (!memory_read(setter, found, sizeof(found)) ||
         memcmp(found, prologue, sizeof(found)) != 0) {
-        log_warning("%08X does not start with the prologue this expects - not watching the "
+        log_warning("%08X does not start with the prologue this expects, not watching the "
                     "setter", (unsigned)setter);
         return;
     }
 
     stub = (uintptr_t)trampoline_alloc(64);
     if (stub == 0 || build_stub(stub, setter + SETTER_PROLOGUE) == NULL) {
-        log_error("the stub could not be built - not watching the setter");
+        log_error("the stub could not be built, not watching the setter");
         return;
     }
 
@@ -262,7 +262,7 @@ void frame_state_install(void)
     log_init(PLUGIN_SECTION, false);
 
     if (!ini_read_bool(PLUGIN_SECTION, "Enabled", false)) {
-        log_info("Enabled=0. A diagnostic, not a fix - turn it on when the game is running and "
+        log_info("Enabled=0. A diagnostic, not a fix, turn it on when the game is running and "
                  "not drawing.");
         return;
     }

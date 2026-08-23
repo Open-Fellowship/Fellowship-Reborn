@@ -26,8 +26,8 @@
  *     movie->slot10();
  *     return movie->Begin(a, b);             <- v1 made this return 0, nothing else changed
  *
- * and every frame - from BOTH the bit-3 branch (0x404672) and the normal frame (0x47F258) -
- * the manager ticks its current movie (0x47AB70):
+ * and every frame, from BOTH the bit-3 branch (0x404672) and the normal frame (0x47F258),
+* the manager ticks its current movie (0x47AB70):
  *
  *     if (current && (current->state & 3) != 2)
  *         if (current->Update() == 0) { current->slot11(0); current = NULL; }
@@ -42,14 +42,14 @@
  *
  * Every one of those failure returns leaves the movie as "current", leaves the frame-mode bit
  * alone, and NEVER calls the completion callback ([this+0x38])(ctx, ...). Whoever asked for the
- * movie is still waiting for it to end. With v1 on, the engine draws every frame - and draws the
+ * movie is still waiting for it to end. With v1 on, the engine draws every frame, and draws the
  * nothing that exists before the opening sequence has handed over to the main menu.
  *
  * On Wine those calls fail (or worse: never complete). WMCreateReaderPriv is only as good as the
  * 32-bit GStreamer behind it, and even with a codec the game's own IStream (0x51ECB0) is a
- * forward-only, double-buffered window - STREAM_SEEK_END returns STG_E_INVALIDFUNCTION at
+ * forward-only, double-buffered window, STREAM_SEEK_END returns STG_E_INVALIDFUNCTION at
  * 0x47C530, and STREAM_SEEK_SET outside the two buffered ranges is "MISSED OUR BUFFER RANGE" at
- * 0x47C6AB - while winegstreamer's reader wants random access. If it did get past open it
+ * 0x47C6AB, while winegstreamer's reader wants random access. If it did get past open it
  * would then busy-wait at 0x47BBBC for a sample that may never come.
  *
  * What v2 does instead
@@ -70,14 +70,14 @@
  * All four pushes and the `mov esi,ecx` have already happened at 0x47BA29, and 0x47BA43 uses esi
  * as `this` and ends in the function's own epilogue, so the stack is exactly as the engine
  * expects. Begin (0x47B9B0) is left alone: it returns 1, sets bit 3 for one frame, and the very
- * next tick reports the movie over and clears the bit - which is precisely what happens on
+ * next tick reports the movie over and clears the bit, which is precisely what happens on
  * Windows when a movie resource is missing.
  */
 #define MOVIE_UPDATE_SITE_VA 0x0047BA29u
 
 void movie_skip_install(void)
 {
-    /* mov eax,[esi+0Ch] / and eax,3 / cmp al,3 / jne rel32 - the whole state check, verified
+    /* mov eax,[esi+0Ch] / and eax,3 / cmp al,3 / jne rel32, the whole state check, verified
      * before the first three bytes of it are rewritten. */
     static const uint8_t expected[10]   = { 0x8B, 0x46, 0x0C, 0x83, 0xE0, 0x03, 0x3C, 0x03,
                                             0x0F, 0x85 };
@@ -94,7 +94,7 @@ void movie_skip_install(void)
         return;
     }
     if (platform_is_wine()) {
-        log_info("this is WINE %s - the Windows Media path does not complete here, so this is on "
+        log_info("this is WINE %s; the Windows Media path does not complete here, so this is on "
                  "unless the ini says otherwise", platform_wine_version());
     }
     if (!host_image_resolve()) {
@@ -106,7 +106,7 @@ void movie_skip_install(void)
 
     /* Verify the full ten-byte signature, write only the first three. */
     if (!patch_validate_bytes(address, expected, sizeof(expected))) {
-        log_error("%08X - not the MoviePC::Update state check this plugin was measured against; "
+        log_error("%08X, not the MoviePC::Update state check this plugin was measured against; "
                   "leaving it alone", (unsigned)address);
         return;
     }
