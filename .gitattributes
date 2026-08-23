@@ -1,0 +1,4 @@
+# Store every text file with LF, check it out in the platform native form.
+#
+# Written down here so it does not depend on each contributor having core.autocrlf set.
+* text=auto
