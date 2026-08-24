@@ -5,8 +5,8 @@
 Sets the size of the window the game opens in, by replacing the two hard-coded immediates:
 
 ```
-0x4BC49E   mov dword [0x565C74], 0x280      default width  640
-0x4BC4A8   mov dword [0x565C78], 0x1E0      default height 480
+0x4BC49F   mov dword [0x565C74], 0x280      default width  640
+0x4BC4A9   mov dword [0x565C78], 0x1E0      default height 480
 ```
 
 As bytes those are `C7 05 74 5C 56 00 80 02 00 00` and `C7 05 78 5C 56 00 E0 01 00 00`.

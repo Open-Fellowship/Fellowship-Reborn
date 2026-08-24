@@ -53,10 +53,10 @@ set(FELLOWSHIP_REBORN_OUTPUT_DEBUG ${CMAKE_BINARY_DIR}/dist-debug)
 # cells.
 file(REMOVE_RECURSE ${FELLOWSHIP_REBORN_OUTPUT}/plugins)
 
-# And the configuration file under its former name, for exactly the same reason. The rename left a
-# stale fellowship_reborn.ini sitting in the output beside the new one, and while the loader prefers
-# the new name and would have ignored it, a release folder containing two configuration files is a
-# release that gets shipped with the wrong one edited.
+# And the configuration file under its former names, for exactly the same reason. The rename left a
+# stale open_fellowship.ini sitting in the output beside the new one, and while the loader prefers
+# the current name and would have ignored it, a release folder containing two configuration files
+# is a release that gets shipped with the wrong one edited.
 file(REMOVE ${FELLOWSHIP_REBORN_OUTPUT}/open_fellowship.ini
             ${FELLOWSHIP_REBORN_OUTPUT}/fix_enhancers.ini)
 
