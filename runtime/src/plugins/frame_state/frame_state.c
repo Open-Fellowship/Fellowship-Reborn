@@ -12,6 +12,7 @@
 #include <windows.h>
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #define PLUGIN_SECTION "frame_state"
@@ -88,8 +89,11 @@ static const char *name_of(uint32_t address)
                     name = cursor + 1;
                 }
             }
-            wsprintfA(text, "%s+%06X", name,
+            /* Not wsprintfA: it stops at 1024 characters regardless of the buffer it was
+             * handed, and an injected overlay or AV shim with a long file name reaches that. */
+            _snprintf(text, sizeof(text), "%s+%06X", name,
                       (unsigned)(address - (uintptr_t)region.AllocationBase));
+            text[sizeof(text) - 1] = '\0';
             return text;
         }
     }

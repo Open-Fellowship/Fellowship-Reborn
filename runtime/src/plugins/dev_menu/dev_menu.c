@@ -1711,7 +1711,7 @@ static void channel_all_rect(bool on, int *bx, int *by, int *bw, int *bh)
 
 static void draw_channels(void)
 {
-    char     line[64];
+    char     line[96];
     unsigned count = messages_channel_count();
     unsigned i;
     int      bx;
@@ -1753,7 +1753,9 @@ static void draw_channels(void)
     overlay_rect(bx, by, bw, bh, COLOUR_BUTTON);
     overlay_text(bx + 4, by + 3, 1, COLOUR_VALUE, " none ");
 
-    sprintf(line, "%u channels, switched off means not recorded at all, not merely hidden", count);
+    _snprintf(line, sizeof(line),
+              "%u channels, switched off means not recorded at all, not merely hidden", count);
+    line[sizeof(line) - 1] = '\0';
     overlay_text(bx + bw + 16, by + 3, 1, COLOUR_DIM, line);
 }
 
@@ -2341,9 +2343,18 @@ static DWORD WINAPI poll_thread(LPVOID parameter)
                 g_visible = false;
                 if (g_mouse_device != NULL) {
                     /* Handed straight back. Holding an exclusive mouse after the menu has closed
-                     * would be indistinguishable, from the player's side, from a broken game. */
-                    ((di8_release_t)(*(void ***)g_mouse_device)[DI8_DEV_RELEASE])(g_mouse_device);
+                     * would be indistinguishable, from the player's side, from a broken game.
+                     *
+                     * Cleared before the Release, never after. The render thread reads this
+                     * pointer and then calls through its vtable, so releasing first leaves it
+                     * dereferencing freed memory for as long as that takes. Clearing first
+                     * narrows the window to the two instructions between the load and the
+                     * call. It does not close it: only moving the Release onto the render
+                     * thread itself would do that. */
+                    void *device = g_mouse_device;
+
                     g_mouse_device = NULL;
+                    ((di8_release_t)(*(void ***)device)[DI8_DEV_RELEASE])(device);
                 }
             }
         }
