@@ -1,173 +1,75 @@
 # Fellowship Reborn
 
-A reverse engineering and preservation project for the PC version of
-*The Lord of the Rings: The Fellowship of the Ring* (Surreal Software, 2002,
-Riot Engine).
+<img width="1280" height="596" alt="Lord of the Rings The Fellowship of the Rings" src="https://github.com/user-attachments/assets/2f53649a-7a97-4e86-9a7a-4add2c5aabd8" />
 
-The aim is documented, maintainable source that preserves the original game's
-behaviour on modern systems, and a modding surface that does not require anybody
-to patch bytes by hand ever again.
+
+This is a reverse engineering, preservation and improvement project for the PC version of The Lord of the Rings: The Fellowship of the Ring.
 
 ## Scope
 
-Five things, in the order they matter. Everything in this repository should be
-justifiable as one of them, and a change that is none of them needs a
-better reason than "it was interesting".
+The aim of this project can be found summarised below: 
+- To fix the game up to a standard where it works on modern hardware/systems and OS's (Windows, Linux), add modern improvements such as modern Resolution/Aspect Ratio support, corrected HUD, higher FPS support, higher FOV support, better windowed mode support and much more.
+- Include mod tools for use in Blender via plugins where users can create their own modifications to the game and do much more with characters, props, environments etc.
+- Restore the content from the various ports back into the PC port to make Fellowship a complete game as it was meant to be.
+- Restore the developer menu for the game and add in some new features.
 
-**1. Fix the game.** The bugs that are genuinely the game's, not the hardware's.
-A stock install hangs on a black screen on NVIDIA cards; the renderer culls its
-own screen edges above 3072 pixels; a shipped level-select screen is reachable
-by nothing. These are defects with a right answer, and fixing one is finished
-work, not a matter of taste.
+## Requirements
 
-**2. Modern settings.** Make a 2002 game behave on 2026 hardware, frame rate,
-resolution, HUD and text scaling, field of view, and controller support. The
-game was authored for 640x480 and a fixed timestep, and most of what looks
-broken at 4K is that assumption showing through, not anything rotten.
+The user must have their Lord of the Rings: The Fellowship of the Ring game patched to the 1.1 version of the game in order for Fellowship Reborn to work correctly. If you run into issues with this please join the Lord of the Rings: The Fellowship of the Ring Modding Discord server.
 
-**3. Modding.** Tools that let people build models, maps and sounds for this
-game without reverse engineering it first. The Blender extension in `tools/`
-already reads geometry, animation, levels and textures, and writes them back.
-That is also why the object model is documented and not merely used: 397
-classes and 4,262 properties with the developers' own names on them is a modding
-surface, and it was a research artifact for about a day. Sound and the interface
-strings are the gaps.
+## Install
 
-**4. Restore content.** Cut content that is still in the files, content that
-exists in the console ports and not the PC one, and a mod folder on the main
-menu that can load and unload additions without anybody editing an ini by hand.
-The engine turns out to be full of things that shipped and are unreachable,
-`level_select` is one, the 124-entry developer flag menu is another.
+Go to releases and download the latest Fellowship Reborn release. Extract all the contents into the main Fellowship of the Rings install location. This should consist of:
+- Plugins folder
+- dinput8.dll
+- fellowship_reborn.ini
+- levellist.txt
+- fotr_riot_importer.zip
 
-**5. Cheats and the dev menu.** The engine's own debug tooling, put back where a
-player can reach it, plus additions in the same spirit. It is last on the list
-without being an afterthought: it is the part that makes the rest testable, and
-several of the findings the other four pillars rest on came out of building it.
+## Use
 
-## Status
+Once you have everything installed you can edit any settings you wish to change within the fellowship_reborn.ini file.
+- When in the game the user can change their Resolution within the video options menu to their desired setting. 
+- The user can now select any level within the game by clicking the 'New Game' option on the Main Menu. This will allow the user to load into any level that they wish to right away or just load into the starting level 'Hobbiton' like normal.
+- When in gameplay the user can press the ' key to load up the dev menu. This will allow the user to have access to the following tabs:
+- Camera
+- Engine Flags
+- Messages
+- Fellowship Reborn
 
-| Part | State |
-|---|---|
-| `runtime/` | **Working.** Loader plus 24 plugins, built and tested on a retail install at 3840x2160. Covers pillars 1, 2, 4 and 5. |
-| `architecture/` | Notes only. |
-| `engine/` | Experimental, on a branch. A drop-in `Fellowship.rfl` that forwards to the retail engine, with four of its static registries served from generated code. |
-| `tools/` | **Started.** The Blender extension (models, animation, levels, textures) lives here. Pillar 3. |
-| `installer/` | Not started. |
+- The 'Camera' tab will allow the user to edit their FOV, which they can either set it to automatic where it is set for the specific resolution or use the slider to change it to what they desire.
 
-## What `runtime/` is
+- The 'Engine Flags' tab will allow the user to turn on and off the various commands that were used in the games original developer menu.
 
-The retail game, running as it always did, with a loader beside it and one DLL
-per independent fix in `plugins\`. Nothing is decompiled and nothing is
-recompiled; the original executable is patched in memory at run time.
+- The 'Messages' tab will allow the user to see engine messages (only developers will use this).
 
-This replaces the file-patching approach it grew out of. Every fix so far
-rewrote bytes inside `Fellowship.exe` and `Fellowship.rfl`,
-which works but means a fix cannot be turned off without restoring a backup,
-two fixes cannot be shipped independently, and a game update invalidates
-everything at once. A loader and a folder of plugins fixes all three.
+- Fellowship Reborn tab contains options added into the game by the Fellowship Reborn team. These include player size to allow the user to change this with sliders for height and width. Also frame rate where the user can use set FPS of 30, 60, 120 and 144 buttons or use the slider to choose any FPS option they wish to use.
 
-### What it fixes today
+## Modding Tools
 
-Against the five pillars: `black_screen`, `edge_popin` and `level_select` are **1**;
-`hud_scaling`, `text_scaling`, `resolution_unlock`, `game_speed`, `fps_limit`, `windowed_res`,
-`field_of_view`, `model_lod` and `view_distance` are **2**; `level_select` and `dev_menu`'s engine
-flag page reach content that shipped and nothing else can, which is **4**; `dev_menu` and
-`fog_toggle` are **5**. Pillar **3** is not served by any plugin; it lives in `tools/`, because
-modding is a tooling problem, not a runtime one.
+This is an ongoing development atm.
 
-On by default:
+Currently once the user has downloaded the fotr_riot_importer.zip they will need to install Blender 5.0 or newer and then drag and drop fotr_riot_importer.zip into Blender window. The user can then open up models, characters and maps from the game to edit.
 
-| | |
-|---|---|
-| `edge_popin` | the renderer's guard rect is a hard-coded 3072px box, so above 3072 pixels wide the screen culls its own edges. The one genuine engine bug in the set. |
-| `hud_scaling` | menu control sizes are authored for 640x480 and never scale |
-| `text_scaling` | all in-game text is drawn at a fixed pixel size. Seven hooks, because text is not one number |
-| `resolution_unlock` | the options screen stops filtering the display mode list |
-| `game_speed` | the simulation timestep, too coarse at modern frame rates |
-| `fps_limit` | frame cap |
-| `fog_toggle` | distance fog on and off while the game runs |
-| `dev_menu` | an in-game overlay: a live field-of-view slider, the game's own cheats as buttons, and the engine's own 124-entry developer flag menu that no shipping build reaches |
-| `level_select` | New Game opens the game's own level list, a finished screen that ships in every rfl and that nothing reaches. Two bytes, found by signature |
-| `view_distance` | how far the engine bothers to draw. Not a bug fix: the original distances were chosen for 2002 hardware. The first thing to turn off if the frame rate will not hold |
-| `model_lod` | pins models to their finest LOD. Costs frame rate in crowded scenes, and is the second thing to turn off |
-| `field_of_view` | the camera's field of view. Needs `CameraFieldOfView=0` in `Fellowship.ini`, because that option and this plugin are two answers to the same question |
-| `frame_timing` | gives the engine a high resolution clock, so the frame delta stops being quantised to 15.6 ms. This is the one that makes it smooth |
+## Cut Content
 
-Always on, with no switch, because a key whose only purpose is to disarm a working patch
-invites turning off the one that was working:
+Currently this is an in progress area and will be done further over time but will aim to restore the missing content from the game and its various ports into the PC version. More will be mentioned about all of this at a later date.
 
-| | |
-|---|---|
-| `black_screen` | 8-bit textures ask for `D3DFMT_P8`, which NVIDIA dropped support for and AMD did not. This is why a stock install hangs on a black screen on an NVIDIA card |
-| `cd_check` | the disc check, redirected to a stub that answers yes. The callee itself is untouched |
+## GOG
 
-Decided at run time:
+If you are interested in potentially seeing this game easily available to purchase and use today then go and vote on the games GOG Dreamlist to help make this become a reality, you can vote for the game here and write a message about the game and this project if you wish – https://www.gog.com/dreamlist/game/the-lord-of-the-rings-the-fellowship-of-the-ring-2002
 
-| | |
-|---|---|
-| `movie_skip` | the opening movies go through a Windows Media runtime Wine only stubs, so under Proton the game waits behind a black screen for an end that never comes. Three bytes. On under Wine and Proton, off on Windows, and `Enabled` in the ini overrides both |
+## Issues/Problems
 
-Off by default: `borderless`, `windowed_res`, `inventory_icons`, and the four diagnostics
-`env_probe`, `frame_state`, `screen_test` and `hud_probe`. Each says in the ini what it is
-for and what turning it on costs. `template_plugin` is the copy-me skeleton for a new
-plugin and does nothing.
+If you have any issues then please go to discord for help - https://discord.gg/pt4Chk37sv 
 
-That is every plugin in the tree. If this list and
-[runtime/dist/fellowship_reborn.ini](runtime/dist/fellowship_reborn.ini) ever disagree, the
-ini is right: it is what actually ships.
+## Credits
 
-### What it does not fix
+brought to you by Fix Enhancers
+https://fixenhancers.wixsite.com/fix-enhancers
 
-The in-game HUD (health bar, ring, the small circle) is authored in pixels for
-640x480 and stays that size at any resolution. It is a different draw path from
-the menus and `hud_scaling` cannot reach it. Two approaches have been tried and
-disproved; the write-up, with the disassembly that killed each one, is in
-`runtime/src/plugins/hud_scaling/HUD-FINDING.md`.
-
-## House rules
-
-**Every plugin verifies before it writes.** Each site checks the exact bytes it
-is about to change and declines, loudly, if they are not what was expected. A
-different build of the game gets "not installed" in the log, not a
-corrupted executable.
-
-**A generated stub dereferences nothing but our own data.** Engine memory is
-read on a poll thread, where it can be validated and a refusal can be logged. A
-stub cannot check anything cheaply and has nowhere to report what it found; when
-it is wrong, it is an access violation on a hot path. That rule was written
-after a crash caused by breaking it.
-
-**Measure, then patch.** Every fix has a measurement behind it in its own
-README, and the ones that were tried and did not work are written down too, with
-the evidence that killed them. That record is the difference between a contributor
-spending an evening rediscovering something and reading one page.
-
-## Building
-
-32-bit only, MSVC only. See `runtime/README.md` for why.
-
-```
-cd runtime
-cmake -S . -B build -A Win32
-cmake --build build --config Release
-```
-
-Verified clean on MSVC 19.38 (VS2022) and 19.50 (VS2026) under `/W4 /WX`. `-A Win32` on its own
-takes the newest Visual Studio installed; pin an older one with `-G "Visual Studio 17 2022"`.
-Plugins in installs predating this note were built with MinGW GCC 13, under which the strict flags
-never applied; `runtime/README.md` says what that hid and why it cannot recur.
-
-Everything lands in `build\dist\`, laid out as it installs. Copy
-`dinput8.dll`, `fellowship_reborn.ini` and `plugins\` next to `Fellowship.exe`.
-To uninstall, delete `dinput8.dll`.
-
-## Target build
-
-`Fellowship.exe`, No-CD, **2,133,459 bytes**, ImageBase `0x400000`.
-`Fellowship.rfl` is a **PE32 DLL** despite the extension, ImageBase `0x10000000`.
-
-The engine is 32-bit and every offset in this tree assumes it.
-`runtime/src/common/engine_types.h` asserts it at compile time.
+Team members
+Chip and JokerAlex21 
 
 ## Licence
 
