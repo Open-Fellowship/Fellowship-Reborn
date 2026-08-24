@@ -31,8 +31,9 @@ add_fellowship_plugin(template_plugin
 
 # ------------------------------------------------------------------------------ Fellowship.exe
 
-# The only genuine engine BUG in this set, and the only one that ships switched on
-# unconditionally. Harmless at 640x480, where nothing was ever outside the guard rect.
+# The only genuine engine BUG in this set. Ships on, and can be switched off in the ini like
+# anything else; black_screen and cd_check are the two that have no switch at all. Harmless at
+# 640x480, where nothing was ever outside the guard rect.
 add_fellowship_plugin(edge_popin
     dll_main.c
     edge_popin.c
@@ -117,7 +118,7 @@ add_fellowship_plugin(windowed_res
 
 # ------------------------------------------------------------------------------ Fellowship.rfl
 #
-# These three install from a module watch rather than at the entry point, because the rfl is a
+# These four install from a module watch rather than at the entry point, because the rfl is a
 # DLL the game loads later and does not exist when the loader calls us.
 
 add_fellowship_plugin(hud_scaling
@@ -149,9 +150,15 @@ add_fellowship_plugin(movie_skip
     movie_skip.c
 )
 
+# ------------------------------------------------------- Direct3D 8, and the diagnostics
+#
+# Everything below reaches the running process, never a file on disk up front. Most of
+# them wrap the calls the game makes into Direct3D; the probes only read and write down what
+# they found. They are grouped here because none of them owns a site in the exe or the rfl.
+
 # A DIAGNOSTIC that changes nothing: what platform this is, which Direct3D 8 is in the process,
-# and what the game asked CreateDevice for and got back. On by default, because the one machine
-# that needs it is always somebody else's.
+# and what the game asked CreateDevice for and got back. Off by default. Turn it on when a
+# machine you cannot see is misbehaving, and turn it off again afterwards.
 add_fellowship_plugin(env_probe
     dll_main.c
     env_probe.c
