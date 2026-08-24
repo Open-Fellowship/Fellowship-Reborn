@@ -63,9 +63,16 @@ void windowed_res_install(void)
                       "not installing");
             return;
         }
-        if (patch_write_bytes(width_site, &width, sizeof(width)) != PATCH_RESULT_OK ||
-            patch_write_bytes(height_site, &height, sizeof(height)) != PATCH_RESULT_OK) {
-            log_error("the window size could not be written, the game keeps its own");
+        if (patch_write_bytes(width_site, &width, sizeof(width)) != PATCH_RESULT_OK) {
+            log_error("the window width could not be written, the game keeps its own size");
+            return;
+        }
+        if (patch_write_bytes(height_site, &height, sizeof(height)) != PATCH_RESULT_OK) {
+            /* The width is already changed at this point. Put it back: a window 640 wide and
+             * whatever tall the ini asked for is a size nobody chose. */
+            patch_write_bytes(width_site, expected_width, sizeof(expected_width));
+            log_error("the window height could not be written. The width has been put back "
+                      "and the game keeps its own size");
             return;
         }
         log_info("  %08X  window width  -> %ld", (unsigned)width_site, (long)width);
