@@ -66,7 +66,7 @@ scale becomes `*8`. Packing also restores the `AND EAX,0FFFFh` zero-extension th
 when the scale is a power of two.
 
 **`DEC r` / `JS` as a loop guard** means the source decrements the counter itself,
-`while (--count >= 0)`. Writing `for (i = count, 1; i >= 0; --i)` adds a redundant
+`while (--count >= 0)`. Writing `for (i = count - 1; i >= 0; --i)` adds a redundant
 `TEST EAX,EAX`. A `LEA EDI,[EAX+1]` after the guard is the compiler's own counted-loop rewrite,
 not something to write.
 
