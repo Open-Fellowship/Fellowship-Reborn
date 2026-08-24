@@ -119,7 +119,8 @@ patch_result_t patch_repoint_operand(uintptr_t operand_address, uint32_t expecte
     return patch_write_bytes(operand_address, &new_value, sizeof(new_value));
 }
 
-patch_result_t patch_redirect_call(uintptr_t call_address, const void *new_target)
+patch_result_t patch_redirect_call(uintptr_t call_address, uintptr_t expected_target,
+                                   const void *new_target)
 {
     uint8_t opcode;
     int32_t displacement;
@@ -137,6 +138,24 @@ patch_result_t patch_redirect_call(uintptr_t call_address, const void *new_targe
         log_error("%08X holds %02X, not E8, refusing to redirect a call that is not there",
                   (unsigned)call_address, opcode);
         return PATCH_RESULT_UNEXPECTED_BYTES;
+    }
+
+    if (expected_target != 0) {
+        uint32_t existing;
+
+        if (!memory_read_u32(call_address + 1u, &existing)) {
+            log_error("%08X has an unreadable displacement", (unsigned)call_address);
+            return PATCH_RESULT_UNEXPECTED_BYTES;
+        }
+        /* Where the call goes today, worked out the same way the processor does it. */
+        if ((uintptr_t)(call_address + 5u + (int32_t)existing) != expected_target) {
+            log_error("%08X calls %08X, not the %08X this patch was measured against; "
+                      "refusing to redirect a call to something else",
+                      (unsigned)call_address,
+                      (unsigned)(call_address + 5u + (int32_t)existing),
+                      (unsigned)expected_target);
+            return PATCH_RESULT_UNEXPECTED_BYTES;
+        }
     }
 
     displacement = (int32_t)((uintptr_t)new_target - (call_address + 5u));

@@ -293,9 +293,12 @@ static void format_safely(char *out, size_t size, const char *format, va_list ar
             continue;
         }
 
-        /* flags, width, precision, copied verbatim into the spec we hand to snprintf */
+        /* Flags, width and precision, copied verbatim into the spec we hand to snprintf.
+         * `*` is not in the set on purpose: it reads its width from the argument list, and
+         * taking that argument here would shift every later one out of position. Left out, it
+         * reaches the default case below and is printed as text. */
         while (*format != '\0' && length < (int)sizeof(spec) - 2 &&
-               (strchr("-+ #0123456789.*", *format) != NULL)) {
+               (strchr("-+ #0123456789.", *format) != NULL)) {
             spec[length++] = *format++;
         }
         /* length modifiers: noted for wide strings, otherwise dropped */

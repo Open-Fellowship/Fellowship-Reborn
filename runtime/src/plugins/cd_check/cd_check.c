@@ -9,7 +9,9 @@
 
 #define PLUGIN_SECTION "cd_check"
 
-#define CD_CHECK_CALL_VA 0x00406439u
+#define CD_CHECK_CALL_VA   0x00406439u
+/* What that call goes to in the measured build, read back out of its own displacement. */
+#define CD_CHECK_TARGET_VA 0x004BD2C0u
 
 /* __cdecl and takes no arguments, exactly like the patcher's own stub. The caller cleans up with
  * `add esp,8` immediately afterwards, so the two arguments it pushed are its own problem and this
@@ -35,7 +37,8 @@ void cd_check_install(void)
     }
 
     address = exe_site(CD_CHECK_CALL_VA);
-    result  = patch_redirect_call(address, (const void *)always_present);
+    result  = patch_redirect_call(address, exe_site(CD_CHECK_TARGET_VA),
+                                 (const void *)always_present);
     if (result == PATCH_RESULT_OK) {
         log_info("%08X redirected to a stub returning 1; the callee itself is untouched",
                  (unsigned)address);

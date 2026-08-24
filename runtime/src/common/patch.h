@@ -42,7 +42,12 @@ patch_result_t patch_repoint_operand(uintptr_t operand_address, uint32_t expecte
 /* Redirects an existing `call rel32` to `new_target`, keeping the E8. The opcode is verified
  * first. This is how a single call site is diverted without touching the callee, which matters
  * whenever the callee has other callers that must stay untouched. */
-patch_result_t patch_redirect_call(uintptr_t call_address, const void *new_target);
+/* `expected_target` is the callee the call is believed to hold. It is decoded from the
+ * displacement that is already there and compared before anything is written, so a build
+ * whose call goes somewhere else is declined instead of quietly losing its own callee.
+ * Pass 0 only where the target has already been established some other way. */
+patch_result_t patch_redirect_call(uintptr_t call_address, uintptr_t expected_target,
+                                   const void *new_target);
 
 /* Writes `E9 rel32` at `address` and pads to `size` with NOPs. `size` must be >= 5, and the
  * caller is responsible for it being an instruction boundary. */

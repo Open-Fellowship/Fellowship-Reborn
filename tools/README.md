@@ -1,4 +1,4 @@
-# editor
+# tools
 
 Tools for the game's own data formats. This is where pillar 3, modding, lives.
 

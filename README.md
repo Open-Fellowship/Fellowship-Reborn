@@ -81,7 +81,6 @@ On by default:
 
 | | |
 |---|---|
-| `black_screen` | 8-bit textures ask for `D3DFMT_P8`, which NVIDIA dropped support for and AMD did not. This is why a stock install hangs on a black screen on an NVIDIA card. |
 | `edge_popin` | the renderer's guard rect is a hard-coded 3072px box, so above 3072 pixels wide the screen culls its own edges. The one genuine engine bug in the set. |
 | `hud_scaling` | menu control sizes are authored for 640x480 and never scale |
 | `text_scaling` | all in-game text is drawn at a fixed pixel size. Seven hooks, because text is not one number |
@@ -91,11 +90,33 @@ On by default:
 | `fog_toggle` | distance fog on and off while the game runs |
 | `dev_menu` | an in-game overlay: a live field-of-view slider, the game's own cheats as buttons, and the engine's own 124-entry developer flag menu that no shipping build reaches |
 | `level_select` | New Game opens the game's own level list, a finished screen that ships in every rfl and that nothing reaches. Two bytes, found by signature |
+| `view_distance` | how far the engine bothers to draw. Not a bug fix: the original distances were chosen for 2002 hardware. The first thing to turn off if the frame rate will not hold |
+| `model_lod` | pins models to their finest LOD. Costs frame rate in crowded scenes, and is the second thing to turn off |
+| `field_of_view` | the camera's field of view. Needs `CameraFieldOfView=0` in `Fellowship.ini`, because that option and this plugin are two answers to the same question |
+| `frame_timing` | gives the engine a high resolution clock, so the frame delta stops being quantised to 15.6 ms. This is the one that makes it smooth |
 
-| `movie_skip` | the opening movies go through a Windows Media runtime Wine only stubs, so under Proton the game waits behind a black screen for an end that never comes. Three bytes, and it goes straight on |
+Always on, with no switch, because a key whose only purpose is to disarm a working patch
+invites turning off the one that was working:
 
-Off by default, and documented in the ini: `view_distance`, `model_lod`,
-`field_of_view`, `inventory_icons`, `cd_check`, `windowed_res`, `hud_probe`.
+| | |
+|---|---|
+| `black_screen` | 8-bit textures ask for `D3DFMT_P8`, which NVIDIA dropped support for and AMD did not. This is why a stock install hangs on a black screen on an NVIDIA card |
+| `cd_check` | the disc check, redirected to a stub that answers yes. The callee itself is untouched |
+
+Decided at run time:
+
+| | |
+|---|---|
+| `movie_skip` | the opening movies go through a Windows Media runtime Wine only stubs, so under Proton the game waits behind a black screen for an end that never comes. Three bytes. On under Wine and Proton, off on Windows, and `Enabled` in the ini overrides both |
+
+Off by default: `borderless`, `windowed_res`, `inventory_icons`, and the four diagnostics
+`env_probe`, `frame_state`, `screen_test` and `hud_probe`. Each says in the ini what it is
+for and what turning it on costs. `template_plugin` is the copy-me skeleton for a new
+plugin and does nothing.
+
+That is every plugin in the tree. If this list and
+[runtime/dist/fellowship_reborn.ini](runtime/dist/fellowship_reborn.ini) ever disagree, the
+ini is right: it is what actually ships.
 
 ### What it does not fix
 
@@ -166,5 +187,12 @@ outside. See [BRANCH-NOTES.md](BRANCH-NOTES.md) for what exists, what is verifie
 
 ## Licence
 
-MIT. See `LICENSE`. Not affiliated with or endorsed by any rights holder;
-all trademarks belong to their respective owners.
+MIT, with one exception. See `LICENSE`.
+
+The Blender extension in `tools/blender/fotr_importer/` is **GPL-3.0-or-later**, declared in
+its own `blender_manifest.toml`. Blender's extensions platform requires it of anything that
+imports `bpy`, so the add-on cannot carry the same licence as the rest of the tree. Nothing
+outside that directory is affected, and nothing in the runtime links against it.
+
+Not affiliated with or endorsed by any rights holder; all trademarks belong to their
+respective owners.

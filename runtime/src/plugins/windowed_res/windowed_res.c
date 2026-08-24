@@ -47,13 +47,29 @@ void windowed_res_install(void)
         return;
     }
 
-    address = exe_site(WIDTH_IMMEDIATE_VA);
-    if (patch_write_bytes(address, &width, sizeof(width)) == PATCH_RESULT_OK) {
-        log_info("  %08X  window width  -> %ld", (unsigned)address, (long)width);
-    }
-    address = exe_site(HEIGHT_IMMEDIATE_VA);
-    if (patch_write_bytes(address, &height, sizeof(height)) == PATCH_RESULT_OK) {
-        log_info("  %08X  window height -> %ld", (unsigned)address, (long)height);
+    {
+        /* The two immediates the engine loads its default window size from. Both are
+         * checked before either is written: a build that disagrees about one of them is
+         * not a build this plugin understands, and half a window size is worse than none. */
+        static const uint8_t expected_width[4]  = { 0x80, 0x02, 0x00, 0x00 };   /* 640 */
+        static const uint8_t expected_height[4] = { 0xE0, 0x01, 0x00, 0x00 };   /* 480 */
+
+        uintptr_t width_site  = exe_site(WIDTH_IMMEDIATE_VA);
+        uintptr_t height_site = exe_site(HEIGHT_IMMEDIATE_VA);
+
+        if (!patch_validate_bytes(width_site, expected_width, sizeof(expected_width)) ||
+            !patch_validate_bytes(height_site, expected_height, sizeof(expected_height))) {
+            log_error("the default window size is not the 640x480 this build expects, "
+                      "not installing");
+            return;
+        }
+        if (patch_write_bytes(width_site, &width, sizeof(width)) != PATCH_RESULT_OK ||
+            patch_write_bytes(height_site, &height, sizeof(height)) != PATCH_RESULT_OK) {
+            log_error("the window size could not be written, the game keeps its own");
+            return;
+        }
+        log_info("  %08X  window width  -> %ld", (unsigned)width_site, (long)width);
+        log_info("  %08X  window height -> %ld", (unsigned)height_site, (long)height);
     }
 
     {

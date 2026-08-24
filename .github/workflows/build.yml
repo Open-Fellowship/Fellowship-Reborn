@@ -24,6 +24,10 @@ jobs:
       - name: Build
         run: cmake --build runtime/build --config Release
 
+      # Debug has its own output directory and its own flags, so it can break on its own.
+      - name: Build Debug
+        run: cmake --build runtime/build --config Debug
+
       - name: Check the loader and the plugins were produced
         shell: pwsh
         run: |
@@ -31,9 +35,11 @@ jobs:
           if (-not (Test-Path "$dist/dinput8.dll")) {
               throw "dinput8.dll was not produced"
           }
+          # Exact, not a floor. A lower bound lets a plugin drop out of the build without
+          # anything noticing. Update this number in the same commit that adds or removes one.
           $plugins = @(Get-ChildItem "$dist/plugins/*.dll" -ErrorAction SilentlyContinue)
-          if ($plugins.Count -lt 20) {
-              throw "expected at least 20 plugins, found $($plugins.Count)"
+          if ($plugins.Count -ne 24) {
+              throw "expected exactly 24 plugins, found $($plugins.Count)"
           }
           if (-not (Test-Path "$dist/fellowship_reborn.ini")) {
               throw "fellowship_reborn.ini was not staged into dist"

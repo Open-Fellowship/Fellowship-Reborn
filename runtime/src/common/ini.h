@@ -11,9 +11,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Full path of the configuration file, next to the host executable. Never NULL. The old name
- * fellowship_reborn.ini is still accepted WHEN THE NEW ONE IS ABSENT, so a rename does not revert
- * an existing install to the built-in defaults. See README.md. */
+/* Full path of the configuration file, next to the host executable. Never NULL. The older names
+ * fix_enhancers.ini and open_fellowship.ini are still accepted WHEN THE CURRENT ONE IS ABSENT, so
+ * a rename does not revert an existing install to the built-in defaults. See README.md. */
 const char *ini_path(void);
 
 /* True when the path above resolved to the old name. The loader says so in the log, because

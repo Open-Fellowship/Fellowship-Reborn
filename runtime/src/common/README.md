@@ -160,8 +160,9 @@ every call and therefore cannot read or overwrite another plugin's key by accide
 nothing about what any key means; range checks, NaN handling and semantic validation belong to the
 plugin that owns the value.
 
-**Two file names.** It used to be `fellowship_reborn.ini`, and that name is still accepted when the
-new one is absent, because renaming a configuration file otherwise reverts everybody who already
+**Several file names.** It used to be `fix_enhancers.ini`, and `open_fellowship.ini` before
+that. Both are still accepted when the current name is absent, because renaming a
+configuration file otherwise reverts everybody who already
 had one to the built-in defaults, silently, with every key simply not being found. When both
 exist the new name wins outright and the old one is not read: a half-read configuration is harder
 to diagnose than a wrong one.

@@ -1,4 +1,5 @@
 build/
+build-analyze/
 
 # Python leaves these beside the Blender extension.
 __pycache__/
