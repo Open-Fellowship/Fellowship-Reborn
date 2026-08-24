@@ -120,13 +120,31 @@ static void apply_object_fade(void)
         { "child objects bypass the min()", 0x458AD2, { 0x75, 0x06 }, { 0xEB, 0x06 }, 2 },
     };
 
+    unsigned failed = 0;
+
     log_info("per-object fade distance ignored (%g)", (double)g_no_fade);
 
-    repoint_field_read(0x485D04, fld_edi, 0xD9, 0x05, &g_no_fade);  /* cull: fade value    */
-    repoint_field_read(0x485DC3, fld_edi, 0xD9, 0x05, &g_no_fade);  /* cull: band start    */
-    repoint_field_read(0x485E52, mov_ecx, 0x8B, 0x0D, &g_no_fade);  /* alpha: fade value   */
-    repoint_field_read(0x485E7B, fld_edi, 0xD9, 0x05, &g_no_fade);  /* alpha: band start   */
-    repoint_field_read(0x458ABF, fld_esi, 0xD9, 0x05, &g_no_fade);  /* child objects       */
+    /* Counted, not discarded. Some of these landing and the rest not leaves objects reading
+     * their fade from two different places, which looks like a rendering fault and is not one. */
+    if (repoint_field_read(0x485D04, fld_edi, 0xD9, 0x05, &g_no_fade) != PATCH_RESULT_OK) {
+        ++failed;   /* cull: fade value  */
+    }
+    if (repoint_field_read(0x485DC3, fld_edi, 0xD9, 0x05, &g_no_fade) != PATCH_RESULT_OK) {
+        ++failed;   /* cull: band start  */
+    }
+    if (repoint_field_read(0x485E52, mov_ecx, 0x8B, 0x0D, &g_no_fade) != PATCH_RESULT_OK) {
+        ++failed;   /* alpha: fade value */
+    }
+    if (repoint_field_read(0x485E7B, fld_edi, 0xD9, 0x05, &g_no_fade) != PATCH_RESULT_OK) {
+        ++failed;   /* alpha: band start */
+    }
+    if (repoint_field_read(0x458ABF, fld_esi, 0xD9, 0x05, &g_no_fade) != PATCH_RESULT_OK) {
+        ++failed;   /* child objects     */
+    }
+    if (failed != 0) {
+        log_error("PARTIAL, %u of the 5 fade reads did not take. The chain is now inconsistent; "
+                  "set Enabled=0 and restart.", failed);
+    }
 
     apply_branches(bypass_min, sizeof(bypass_min) / sizeof(bypass_min[0]));
 }

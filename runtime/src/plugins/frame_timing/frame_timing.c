@@ -247,7 +247,8 @@ void frame_timing_install(void)
     }
 
     for (index = 0; index < TICK_SITE_COUNT; ++index) {
-        result = patch_redirect_call(exe_site(g_tick_sites[index]),
+        /* 0: all_sites_match above has already checked every one of these as a set. */
+        result = patch_redirect_call(exe_site(g_tick_sites[index]), 0,
                                      (const void *)(uintptr_t)&hires_ticks);
         if (result != PATCH_RESULT_OK) {
             /* Validated as a set above, so reaching here means something changed underneath us
@@ -280,7 +281,8 @@ void frame_timing_install(void)
         log_warning("the timer at %08X is not readable and writable; the counter is installed "
                     "without the watchdog", TIMER_OBJECT_VA);
     } else {
-        result = patch_redirect_call(exe_site(FRAME_CALL_VA), (const void *)stub_address);
+        result = patch_redirect_call(exe_site(FRAME_CALL_VA), exe_site(FRAME_TARGET_VA),
+                                     (const void *)stub_address);
         if (result != PATCH_RESULT_OK) {
             log_warning("%08X (watchdog) - %s. The counter is installed without it.",
                         FRAME_CALL_VA, patch_result_text(result));

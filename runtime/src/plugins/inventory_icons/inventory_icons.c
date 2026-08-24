@@ -1,5 +1,6 @@
 #include "inventory_icons.h"
 
+#include "common/camera.h"
 #include "common/emit.h"
 #include "common/engine_sites.h"
 #include "common/engine_types.h"
@@ -21,16 +22,22 @@
 #define ICON_RETURN_RVA  0x7A435u
 #define ICON_HOOK_SIZE   8u
 
-/* The rfl's own global holding the camera. An RFL address, so it is relative to the rfl's base,
- * not the executable's, the one place in this project where that distinction bites. */
-#define RFL_CAMERA_GLOBAL_RVA (RFL_INTERFACE_GLOBAL - 0x10000000u)
+/* The camera this stub reads, published by common/camera.c only once it has passed every
+ * check, and zeroed again the moment one stops passing. The stub tests it and falls through
+ * to the stock instructions when it is zero, so a camera being rebuilt costs an icon its
+ * correction for a frame and costs nothing else.
+ *
+ * The rfl's own global is deliberately not read here. It is live during a level change while
+ * the object behind it is not, and dereferencing it in that window is what put the camera
+ * 180 degrees out and crashed the game. See common/README.md. */
+static volatile uintptr_t g_camera;
 
 static const uint8_t icon_hook_expected[ICON_HOOK_SIZE] = {
     0xD9, 0x5C, 0x24, 0x20,   /* fstp dword ptr [esp+0x20] */
     0xD9, 0x44, 0x24, 0x40    /* fld  dword ptr [esp+0x40] */
 };
 
-static void *build_stub(uintptr_t stub_address, uintptr_t return_address, uintptr_t camera_global)
+static void *build_stub(uintptr_t stub_address, uintptr_t return_address, uintptr_t camera_slot)
 {
     uint8_t buffer[64];
     emit_t  emit;
@@ -40,7 +47,7 @@ static void *build_stub(uintptr_t stub_address, uintptr_t return_address, uintpt
 
     emit_bytes(&emit, icon_hook_expected, 4);                 /* fstp [esp+0x20] relocated  */
     emit_u8(&emit, 0x51);                                     /* push ecx                   */
-    emit_u8(&emit, 0x8B); emit_u8(&emit, 0x0D); emit_u32(&emit, (uint32_t)camera_global);
+    emit_u8(&emit, 0x8B); emit_u8(&emit, 0x0D); emit_u32(&emit, (uint32_t)camera_slot);
     emit_u8(&emit, 0x85); emit_u8(&emit, 0xC9);               /* test ecx,ecx               */
     to_restore = emit_jcc_rel8(&emit, 0x74);                  /* je restore                 */
 
@@ -84,7 +91,7 @@ static void on_rfl_loaded(uintptr_t rfl_base)
         return;
     }
     if (build_stub(stub_address, rfl_site(rfl_base, ICON_RETURN_RVA),
-                   rfl_base + RFL_CAMERA_GLOBAL_RVA) == NULL) {
+                   (uintptr_t)&g_camera) == NULL) {
         log_error("the stub did not fit its buffer, not installing");
         return;
     }
@@ -111,6 +118,13 @@ void inventory_icons_install(void)
     }
     if (!host_image_resolve()) {
         log_error("the host image could not be resolved; refusing to touch anything");
+        return;
+    }
+
+    /* Started before the hook exists, so the slot already holds a checked camera by the time
+     * the first icon is drawn. Until it does it is zero and icons are drawn stock. */
+    if (!camera_track(250, &g_camera, NULL)) {
+        log_error("could not start the camera watch; the icons would never be corrected");
         return;
     }
 

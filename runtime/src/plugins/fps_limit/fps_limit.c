@@ -282,7 +282,8 @@ void fps_limit_install(void)
         return;
     }
 
-    result = patch_redirect_call(call_site, (const void *)stub_address);
+    result = patch_redirect_call(call_site, exe_site(FRAME_TARGET_VA),
+                                (const void *)stub_address);
     if (result != PATCH_RESULT_OK) {
         log_error("%08X - %s", (unsigned)call_site, patch_result_text(result));
         return;
