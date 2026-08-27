@@ -700,6 +700,29 @@ again, taking it from **outside** the process is the better shape: the same addr
 the frame counter at `0x0054417C` so there is one sample per frame and no aliasing against the
 frame rate.
 
+### Draw distance
+
+Five controls belonging to `view_distance`, published on the channel, not written here,
+because the sites are that plugin's and one writer per site is the rule that keeps two DLLs from
+disagreeing about a byte.
+
+The page **takes control the first time it is drawn** and opens at the engine's own values: the
+distance at 80 cells, and all three toggles off, which is what the engine does when the patches
+are inert. It opens there because the page exists to compare against stock, and because starting
+from what the ini installed hid the other four controls behind the fade cap and made working
+sliders look like dead ones.
+
+`Fade` reads `ignore` at the top of its track. That is not a number, it is the absence of a fade
+distance, which is what `view_distance` ships doing. Everything below it is a real count of
+cells.
+
+`reset` returns that row to the engine's value and nothing else. It does not hand control back
+to the ini: the page keeps the settings until the game restarts, so one button means one thing
+and the header cannot end up contradicting what the game is doing.
+
+The header line says which is true, `the ini is holding it` before the page is opened and
+`the menu is holding it` afterwards.
+
 ## Configuration: `[dev_menu]`
 
 | Key | Default | |

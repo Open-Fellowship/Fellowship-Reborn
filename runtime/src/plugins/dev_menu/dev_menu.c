@@ -863,6 +863,13 @@ static void draw_player(void)
 #define FPS_ROW_HINT    8
 #define FPS_ROW_COUNT   9
 
+#define VD_ROW_TITLE   (FPS_ROW_COUNT + 0)
+#define VD_ROW_CELLS   (FPS_ROW_COUNT + 1)
+#define VD_ROW_FADE    (FPS_ROW_COUNT + 2)
+#define VD_ROW_FLAGS   (FPS_ROW_COUNT + 3)
+#define VD_ROW_HINT    (FPS_ROW_COUNT + 4)
+#define VD_ROW_COUNT   (FPS_ROW_COUNT + 5)
+
 #define FPS_PRESET_COUNT 4
 static const int g_fps_presets[FPS_PRESET_COUNT] = { 30, 60, 120, 144 };
 
@@ -1292,9 +1299,216 @@ static int panel_height(void)
     /* This page is a fixed number of rows, so it says so rather than inheriting the camera
      * page's height and hoping the frame rate readout lands inside it. */
     if (g_tab == TAB_FIXES) {
-        return player_row(FPS_ROW_COUNT) - PANEL_Y + PADDING;
+        return player_row(VD_ROW_COUNT) - PANEL_Y + PADDING;
     }
     return cheats_top() - PANEL_Y + step + cheat_rows() * (step + 4) + PADDING;
+}
+
+
+/* ------------------------------------------------------------ draw distance
+
+   view_distance patches its sites to read two floats of its own, so a slider here costs one
+   store over there and nothing has to be re-patched. The three toggles are branches, each
+   written as a single aligned store on that side.
+
+   Cells, not world units, because that is the unit the ini uses and the unit the engine's own
+   80 is quoted in. One cell is 2048 units. */
+
+
+#define VD_CELLS_LOW   40.0f
+#define VD_CELLS_HIGH  300.0f
+/* The engine's own, not the 120 this project ships. This page exists to compare against
+   stock behaviour, so stock is where it opens. */
+#define VD_CELLS_HOME  80.0f
+
+/* The top of the fade track means "ignore the authored distance entirely", which is what
+   view_distance ships doing. Anything below it is a real distance in cells. */
+#define VD_FADE_IGNORE (VD_CELLS_HIGH + 1.0f)
+
+static float    g_vd_cells = VD_CELLS_HOME;
+static float    g_vd_fade  = VD_FADE_IGNORE;
+/* All three start OFF, which is the engine's own behaviour: off means the patch is inert.
+   Starting from what the ini installed hid the other controls behind the fade cap, which made
+   working sliders look like dead ones. A debugging page begins at the baseline. */
+static uint32_t g_vd_flags;
+static int      g_vd_drag;      /* which track is grabbed, 0 for none */
+static bool     g_vd_taken;     /* true once this menu has published a request */
+
+static const char *const g_vd_flag_labels[3] = { " far plane ", " fade cap ", " preload " };
+static const uint32_t    g_vd_flag_bits[3]   = { VIEW_DISTANCE_FLAG_FAR_PLANE,
+                                                 VIEW_DISTANCE_FLAG_FADE_CAP,
+                                                 VIEW_DISTANCE_FLAG_PRELOAD };
+
+/* Like the player size slider, but it counts cells instead of scaling by a multiplier, so it
+   prints whole numbers, dims its reset against this row's own home value, and can say a word
+   where a number would be a lie. `top_label` is what the far end of the track means: the fade
+   track ends at "ignore", which is not 301 cells, it is no fade distance at all. */
+static void draw_vd_slider(int row, const char *label, float value, float low, float high,
+                           float home, const char *top_label)
+{
+    char  line[32];
+    int   tx;
+    int   ty;
+    int   tw;
+    int   knob;
+    int   bx;
+    int   by;
+    int   bw;
+    int   bh;
+    bool  at_home = (float)fabs((double)(value - home)) < 0.5f;
+    float fraction;
+
+    player_slider_rect(row, &tx, &ty, &tw);
+    if (tw < 20) {
+        return;
+    }
+    fraction = (clampf(value, low, high) - low) / (high - low);
+    knob     = tx + (int)(fraction * (float)(tw - 10));
+
+    overlay_text(PANEL_X + PADDING, player_row(row), 1, COLOUR_LABEL, label);
+    overlay_rect(tx, ty, tw, 6, COLOUR_TRACK);
+    overlay_rect(tx, ty, knob - tx + 10, 6, COLOUR_FILL);
+    overlay_rect(knob, ty - 7, 10, 20, COLOUR_KNOB);
+
+    if (top_label != NULL && value >= high) {
+        _snprintf(line, sizeof(line), "%s", top_label);
+    } else {
+        _snprintf(line, sizeof(line), "%d", (int)(value + 0.5f));
+    }
+    line[sizeof(line) - 1] = '\0';
+
+    player_reset_rect(row, &bx, &by, &bw, &bh);
+    overlay_text(bx - 10 - overlay_text_width("ignore", 1), player_row(row), 1,
+                 COLOUR_VALUE, line);
+
+    overlay_rect(bx, by, bw, bh, at_home ? COLOUR_TRACK : COLOUR_BUTTON);
+    overlay_text(bx + 6, by + 3, 1, at_home ? COLOUR_DIM : COLOUR_VALUE, "reset");
+}
+
+static void vd_publish(void)
+{
+    float fade_units = (g_vd_fade >= VD_FADE_IGNORE) ? 1.0e19f : (g_vd_fade * 2048.0f);
+
+    g_vd_taken = true;
+    channel_publish_view_distance(g_channel, g_vd_cells, fade_units, g_vd_flags);
+}
+
+static void vd_flag_rect(int index, int *bx, int *by, int *bw, int *bh)
+{
+    int step;
+
+    *bw = overlay_text_width(" far plane ", 1) + 10;
+    *bh = overlay_line_height() + 6;
+    step = *bw + 8;
+    *bx = PANEL_X + PADDING + 110 + index * step;
+    *by = player_row(VD_ROW_FLAGS) - 3;
+}
+
+static void draw_view_distance(int x)
+{
+    char line[96];
+    int  index;
+    int  bx;
+    int  by;
+    int  bw;
+    int  bh;
+
+    /* Taken the first time this page is drawn, so what the toggles show and what the game is
+       doing are the same thing. Until then the ini is holding it and the page would be
+       describing a state nobody is in. */
+    if (!g_vd_taken) {
+        vd_publish();
+    }
+
+    overlay_rect(PANEL_X + PADDING, player_row(VD_ROW_TITLE) - 6,
+                 panel_width() - PADDING * 2, 1, COLOUR_TRACK);
+    overlay_text(x, player_row(VD_ROW_TITLE), 1, COLOUR_TITLE, "Draw distance");
+    overlay_text(x + overlay_text_width("Draw distance    ", 1), player_row(VD_ROW_TITLE), 1,
+                 COLOUR_DIM, g_vd_taken ? "the menu is holding it" : "the ini is holding it");
+
+    draw_vd_slider(VD_ROW_CELLS, "Distance", g_vd_cells, VD_CELLS_LOW, VD_CELLS_HIGH,
+                   VD_CELLS_HOME, NULL);
+    draw_vd_slider(VD_ROW_FADE, "Fade", g_vd_fade, VD_CELLS_LOW, VD_FADE_IGNORE,
+                   VD_FADE_IGNORE, "ignore");
+
+    for (index = 0; index < 3; ++index) {
+        bool on = (g_vd_flags & g_vd_flag_bits[index]) != 0u;
+
+        vd_flag_rect(index, &bx, &by, &bw, &bh);
+        overlay_rect(bx, by, bw, bh, on ? COLOUR_ON : COLOUR_BUTTON);
+        overlay_text(bx + 5, by + 3, 1, COLOUR_VALUE, g_vd_flag_labels[index]);
+    }
+
+    _snprintf(line, sizeof(line), "%d cells is %d units. The engine's own is 80.",
+              (int)(g_vd_cells + 0.5f), (int)(g_vd_cells * 2048.0f + 0.5f));
+    line[sizeof(line) - 1] = '\0';
+    overlay_text(x, player_row(VD_ROW_HINT), 1, COLOUR_DIM, line);
+}
+
+static void handle_view_distance_input(void)
+{
+    int row;
+    int bx;
+    int by;
+    int bw;
+    int bh;
+    int tx;
+    int ty;
+    int tw;
+    int index;
+
+    for (index = 0; index < 3; ++index) {
+        vd_flag_rect(index, &bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) {
+            g_vd_flags ^= g_vd_flag_bits[index];
+            vd_publish();
+            return;
+        }
+    }
+
+    for (row = VD_ROW_CELLS; row <= VD_ROW_FADE; ++row) {
+        player_reset_rect(row, &bx, &by, &bw, &bh);
+        if (clicked(bx, by, bw, bh)) {
+            if (row == VD_ROW_CELLS) {
+                g_vd_cells = VD_CELLS_HOME;
+            } else {
+                g_vd_fade = VD_FADE_IGNORE;
+            }
+            vd_publish();
+            return;
+        }
+    }
+
+    if (g_mouse_down && !g_mouse_was_down) {
+        for (row = VD_ROW_CELLS; row <= VD_ROW_FADE; ++row) {
+            player_slider_rect(row, &tx, &ty, &tw);
+            if (inside(tx - 6, ty - 10, tw + 12, 26)) {
+                g_vd_drag = row;
+                break;
+            }
+        }
+    }
+    if (!g_mouse_down) {
+        g_vd_drag = 0;
+    }
+
+    if (g_vd_drag != 0) {
+        float high = (g_vd_drag == VD_ROW_CELLS) ? VD_CELLS_HIGH : VD_FADE_IGNORE;
+
+        player_slider_rect(g_vd_drag, &tx, &ty, &tw);
+        if (tw > 12) {
+            float fraction = (float)(g_mouse_x - tx) / (float)(tw - 10);
+            float value    = clampf(VD_CELLS_LOW + fraction * (high - VD_CELLS_LOW),
+                                    VD_CELLS_LOW, high);
+
+            if (g_vd_drag == VD_ROW_CELLS) {
+                g_vd_cells = value;
+            } else {
+                g_vd_fade = value;
+            }
+            vd_publish();
+        }
+    }
 }
 
 static void draw_cheats(int x, bool have_camera)
@@ -1794,6 +2008,7 @@ static void draw_menu(const camera_view_t *view, bool have_camera)
     if (g_tab == TAB_FIXES) {
         draw_player();
         draw_frame_rate();
+        draw_view_distance(PANEL_X + PADDING);
         return;
     }
 
@@ -2096,6 +2311,7 @@ static void handle_input(bool have_camera)
          * grab belonging to the rows above. */
         handle_frame_rate_input();
         handle_player_input();
+        handle_view_distance_input();
         return;
     }
 

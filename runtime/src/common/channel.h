@@ -35,7 +35,21 @@ typedef struct channel_block {
      * published. */
     volatile float    frame_target_fps;
     volatile uint32_t frame_target_serial;
+
+    /* view_distance's five controls, published together because they are one decision and a
+     * reader that saw three of them applied would draw a world the other two disagree with.
+     * `cells` and `fade` are the two floats its patched instructions already read; `flags`
+     * carries the three that are branches, not numbers. Serial 0 means nobody is
+     * asking, so a block created before these existed reads as released. */
+    volatile float    view_distance_cells;
+    volatile float    view_distance_fade;
+    volatile uint32_t view_distance_flags;
+    volatile uint32_t view_distance_serial;
 } channel_block_t;
+
+#define VIEW_DISTANCE_FLAG_FAR_PLANE  0x1u
+#define VIEW_DISTANCE_FLAG_FADE_CAP   0x2u
+#define VIEW_DISTANCE_FLAG_PRELOAD    0x4u
 
 /* Creates the block if it does not exist and maps it. Returns NULL if the mapping could not be
  * made, which every caller must treat as "carry on without a partner" rather than as an error. */
@@ -55,5 +69,14 @@ void channel_publish_frame_target(channel_block_t *block, float fps);
 /* False when nobody has published, when the block is torn, or when the value is not one this
  * could have written. `fps` is set to 0 for uncapped. */
 bool channel_read_frame_target(const channel_block_t *block, float *fps);
+
+/* Publishes all five of view_distance's controls as one request. Cells of 0 withdraws it and
+ * hands the plugin back to its ini values. */
+void channel_publish_view_distance(channel_block_t *block, float cells, float fade,
+                                   uint32_t flags);
+
+/* True when a request is live, with the three values written through the pointers. */
+bool channel_read_view_distance(const channel_block_t *block, float *cells, float *fade,
+                                uint32_t *flags);
 
 #endif /* COMMON_CHANNEL_H */

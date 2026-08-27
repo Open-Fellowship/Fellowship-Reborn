@@ -41,6 +41,41 @@ All seven visibility readers are repointed together. Repointing some and not oth
 the engine disagreeing with itself about where the world ends, which shows up as objects fading
 in a band that no longer matches anything.
 
+## The dev menu can drive it
+
+Every site this plugin patches reads either one of its own two floats or a branch it wrote, so
+the values can be changed while the game runs without patching anything a second time.
+`dev_menu` publishes a request on the channel and this plugin prefers it, the same arrangement
+`field_of_view` already has with the camera. Releasing is not offered: the page holds the
+settings until the game restarts, and then the ini applies again.
+
+Only what the ini installed can be moved. `FarPlane=0` means those two readers were never
+repointed, so the menu's far plane toggle has nothing to switch and does nothing. A plugin that
+patched sites nobody asked for to make a menu look complete would be lying about what it does.
+
+| menu control | what it writes |
+|---|---|
+| `Distance` | the visibility float the seven readers already use |
+| `Fade` | the object fade float, in cells, multiplied by 2048 into units |
+| `far plane` | swaps the far plane float between enormous and the engine's own, sampled at install |
+| `fade cap` | one opcode byte at `0x485D25` and `0x485E71` |
+| `preload` | two bytes at `0x485B04` |
+
+### Why the toggles cannot be caught half written
+
+Three of them change **one byte**: `75` becomes `EB`, and the displacement after it is the same
+in both forms. A single-byte store is atomic on x86. The fourth changes two bytes at `0x485B04`,
+an even address, so it is an aligned 16-bit store and atomic as well. No thread executing those
+addresses can observe a partly written instruction.
+
+### Why `IgnoreObjectFade` is a slider and not a toggle
+
+Turning it off means putting `fld [edi+0xC4]` back where `fld [absolute]` now sits. Both forms
+are six bytes and only the leading `D9` matches, so five bytes change, and there is no five-byte
+atomic store. The float behind the repoint is atomic, so the menu offers a distance instead of
+an on and off. The slider cannot reach the engine's real behaviour, which is a distance authored
+per object: for that, set `IgnoreObjectFade=0` and restart.
+
 ## Untested
 
 Verified in Hobbiton only. **Bree, Moria and Rivendell** remain untested with everything on, and
