@@ -64,6 +64,13 @@ add_subdirectory(src/common)
 add_subdirectory(src/loader)
 add_subdirectory(src/plugins)
 
+# The tests link the real common library and run without the game. enable_testing() lets `ctest`
+# drive them; BUILD_TESTING is on by default and can be turned off for a release-only configure.
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(unittests)
+endif()
+
 # The configuration file ships next to the executable, not in plugins\. Copied rather than
 # remembered, for the same reason the output directory is wiped: a release assembled partly by
 # CMake and partly by remembering to copy a file is a release that eventually goes out without it.
