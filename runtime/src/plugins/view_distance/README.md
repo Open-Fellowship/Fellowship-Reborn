@@ -17,7 +17,7 @@ same paragraph.
 | `Enabled` | `1` | master switch |
 | `FarPlane` | `1` | far clip plane effectively removed, in both the culling frustum and the software clipper |
 | `FadeIgnoresCap` | `1` | object fade no longer clamped to the visibility distance |
-| `VisibilityCells` | `120` | the engine's own value is `80`. One cell is 2048 units |
+| `VisibilityCells` | `113` | the engine's own value is `80`. One cell is 2048 units |
 | `IgnoreObjectFade` | `1` | per-object authored fade distance ignored |
 | `PreloadResources` | `1` | object resources requested regardless of distance; this is the NPC pop-in |
 
@@ -76,7 +76,24 @@ atomic store. The float behind the repoint is atomic, so the menu offers a dista
 an on and off. The slider cannot reach the engine's real behaviour, which is a distance authored
 per object: for that, set `IgnoreObjectFade=0` and restart.
 
+## 113 is the ceiling, and it was measured
+
+At **114 cells and above** the engine puts collision where nothing is drawn. The player walks
+into invisible walls, which is worst in a maze: Moria's **Labyrinth** and **3 Passages** fill
+with them. At 113 both levels behave. The plugin shipped `120` until this was found, so every
+install before that was affected.
+
+The mechanism is not established. 113 has no obvious significance in cells or in units, and the
+tempting arithmetic is a trap: a cell is `0x800` units, so every even count lands on a round
+`0x1000` boundary and none of them mean anything. What is known is the number and where it was
+taken, in both levels, with the slider on the dev menu's Fellowship Reborn page.
+
+Nothing says the limit is the same everywhere. It was found in the two tightest interiors in the
+game, which is where phantom collision is impossible to miss; in open country you would walk
+through the same bad cells and rarely touch one. Twenty levels have never been checked.
+
 ## Untested
 
-Verified in Hobbiton only. **Bree, Moria and Rivendell** remain untested with everything on, and
-they are where a frame-rate cost would show up first.
+Verified in Hobbiton, and in Labyrinth and 3 Passages for the ceiling above. **Bree, Rivendell**
+and the rest of Moria remain untested with everything on, and they are where a frame-rate cost
+would show up first.

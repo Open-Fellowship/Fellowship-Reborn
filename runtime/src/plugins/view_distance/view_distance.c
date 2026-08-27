@@ -15,7 +15,7 @@
 
 #define PLUGIN_SECTION "view_distance"
 
-static float g_visibility_cells = 120.0f;
+static float g_visibility_cells = 113.0f;
 
 /* Two floats where there was one. Both started at the same enormous value, which is what
  * "no far plane" and "ignore the authored fade" both amount to, but a slider on one of them
@@ -301,7 +301,7 @@ void view_distance_install(void)
         g_ini_flags |= VIEW_DISTANCE_FLAG_FADE_CAP;
     }
 
-    cells = ini_read_float(PLUGIN_SECTION, "VisibilityCells", 120.0f);
+    cells = ini_read_float(PLUGIN_SECTION, "VisibilityCells", 113.0f);
     if (cells > 0.0f) {
         /* The engine's own value is 80. Below that this plugin would be making things worse for
          * no reason, and above about 200 the cell walk costs more than the extra scenery is
@@ -309,6 +309,13 @@ void view_distance_install(void)
         if (cells < 80.0f) {
             log_warning("VisibilityCells=%g is BELOW the engine's own 80; you are reducing "
                         "the draw distance", (double)cells);
+        }
+        if (cells > 113.0f) {
+            /* Measured, not guessed: 113 is the highest value that behaves in Moria's
+             * Labyrinth and 3 Passages. Above it the engine puts collision where nothing is
+             * drawn, which the player meets as invisible walls. */
+            log_warning("VisibilityCells=%g is above the measured maximum of 113; expect "
+                        "invisible walls in Moria", (double)cells);
         }
         apply_visibility(cells);
         g_installed |= INSTALLED_CELLS;
