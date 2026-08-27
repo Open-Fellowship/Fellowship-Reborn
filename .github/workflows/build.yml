@@ -28,6 +28,10 @@ jobs:
       - name: Build Debug
         run: cmake --build runtime/build --config Debug
 
+      # The tests need no game and no display, so there is no reason for CI not to run them.
+      - name: Run the unit tests
+        run: ctest --test-dir runtime/build -C Release --output-on-failure
+
       - name: Check the loader and the plugins were produced
         shell: pwsh
         run: |
