@@ -126,6 +126,21 @@ add_fellowship_plugin(hud_scaling
     hud_scaling.c
 )
 
+# The same texel-into-pixel assignment, on the GUI texture control rather than the meter. One
+# class, one site, and the destination size is a separate field from the source rectangle, which
+# is why this one can be fixed where the in-game HUD geometry still cannot. See its README.
+# A DIAGNOSTIC for the same class. Reads what the draw computed and prints it, because three
+# attempts at scaling this path failed on inference where a measurement was needed.
+add_fellowship_plugin(texture_probe
+    dll_main.c
+    texture_probe.c
+)
+
+add_fellowship_plugin(texture_scaling
+    dll_main.c
+    texture_scaling.c
+)
+
 add_fellowship_plugin(text_scaling
     dll_main.c
     text_scaling.c

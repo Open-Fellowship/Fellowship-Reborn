@@ -89,6 +89,8 @@ The fixes already proven by that work are being ported into plugins here. Each p
 | `model_lod` | exe | **on** | pins models to their finest LOD. Costs frame rate in crowded scenes |
 | `field_of_view` | exe | **on** | holds the *vertical* field of view constant as the screen widens. Turn off if you run the community patcher's own FOV option |
 | `hud_scaling` | rfl | **on** | GUI sizes are authored in 640x480 pixels and never scale. Menu controls only; the in-game HUD is a different draw path, see its README |
+| `texture_probe` | rfl | off | a diagnostic: prints what a GUI texture draw computed, so the next attempt at scaling it starts from measurements |
+| `texture_scaling` | rfl | **on** | the mouse pointer, the circle under the health bar and the One Ring icon are each drawn at their texture's own texel size, so they stay tiny at 4K. Three classes, three sites |
 | `text_scaling` | rfl | **on** | all in-game text is drawn at a fixed pixel size. Seven hooks |
 | `inventory_icons` | rfl | off | only needed alongside a FOV mod that rewrites the focal numerator |
 | `black_screen` | exe | **always** | 8-bit textures ask for D3DFMT_P8, which NVIDIA dropped. Reads before it writes, and has no switch |

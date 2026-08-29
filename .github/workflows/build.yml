@@ -42,8 +42,8 @@ jobs:
           # Exact, not a floor. A lower bound lets a plugin drop out of the build without
           # anything noticing. Update this number in the same commit that adds or removes one.
           $plugins = @(Get-ChildItem "$dist/plugins/*.dll" -ErrorAction SilentlyContinue)
-          if ($plugins.Count -ne 24) {
-              throw "expected exactly 24 plugins, found $($plugins.Count)"
+          if ($plugins.Count -ne 26) {
+              throw "expected exactly 26 plugins, found $($plugins.Count)"
           }
           if (-not (Test-Path "$dist/fellowship_reborn.ini")) {
               throw "fellowship_reborn.ini was not staged into dist"
