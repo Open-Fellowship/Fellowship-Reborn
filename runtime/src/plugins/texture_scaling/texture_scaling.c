@@ -602,12 +602,23 @@ static uint32_t g_fill_flags;
  * properties actually named Unchecked-Box and Checked-Box, is initialised with defaults and then
  * never read by anything; and a run of indices 15 to 22 found by scanning bytes belonged to some
  * other class entirely. An index means nothing without the class that owns it. */
-#define QUEST_RVA        0x3F5D3u
-#define QUEST_RETURN_RVA 0x3F5D8u
 #define QUEST_SIZE       5u
 #define QUEST_CALLEE_RVA 0x6C5D0u
 
-static const uint8_t quest_expected[QUEST_SIZE] = { 0xE8, 0xF8, 0xCF, 0x02, 0x00 };
+/* Two places build one of these boxes, and they are the same three instructions in both:
+ *
+ *     1003f5d1 / 1003fc2b  mov ecx,edi          edi is the control, from the allocation above
+ *     1003f5d3 / 1003fc2d  call 1006C5D0        the GUIControl_Texture constructor
+ *
+ * The first is the line the game draws in the corner while you play. The second is the objective
+ * menu's own, which reads its geometry from Quest GUI rather than Quest HUD: hud_probe caught
+ * rfl+3FBBA, 3FBCB, 3FBE0 and 3FBED reading indices 15 to 18, the Unchecked-Box position and
+ * size, on a 29 property object.
+ *
+ * Only the opcode is checked, and the displacement is resolved and compared against the
+ * constructor rather than matched as bytes, because the two sites are at different distances
+ * from it. */
+static const uint32_t quest_sites[] = { 0x3F5D3u, 0x3FC2Du };
 
 /* And the layout box, which is a second site because the drawn size and the layout size are not
  * the same field. Scaling only the art left the objective's text starting where a 19 texel box
@@ -1644,23 +1655,35 @@ static void on_rfl_loaded(uintptr_t rfl_base)
     }
 
     {
-        uintptr_t quest = rfl_site(rfl_base, QUEST_RVA);
+        uintptr_t callee = rfl_site(rfl_base, QUEST_CALLEE_RVA);
+        size_t    index;
+        unsigned  done = 0;
+        unsigned  n    = (unsigned)(sizeof(quest_sites) / sizeof(quest_sites[0]));
 
-        if (patch_validate_bytes(quest, quest_expected, QUEST_SIZE)) {
-            uintptr_t stub = (uintptr_t)trampoline_alloc(64);
+        for (index = 0; index < n; ++index) {
+            uintptr_t site = rfl_site(rfl_base, quest_sites[index]);
+            uint8_t   opcode = 0;
+            int32_t   displacement = 0;
 
-            if (stub != 0 &&
-                build_quest_stub(stub, rfl_site(rfl_base, QUEST_RETURN_RVA),
-                                 rfl_site(rfl_base, QUEST_CALLEE_RVA)) != NULL &&
-                patch_write_jump(quest, (const void *)stub, QUEST_SIZE) == PATCH_RESULT_OK) {
-                log_info("  and rfl+%X -> stub at %08X, the objective tick boxes",
-                         QUEST_RVA, (unsigned)stub);
-            } else {
-                log_warning("the objective tick box hook could not be installed");
+            memcpy(&opcode, (const void *)site, sizeof(opcode));
+            memcpy(&displacement, (const void *)(site + 1u), sizeof(displacement));
+
+            if (opcode != 0xE8u || site + QUEST_SIZE + (uintptr_t)displacement != callee) {
+                log_warning("rfl+%X does not call the control constructor; the boxes it builds "
+                            "are left alone", quest_sites[index]);
+                continue;
             }
-        } else {
-            log_warning("rfl+%X is not the tick box constructor call this expects", QUEST_RVA);
+            {
+                uintptr_t stub = (uintptr_t)trampoline_alloc(64);
+
+                if (stub != 0 &&
+                    build_quest_stub(stub, site + QUEST_SIZE, callee) != NULL &&
+                    patch_write_jump(site, (const void *)stub, QUEST_SIZE) == PATCH_RESULT_OK) {
+                    done++;
+                }
+            }
         }
+        log_info("  and %u of %u objective box builders record what they make", done, n);
     }
 
     {
