@@ -461,6 +461,36 @@ static const uint8_t draw_expected[DRAW_SIZE] = {
     0xD8, 0x46, 0x74                     /* fadd [esi+0x74]  */
 };
 
+/* The same draw, a little further on, where it clips itself to its parent.
+ *
+ *     1006c94d  call [edx+0x44]         the parent clip rectangle, four floats
+ *     1006c950  mov  ecx,eax
+ *     1006c952  fld  [ecx]              left,   against the control own left
+ *     1006c96d  fld  [ecx+0x4]          top
+ *     1006c989  fld  [ecx+0x8]          right
+ *     1006c9a5  fld  [ecx+0xc]          bottom
+ *
+ * and having narrowed the rectangle it moves the source origin to match:
+ *
+ *     1006c9e2  fadd [esi+0x6c]         the source v, plus whatever the top lost
+ *     1006c9e9  fadd [esi+0x68]         and the same for u
+ *
+ * So the engine already crops a top edge properly, source origin and all. The reason it never
+ * happened here is the parent: a picture parent is its ROW, and the row travels with the
+ * picture, so clipping to it cuts nothing. The list is one link further up.
+ *
+ * The hook therefore changes the rectangle, not the control. Nothing else is touched, and in
+ * particular the position at +0x3c is left alone. */
+#define CLIP_RVA        0x6C950u
+#define CLIP_RETURN_RVA 0x6C958u
+#define CLIP_SIZE       8u
+
+static const uint8_t clip_expected[CLIP_SIZE] = {
+    0x8B, 0xC8,                          /* mov ecx,eax           */
+    0xD9, 0x01,                          /* fld [ecx]             */
+    0xD9, 0x44, 0x24, 0x30               /* fld [esp+0x30]        */
+};
+
 /* The picture controls, so the layout box can be grown where the texel size lands. Held loosely
  * and every read guarded, the same as the objective boxes. */
 #define SAVE_ROWS 128
@@ -469,6 +499,9 @@ typedef struct save_entry {
     uintptr_t control;
     float     src_h;       /* the source, as the engine built it, before any clip shrank it */
     float     src_w;       /* never written by this plugin, so it doubles as the identity check */
+    float     base_v;      /* the source v origin the engine set, before any crop of ours */
+    float     true_y;      /* the position the engine laid out, kept while the crop borrows it */
+    bool      moved;       /* whether the position needs putting back this draw */
 } save_entry_t;
 
 static save_entry_t g_save[SAVE_ROWS];
@@ -487,6 +520,30 @@ static volatile LONG g_save_seen;
 /* Called only from on_texture_draw, which has already validated the control. Re-checking here
  * would be a second VirtualQuery per texture control per frame, and VirtualQuery takes the
  * process address space lock. */
+/* Crops the save picture to the list, at the top edge and the bottom.
+ *
+ * It has to be done here because the engine cannot do it for a control whose scale is not 1.
+ * The draw builds the control rectangle as position plus SOURCE size:
+ *
+ *     1006c909  fld [esi+0x3c] ; fadd [esi+0x74]      bottom = y + source height
+ *
+ * and then intersects it with the parent clip rectangle, which is in screen pixels. Stock those
+ * are the same number, because nothing is scaled. Here the source is 64 and the picture is 288
+ * on screen, so the two disagree by the scale, and the intersection is nonsense: while the top
+ * row slid into place, y + 64 was still above the list top and the clipped height came out
+ * NEGATIVE, then over the last 64 pixels it went positive with the source advancing four and a
+ * half times too fast. That is the drop, the picture appearing from nothing and expanding.
+ *
+ * So the crop is worked out here in screen pixels, converted to texels once, and the engine
+ * clip is disarmed in take_over_clip below.
+ *
+ * The position at +0x3c is moved, which earlier attempts could not do because the value looked
+ * like the scroll animation itself. It is not: the animation lives on the LIST, at +0xB4, which
+ * carries the scroll origin and decays under friction by 0.917 a frame. The row position is
+ * derived from it. Even so, nothing is left behind: take_over_clip runs later in this same draw
+ * and puts the engine value back, after the rectangle has been taken from it and before it is
+ * used again, so the field is only ever different from the engine version for the few
+ * instructions in between. */
 static void __cdecl clamp_save_picture(uintptr_t control)
 {
     LONG seen = g_save_seen;
@@ -501,81 +558,134 @@ static void __cdecl clamp_save_picture(uintptr_t control)
         uintptr_t list = 0;
         float     scale_x = 0.0f;
         float     scale_y = 0.0f;
+        float     y        = 0.0f;
+        float     screen_h;
         float     full_w;
-        float     want_h;
-        float     want_src;
+        float     visible_top;
+        float     visible_bottom;
+        float     cut;
+        float     drawn;
+        float     source_v;
+        float     source_h;
 
         if (g_save[i].control != control || g_save[i].src_h <= 0.0f ||
             !still_the_same_control(control, g_save[i].src_w)) {
             continue;
         }
 
-        /* Derived here, every draw, from the pair the menu actually set. The art is square, so
-         * the source height is the true extent on both axes and the recorded width carries the
-         * empty region past the edge of the texture. */
         memcpy(&scale_x, (const void *)(control + CONTROL_SCALE_X), sizeof(scale_x));
         memcpy(&scale_y, (const void *)(control + CONTROL_SCALE_Y), sizeof(scale_y));
         if (scale_y <= 0.0f) {
             return;
         }
+
+        /* The art is square, so the source height is the true extent on both axes and the
+         * recorded width carries the empty region past the edge of the texture. */
         full_w   = g_save[i].src_h * scale_x;
-        want_h   = g_save[i].src_h * scale_y;
-        want_src = g_save[i].src_h;
+        screen_h = g_save[i].src_h * scale_y;
+
+        memcpy(&y, (const void *)(control + 0x3Cu), sizeof(y));
+        visible_top    = y;
+        visible_bottom = y + screen_h;
 
         memcpy(&row, (const void *)(control + 0x5Cu), sizeof(uint32_t));
         if (row != 0 && memory_is_readable_range(row, 0x60u)) {
             memcpy(&list, (const void *)(row + 0x5Cu), sizeof(uint32_t));
         }
         if (list != 0 && memory_is_readable_range(list, 0x48u)) {
-            float ly    = 0.0f;
-            float lh    = 0.0f;
-            float sy    = 0.0f;
+            float ly = 0.0f;
+            float lh = 0.0f;
 
-            memcpy(&ly,    (const void *)(list + 0x3Cu), sizeof(ly));
-            memcpy(&lh,    (const void *)(list + 0x44u), sizeof(lh));
-            memcpy(&sy,    (const void *)(control + CONTROL_SCALE_Y), sizeof(sy));
-
-            /* The picture's own y, read and never written. An earlier version took the top
-             * from the row and moved the picture to suit, which drifted: the next frame read
-             * back the value this had just written. It also assumed the picture sat exactly on
-             * its row, which one sample happened to show and the rest do not. Measured, it sits
-             * about 183 below, so clipping from the row's y cut in far too late.
-             *
-             * Only the bottom edge is clipped, because that needs no move: the height shrinks
-             * and the source shrinks with it, so the picture is cut off rather than squashed,
-             * and its position is left entirely to the engine. */
-            if (lh > 0.0f && sy > 0.0f) {
-                float top = 0.0f;
-
-                memcpy(&top, (const void *)(control + 0x3Cu), sizeof(top));
-                {
-                    float room = (ly + lh) - top;
-
-                    if (room < 0.0f) {
-                        room = 0.0f;
-                    }
-                    if (room < want_h) {
-                        want_h   = room;
-                        want_src = want_h / sy;
-                    }
+            memcpy(&ly, (const void *)(list + 0x3Cu), sizeof(ly));
+            memcpy(&lh, (const void *)(list + 0x44u), sizeof(lh));
+            if (lh > 0.0f) {
+                if (visible_top < ly) {
+                    visible_top = ly;
+                }
+                if (visible_bottom > ly + lh) {
+                    visible_bottom = ly + lh;
                 }
             }
         }
 
-        /* A row entirely past an edge keeps nothing of itself: the source goes to zero as well,
-         * so a stale rectangle cannot draw one more frame of picture. */
-        if (want_h <= 0.0f) {
-            want_h   = 0.0f;
-            want_src = 0.0f;
-        }
-        if (control_writable(control + 0x40u, 8u)) {
-            memcpy((void *)(control + 0x40u), &full_w, sizeof(float));
-            memcpy((void *)(control + 0x44u), &want_h, sizeof(float));
-        }
-        if (control_writable(control + 0x74u, 4u)) {
-            memcpy((void *)(control + 0x74u), &want_src, sizeof(float));
+        g_save[i].true_y = y;
+        g_save[i].moved  = false;
+
+        /* A row entirely past an edge keeps nothing of itself, and its position is left alone. */
+        if (visible_bottom <= visible_top) {
+            float none = 0.0f;
+
+            memcpy((void *)(control + 0x74u), &none, sizeof(none));
+            memcpy((void *)(control + 0x6Cu), &g_save[i].base_v, sizeof(float));
+            memcpy((void *)(control + 0x40u), &full_w, sizeof(full_w));
+            memcpy((void *)(control + 0x44u), &screen_h, sizeof(screen_h));
+            return;
         }
 
+        cut      = visible_top - y;
+        drawn    = visible_bottom - visible_top;
+        source_h = drawn / scale_y;
+
+        /* The engine will add (its own clipped top minus the position) to the source origin,
+         * and once the position is back to the engine value that difference is the cut in
+         * SCREEN pixels. The cut belongs in texels, so what is stored here is the texel figure
+         * less the pixel one, and the sum comes out right. */
+        source_v = g_save[i].base_v + cut / scale_y - cut;
+
+        memcpy((void *)(control + 0x3Cu), &visible_top, sizeof(visible_top));
+        memcpy((void *)(control + 0x6Cu), &source_v, sizeof(source_v));
+        memcpy((void *)(control + 0x74u), &source_h, sizeof(source_h));
+
+        /* The layout box keeps the FULL height. It is what the row sizes itself from, and a
+         * crop is a thing that happens to one frame of drawing, not to the space the row
+         * reserves. Writing the cropped figure here made a partially visible row rebuild itself
+         * shorter. */
+        memcpy((void *)(control + 0x40u), &full_w, sizeof(full_w));
+        memcpy((void *)(control + 0x44u), &screen_h, sizeof(screen_h));
+
+        g_save[i].moved = true;
+        return;
+    }
+}
+
+/* Runs later in the same draw, just after the parent has handed back its clip rectangle.
+ *
+ * Two things happen here, and both are the second half of the crop above.
+ *
+ * The rectangle is opened out so it cannot cut anything. It is in screen pixels and the
+ * rectangle it would be intersected with is in texels, so any cut it makes is wrong by the
+ * scale. clamp_save_picture has already done the intersection properly.
+ *
+ * And the position is put back to the engine value. The draw has taken its copy by now, at
+ * 1006c915, so the crop is already in the rectangle; what remains is the source origin, which
+ * the engine works out as (clipped top - position), and that reads correctly against the
+ * restored value. Nothing of ours is left in the control when the draw returns. */
+static void __cdecl take_over_clip(uintptr_t rect, uintptr_t control)
+{
+    LONG  seen = g_save_seen;
+    LONG  i;
+    float wide = 1.0e9f;
+    float back = -1.0e9f;
+
+    if (rect == 0 || control == 0 || !memory_is_readable_range(rect, 16u) ||
+        !memory_is_readable_range(control, 0x80u)) {
+        return;
+    }
+
+    if (seen > SAVE_ROWS) {
+        seen = SAVE_ROWS;
+    }
+    for (i = 0; i < seen; ++i) {
+        if (g_save[i].control != control || !still_the_same_control(control, g_save[i].src_w)) {
+            continue;
+        }
+        memcpy((void *)(rect + 0x0u), &back, sizeof(back));
+        memcpy((void *)(rect + 0x4u), &back, sizeof(back));
+        memcpy((void *)(rect + 0x8u), &wide, sizeof(wide));
+        memcpy((void *)(rect + 0xCu), &wide, sizeof(wide));
+        if (g_save[i].moved) {
+            memcpy((void *)(control + 0x3Cu), &g_save[i].true_y, sizeof(float));
+        }
         return;
     }
 }
@@ -608,6 +718,9 @@ static void __cdecl record_save_icon(uintptr_t control)
     g_save[(uint32_t)n % SAVE_ROWS].control = control;
     g_save[(uint32_t)n % SAVE_ROWS].src_h   = 0.0f;
     g_save[(uint32_t)n % SAVE_ROWS].src_w   = 0.0f;
+    g_save[(uint32_t)n % SAVE_ROWS].base_v  = 0.0f;
+    g_save[(uint32_t)n % SAVE_ROWS].true_y  = 0.0f;
+    g_save[(uint32_t)n % SAVE_ROWS].moved   = false;
 }
 
 /* The coloured fill, which is a different draw from the seven above.
@@ -1003,6 +1116,13 @@ static void __cdecl fix_quest_layout(uintptr_t control)
                  * come out at 64 by 64 and the rows stay short. The size is derived at the draw
                  * instead, from whatever the pair holds by then. */
                 if (w > 0.0f && h > 0.0f && g_save[j].src_w != w) {
+                    /* The source origin comes from the engine, and only the first time. After
+                     * that the field holds whatever the crop last put there. It is zero for
+                     * every picture measured so far, but reading it costs nothing and a picture
+                     * packed into a shared texture would not be. */
+                    if (g_save[j].src_w == 0.0f) {
+                        memcpy(&g_save[j].base_v, (const void *)(control + 0x6Cu), sizeof(float));
+                    }
                     g_save[j].src_h = h;
                     g_save[j].src_w = w;
                 }
@@ -1320,6 +1440,45 @@ static void *build_arrow_stub(uintptr_t stub_address, uintptr_t return_address, 
 
 /* Runs where the picture's draw reads its own geometry, with the control in esi, and performs
  * the two displaced instructions afterwards. Neither is position dependent. */
+/* eax is the clip rectangle the parent just handed back and esi is the control, and pushad
+ * leaves both alone, so the stub reads them where they lie. esp is restored before the relocated
+ * fld [esp+0x30] runs. */
+static void *build_clip_stub(uintptr_t stub_address, uintptr_t return_address)
+{
+    uint8_t buffer[64];
+    emit_t  emit;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    emit_u8(&emit, 0x60);                                    /* pushad                       */
+    emit_u8(&emit, 0x9C);                                    /* pushfd                       */
+    emit_u8(&emit, 0x56);                                    /* push esi, the control        */
+    emit_u8(&emit, 0x50);                                    /* push eax, the clip rectangle */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)((uintptr_t)&take_over_clip -
+                               (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+    emit_u8(&emit, 0x83); emit_u8(&emit, 0xC4); emit_u8(&emit, 0x08);
+    emit_u8(&emit, 0x9D);                                    /* popfd                        */
+    emit_u8(&emit, 0x61);                                    /* popad                        */
+
+    {
+        unsigned i;
+
+        for (i = 0; i < CLIP_SIZE; ++i) {
+            emit_u8(&emit, clip_expected[i]);
+        }
+    }
+
+    emit_jump_rel32(&emit, stub_address, return_address);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
+}
+
 static void *build_draw_stub(uintptr_t stub_address, uintptr_t return_address)
 {
     uint8_t buffer[64];
@@ -1719,6 +1878,25 @@ static void on_rfl_loaded(uintptr_t rfl_base)
             }
         } else {
             log_warning("rfl+%X is not the texture draw this expects", DRAW_RVA);
+        }
+    }
+
+    {
+        uintptr_t clip = rfl_site(rfl_base, CLIP_RVA);
+
+        if (patch_validate_bytes(clip, clip_expected, CLIP_SIZE)) {
+            uintptr_t stub = (uintptr_t)trampoline_alloc(64);
+
+            if (stub != 0 &&
+                build_clip_stub(stub, rfl_site(rfl_base, CLIP_RETURN_RVA)) != NULL &&
+                patch_write_jump(clip, (const void *)stub, CLIP_SIZE) == PATCH_RESULT_OK) {
+                log_info("  and rfl+%X -> stub at %08X, the save picture crop",
+                         CLIP_RVA, (unsigned)stub);
+            } else {
+                log_warning("the save picture crop could not be installed");
+            }
+        } else {
+            log_warning("rfl+%X is not the parent clip this expects", CLIP_RVA);
         }
     }
 

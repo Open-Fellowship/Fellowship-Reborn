@@ -280,6 +280,68 @@ table evicting live controls (real, fixed, not this), a cached offset between pi
 rectangle being scrolling content rather than the visible box (it is the visible box, `259.2` to
 `1447.2`), and the position never being final at the draw entry (it is final one call in).
 
+## A scaled control cannot be clipped by the engine
+
+This is the reason the save pictures fought back for so long, and it is worth stating on its own
+because it applies to anything else here that gets a scale.
+
+`FUN_1006C890` builds the control rectangle out of the position and the SOURCE size:
+
+```
+1006c909  fld  [esi+0x3c] ; fadd [esi+0x74]     bottom = y + source height
+1006c90f  fld  [esi+0x38] ; fadd [esi+0x70]     right  = x + source width
+```
+
+and then intersects it with the rectangle its parent hands back:
+
+```
+1006c94d  call [edx+0x44]                       the parent clip rectangle, four floats
+1006c96d  fld  [ecx+0x4]                        top, against the control own top
+```
+
+having narrowed it, it moves the source origin by whatever the edges lost:
+
+```
+1006c9e2  fadd [esi+0x6c]                       source v, plus what the top gave up
+1006c9e9  fadd [esi+0x68]                       and the same for u
+```
+
+That is a correct crop, origin and all, and it needs no help from anyone. It is also only correct
+when the scale is 1, because the rectangle it builds is in texels and the rectangle it intersects
+with is in screen pixels, and stock those are the same number.
+
+A save picture is 64 texels drawn at 288 pixels. So while the top row slid into place, `y + 64`
+was still above the list top and `bottom - top` came out NEGATIVE; over the last 64 pixels of the
+slide it turned positive with the source advancing four and a half times too fast. On screen the
+picture appeared out of nothing and expanded into place. The same mismatch is why the bottom edge
+never clipped either, and why it needed a clamp written by hand.
+
+There is no way to fix this by correcting the clip rectangle. The clipped top is used twice, once
+as the source origin and once as the screen position, and one value cannot be right for both when
+the two spaces differ. So the rectangle is opened out at `rfl+6C950` until it cannot cut anything,
+and the crop is worked out in screen pixels, converted to texels once, and written to `+0x3c`,
+`+0x6c` and `+0x74`.
+
+Moving `+0x3c` had been ruled out twice before on the grounds that it was the scroll animation and
+writing it would end the scroll. It is not. The animation is on the LIST, at `+0xB4`, which holds
+the scroll origin and decays under friction by a factor of `0.917` a frame:
+
+```
+259.200 -> 169.177 -> 86.707 -> 11.061 -> -58.278     deltas 90.0, 82.5, 75.6, 69.3
+```
+
+and clamps at the list top rather than rubber banding past it. The row position is derived from
+that each frame. Even so the field is put back: `take_over_clip` restores it later in the same
+draw, after the rectangle has been taken from it at `1006c915` and before the source origin is
+computed from it at `1006c9c1`, so it differs from the engine value for a few instructions and
+nothing that runs later can see the difference. Because the restore happens before the source
+origin is worked out, the engine adds the cut in screen pixels; `+0x6c` is therefore set to the
+texel figure MINUS the pixel one, and the sum lands correctly.
+
+The layout box at `+0x40` and `+0x44` keeps the full height throughout. A crop is something that
+happens to one frame of drawing; the space a row reserves is not a function of how much of it
+happens to be on screen this frame.
+
 ## What this does NOT reach
 
 `FUN_1006C890` is exclusive to `GUIControl_Texture`, proven by a byte scan of the whole image
@@ -288,7 +350,7 @@ and `(tx)` property geometry on a different path again.
 
 `HUD-FINDING.md` has the full map of which element belongs to which family.
 
-## Five attempts that did not work, and why
+## Attempts that did not work, and why
 
 Kept because each is a reasonable idea and the reason it fails is not obvious.
 
@@ -339,6 +401,16 @@ And one that was worse than not working, because it looked like it worked:
     empty. The frames looked right, so it passed as correct for as long as nobody put a number on
     the fill. Any experiment run on the fill while that site was live is untrustworthy, which
     includes an earlier attempt at `rfl+78DD7` that should have worked and did not.
+
+14. **Raising the clip rectangle top to the list.** The idea was right and the site was right, and
+    it did nothing at all: a probe on 32 consecutive samples showed the rectangle already arriving
+    as `max(row top, list top)`, so the raise never once fired. The parent had been doing that part
+    correctly the whole time. What it could not do was use the result, for the reason in the
+    section above.
+15. **Reading a picture position and concluding it was drawn there.** The first probe showed the
+    picture at `y 169.2` against a list top of `259.2` and that was taken as proof it drew outside
+    the box. It did not; it was clipped. A field read from an object says what the field holds, not
+    what reached the screen.
 
 Every one of them came from reading a decompile, or from matching a byte pattern without checking
 what the value was for. Each fix came from measurement: a probe for the pointer, and the controls'
