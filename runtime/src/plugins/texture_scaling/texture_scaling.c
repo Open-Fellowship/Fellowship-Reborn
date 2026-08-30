@@ -908,6 +908,29 @@ static void __cdecl fix_quest_layout(uintptr_t control)
                     g_save[j].src_h = h;
                     g_save[j].src_w = w;
                 }
+
+                /* And the layout box, written HERE, because the row lays itself out when the
+                 * list is built and that is before anything is drawn. Deriving it at the draw
+                 * instead was correct arithmetic arriving too late: the pictures came out the
+                 * right 512 by 288 inside rows that had already sized themselves to 64.
+                 *
+                 * It comes from the recorded source rather than the field below, which the clip
+                 * shrinks, and from the pair as it stands now, which the menu has already set. */
+                if (g_save[j].src_h > 0.0f) {
+                    float sx = 0.0f;
+                    float sy = 0.0f;
+
+                    memcpy(&sx, (const void *)(control + CONTROL_SCALE_X), sizeof(sx));
+                    memcpy(&sy, (const void *)(control + CONTROL_SCALE_Y), sizeof(sy));
+
+                    if (sx > 0.0f && sy > 0.0f && control_writable(control + 0x40u, 8u)) {
+                        float lw = g_save[j].src_h * sx;
+                        float lh = g_save[j].src_h * sy;
+
+                        memcpy((void *)(control + 0x40u), &lw, sizeof(lw));
+                        memcpy((void *)(control + 0x44u), &lh, sizeof(lh));
+                    }
+                }
             }
             return;
         }
