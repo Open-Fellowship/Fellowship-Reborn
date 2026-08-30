@@ -214,6 +214,81 @@ static uint32_t g_in_bar_fill;
 static uint32_t g_fill_flags;
 
 
+/* SIXTH SITE, the objective tick box, and it needs no arithmetic either, because it turns out
+ * to be a GUIControl_Texture exactly like the pointer.
+ *
+ * The class is Quest HUD, 31 properties, and the box geometry is class indices 22 to 25 for the
+ * unchecked icon and 26 to 29 for the completed one, every one of them (tx). Those are source
+ * rectangle texels, so scaling the properties themselves would grow the sampled region and smear
+ * the art, which is how the first two attempts listed at the bottom of the README failed. They
+ * are left alone. The control is built here:
+ *
+ *     1003f592  push 0x80              a 0x80 byte control, so +0x78 and +0x7C are inside it
+ *     1003f59b  call operator new
+ *     1003f5d1  mov ecx,edi
+ *     1003f5d3  call 1006C5D0          the GUIControl_Texture constructor
+ *     1003f5d8  mov [esp+0x14],eax     the finished control
+ *
+ * Wrapping that call is five bytes and hands back the control the moment it exists. The scale
+ * pair does the rest, as it does for the pointer, and filtering comes free the same way.
+ *
+ * This was measured rather than read. hud_probe, extended to record the object's property count
+ * alongside the caller, caught rfl+3F57F reading index 24 on a 31 property object. Two earlier
+ * guesses were wrong and both looked convincing: Quest GUI, whose 'texture info' group carries
+ * properties actually named Unchecked-Box and Checked-Box, is initialised with defaults and then
+ * never read by anything; and a run of indices 15 to 22 found by scanning bytes belonged to some
+ * other class entirely. An index means nothing without the class that owns it. */
+#define QUEST_RVA        0x3F5D3u
+#define QUEST_RETURN_RVA 0x3F5D8u
+#define QUEST_SIZE       5u
+#define QUEST_CALLEE_RVA 0x6C5D0u
+
+static const uint8_t quest_expected[QUEST_SIZE] = { 0xE8, 0xF8, 0xCF, 0x02, 0x00 };
+
+/* And the layout box, which is a second site because the drawn size and the layout size are not
+ * the same field. Scaling only the art left the objective's text starting where a 19 texel box
+ * would have ended, on top of it.
+ *
+ * The layout box cannot be written when the control is built: measured there, +0x40 and +0x44
+ * hold 3840 x 2160, the screen, not the art. FUN_1006C750 copies the texel size in afterwards:
+ *
+ *     1006c84f  mov ecx,[edi+0x70]     the source width, in texels
+ *     1006c852  push 0                 belongs to the call at 1006c869
+ *     1006c854  mov [edi+0x40],ecx     the layout box takes the texel count
+ *     1006c857  mov edx,[edi+0x74]
+ *     1006c85a  mov [edi+0x44],edx
+ *
+ * The twelve bytes after that copy are three plain moves, so the hook goes there rather than in
+ * among the stores, where an interleaved push has caught this file out before. The row lays out
+ * after this returns, which is what makes it early enough.
+ *
+ * This function belongs to every GUIControl_Texture, the mouse pointer included, so it acts only
+ * on a control this plugin recorded being built for an objective line. */
+#define QLAYOUT_RVA        0x6C85Du
+#define QLAYOUT_RETURN_RVA 0x6C869u
+#define QLAYOUT_SIZE       12u
+
+static const uint8_t qlayout_expected[QLAYOUT_SIZE] = {
+    0x8B, 0x06,                                      /* mov eax,[esi]                */
+    0x8B, 0xCE,                                      /* mov ecx,esi                  */
+    0xC7, 0x44, 0x24, 0x1C, 0xFF, 0xFF, 0xFF, 0xFF   /* mov [esp+0x1c],-1            */
+};
+
+/* One control per objective line, and the list is rebuilt whenever the objectives change, so
+ * these are held loosely: a ring that overwrites the oldest, and every read guarded, because a
+ * control from the previous list is freed memory. */
+#define QUEST_ROWS 12
+
+typedef struct quest_entry {
+    uintptr_t control;
+    float     base_w;      /* the layout box as the engine built it, zero until it is seen */
+    float     base_h;
+} quest_entry_t;
+
+static quest_entry_t g_quest[QUEST_ROWS];
+static volatile LONG g_quest_seen;
+static volatile LONG g_quest_announced;
+
 /* Written by the stub, read by the poll. Whatever the GUI manager last built. */
 static volatile uintptr_t g_cursor;
 static volatile uintptr_t g_camera;
@@ -361,6 +436,140 @@ static void *build_fill_scale_stub(uintptr_t stub_address, uintptr_t return_addr
         return NULL;
     }
     fill_branch(buffer, skip_all, done);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
+}
+
+static void __cdecl record_quest_icon(uintptr_t control)
+{
+    LONG n;
+
+    if (control == 0 || !memory_is_readable_range(control, CONTROL_SCALE_Y + 4u)) {
+        return;
+    }
+    n = InterlockedIncrement(&g_quest_seen) - 1;
+    g_quest[(uint32_t)n % QUEST_ROWS].control = control;
+
+    /* Nothing is written here. At this point +0x40 and +0x44 hold the screen size, not the art,
+     * so there is nothing yet worth scaling. The layout box is dealt with by fix_quest_layout,
+     * once the texel size has actually been copied into it. */
+    g_quest[(uint32_t)n % QUEST_ROWS].base_w = 0.0f;
+    g_quest[(uint32_t)n % QUEST_ROWS].base_h = 0.0f;
+}
+
+/* Runs just after the texel size has been copied into the layout box, for every
+ * GUIControl_Texture in the game, so it does nothing unless this is one of the controls recorded
+ * above. The row lays itself out after this returns, which is the whole point of the timing. */
+static void __cdecl fix_quest_layout(uintptr_t control)
+{
+    LONG seen = g_quest_seen;
+    LONG i;
+
+    if (control == 0 || !memory_is_readable_range(control, 0x78u)) {
+        return;
+    }
+    if (seen > QUEST_ROWS) {
+        seen = QUEST_ROWS;
+    }
+    for (i = 0; i < seen; ++i) {
+        if (g_quest[i].control != control) {
+            continue;
+        }
+        {
+            float w = 0.0f;
+            float h = 0.0f;
+
+            /* The source rectangle, in texels, which is what the copy above just used. */
+            memcpy(&w, (const void *)(control + 0x70u), sizeof(w));
+            memcpy(&h, (const void *)(control + 0x74u), sizeof(h));
+
+            if (w > 0.0f && h > 0.0f) {
+                g_quest[i].base_w = w;
+                g_quest[i].base_h = h;
+
+                if (memory_make_writable(control + 0x40u, 8u)) {
+                    float sw = w * g_scale_x;
+                    float sh = h * g_scale_y;
+
+                    memcpy((void *)(control + 0x40u), &sw, sizeof(sw));
+                    memcpy((void *)(control + 0x44u), &sh, sizeof(sh));
+                }
+                if (InterlockedExchange(&g_quest_announced, 1) == 0) {
+                    log_info("tick box %08X is %.2f x %.2f texels, laid out at %.2f x %.2f",
+                             (unsigned)control, (double)w, (double)h,
+                             (double)(w * g_scale_x), (double)(h * g_scale_y));
+                }
+            }
+        }
+        return;
+    }
+}
+
+/* Reports the control, then performs the three moves it displaced. Those are relocated with esp
+ * exactly as the engine had it, because the last of them writes through esp. */
+static void *build_qlayout_stub(uintptr_t stub_address, uintptr_t return_address)
+{
+    uint8_t buffer[64];
+    emit_t  emit;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    emit_u8(&emit, 0x60);                                    /* pushad                       */
+    emit_u8(&emit, 0x9C);                                    /* pushfd                       */
+    emit_u8(&emit, 0x57);                                    /* push edi, the control        */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)((uintptr_t)&fix_quest_layout -
+                               (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+    emit_u8(&emit, 0x83); emit_u8(&emit, 0xC4); emit_u8(&emit, 0x04);
+    emit_u8(&emit, 0x9D);                                    /* popfd                        */
+    emit_u8(&emit, 0x61);                                    /* popad                        */
+
+    {
+        unsigned i;
+
+        for (i = 0; i < QLAYOUT_SIZE; ++i) {
+            emit_u8(&emit, qlayout_expected[i]);
+        }
+    }
+
+    emit_jump_rel32(&emit, stub_address, return_address);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
+}
+
+/* Calls the constructor the site was going to call, then keeps what it returns. eax is the
+ * control and pushad carries it across the recording untouched. */
+static void *build_quest_stub(uintptr_t stub_address, uintptr_t return_address, uintptr_t callee)
+{
+    uint8_t buffer[64];
+    emit_t  emit;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)(callee - (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+
+    emit_u8(&emit, 0x60);                                    /* pushad                       */
+    emit_u8(&emit, 0x9C);                                    /* pushfd                       */
+    emit_u8(&emit, 0x50);                                    /* push eax, the control        */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)((uintptr_t)&record_quest_icon -
+                               (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+    emit_u8(&emit, 0x83); emit_u8(&emit, 0xC4); emit_u8(&emit, 0x04);
+    emit_u8(&emit, 0x9D);                                    /* popfd                        */
+    emit_u8(&emit, 0x61);                                    /* popad                        */
+
+    emit_jump_rel32(&emit, stub_address, return_address);
 
     if (emit_overflowed(&emit)) {
         return NULL;
@@ -553,6 +762,55 @@ static DWORD WINAPI hold_scale(LPVOID parameter)
                         }
                     }
                 }
+
+                /* The objective tick boxes. A scale, not a derived size, so writing it again
+                 * over the same control is idempotent and cannot compound. */
+                {
+                    LONG seen = g_quest_seen;
+                    LONG i;
+
+                    if (seen > QUEST_ROWS) {
+                        seen = QUEST_ROWS;
+                    }
+                    for (i = 0; i < seen; ++i) {
+                        uintptr_t c = g_quest[i].control;
+
+                        if (c == 0 || !memory_is_readable_range(c, CONTROL_SCALE_Y + 4u)) {
+                            continue;
+                        }
+
+                        /* The drawn extent is the source multiplied by this pair. */
+                        if (memory_make_writable(c + CONTROL_SCALE_X, 8u)) {
+                            memcpy((void *)(c + CONTROL_SCALE_X), &x, sizeof(x));
+                            memcpy((void *)(c + CONTROL_SCALE_Y), &y, sizeof(y));
+                        }
+
+                        /* And the layout box, which is what the row around it reserves space
+                         * from. Scaling the drawn size alone leaves the text of the objective
+                         * starting where a 19 texel box would have ended, on top of it.
+                         *
+                         * Captured once, the first time it is seen non zero, and re-derived from
+                         * that every pass, so this cannot compound. */
+                        if (g_quest[i].base_w == 0.0f) {
+                            float w = 0.0f;
+                            float h = 0.0f;
+
+                            memcpy(&w, (const void *)(c + 0x40u), sizeof(w));
+                            memcpy(&h, (const void *)(c + 0x44u), sizeof(h));
+                            if (w > 0.0f && h > 0.0f) {
+                                g_quest[i].base_w = w;
+                                g_quest[i].base_h = h;
+                            }
+                        }
+                        if (g_quest[i].base_w > 0.0f && memory_make_writable(c + 0x40u, 8u)) {
+                            float w = g_quest[i].base_w * x;
+                            float h = g_quest[i].base_h * y;
+
+                            memcpy((void *)(c + 0x40u), &w, sizeof(w));
+                            memcpy((void *)(c + 0x44u), &h, sizeof(h));
+                        }
+                    }
+                }
             }
         }
         Sleep(250);
@@ -707,6 +965,45 @@ static void on_rfl_loaded(uintptr_t rfl_base)
         } else if (n != 0) {
             log_warning("only %u of %u bar fill calls were wrapped; the fill is left alone",
                         wrapped, n);
+        }
+    }
+
+    {
+        uintptr_t quest = rfl_site(rfl_base, QUEST_RVA);
+
+        if (patch_validate_bytes(quest, quest_expected, QUEST_SIZE)) {
+            uintptr_t stub = (uintptr_t)trampoline_alloc(64);
+
+            if (stub != 0 &&
+                build_quest_stub(stub, rfl_site(rfl_base, QUEST_RETURN_RVA),
+                                 rfl_site(rfl_base, QUEST_CALLEE_RVA)) != NULL &&
+                patch_write_jump(quest, (const void *)stub, QUEST_SIZE) == PATCH_RESULT_OK) {
+                log_info("  and rfl+%X -> stub at %08X, the objective tick boxes",
+                         QUEST_RVA, (unsigned)stub);
+            } else {
+                log_warning("the objective tick box hook could not be installed");
+            }
+        } else {
+            log_warning("rfl+%X is not the tick box constructor call this expects", QUEST_RVA);
+        }
+    }
+
+    {
+        uintptr_t layout = rfl_site(rfl_base, QLAYOUT_RVA);
+
+        if (patch_validate_bytes(layout, qlayout_expected, QLAYOUT_SIZE)) {
+            uintptr_t stub = (uintptr_t)trampoline_alloc(64);
+
+            if (stub != 0 &&
+                build_qlayout_stub(stub, rfl_site(rfl_base, QLAYOUT_RETURN_RVA)) != NULL &&
+                patch_write_jump(layout, (const void *)stub, QLAYOUT_SIZE) == PATCH_RESULT_OK) {
+                log_info("  and rfl+%X -> stub at %08X, the tick box layout",
+                         QLAYOUT_RVA, (unsigned)stub);
+            } else {
+                log_warning("the tick box layout hook could not be installed");
+            }
+        } else {
+            log_warning("rfl+%X is not the texel copy this expects", QLAYOUT_RVA);
         }
     }
 

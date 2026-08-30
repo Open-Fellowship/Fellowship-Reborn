@@ -13,6 +13,7 @@ disease, and this fixes all four.
 | the One Ring icon | `Ring Icon` | `rfl+7ACA1` |
 | the bar frames | `HUD Variable Meter` | seven pushes, `rfl+79356` to `rfl+797E4` |
 | the bar fills | `HUD Variable Meter` | `rfl+78DE7`, `rfl+78E2B`, `rfl+667A3` |
+| the objective tick boxes | `GUIControl_Texture` | `rfl+3F5D3`, `rfl+6C85D` |
 
 The groups are independent. Any one can fail to match without taking the others down, and the log
 says which. The bar fill is all or nothing within itself: if either call site or the draw does not
@@ -144,11 +145,39 @@ This is the whole bar family, so the loading bar is carried along with the two i
 calls that draw a bar raise a flag around themselves and the scaling reads it. Everything else
 that function draws is untouched.
 
+## The objective tick box needs two writes, not one
+
+The box beside each objective line is a `GUIControl_Texture`, the same class as the pointer, so
+its art scales through the same pair at `+0x78` and `+0x7C` and its `(tx)` source rectangle is
+never touched. It is built one per objective line:
+
+```
+1003f592  push 0x80              a 0x80 byte control
+1003f5d3  call 1006C5D0          the GUIControl_Texture constructor
+1003f5d8  mov [esp+0x14],eax     the finished control
+```
+
+Wrapping that call keeps the control. Scaling the art alone, though, leaves the objective's text
+starting where a 23 texel box would have ended, on top of it, because the drawn extent and the
+layout box are different fields. The row reserves space from `+0x40` and `+0x44`.
+
+Those cannot be written when the control is built. Measured there they hold `3840 x 2160`, the
+screen. `FUN_1006C750` copies the texel size in afterwards, and the hook goes on the twelve plain
+bytes after that copy, at `rfl+6C85D`, because the copy itself has a `push 0` interleaved that
+belongs to a later call. The row lays out after that returns, which is what makes it early enough:
+writing the same value from the 250ms poll changed nothing, because by then the text already had
+its position.
+
+That function serves every `GUIControl_Texture`, the pointer included, so it acts only on a
+control this plugin recorded being built for an objective line.
+
+Measured at 3840x2160: `23.00 x 23.00 texels, laid out at 138.00 x 103.50`.
+
 ## What this does NOT reach
 
 `FUN_1006C890` is exclusive to `GUIControl_Texture`, proven by a byte scan of the whole image
-finding exactly one reference to it. The objective boxes, the map screen icons and the save slot
-thumbnails are `(px)` and `(tx)` property geometry on a different path again.
+finding exactly one reference to it. The map screen icons and the save slot thumbnails are `(px)`
+and `(tx)` property geometry on a different path again.
 
 `HUD-FINDING.md` has the full map of which element belongs to which family.
 
@@ -180,6 +209,19 @@ Kept because each is a reasonable idea and the reason it fails is not obvious.
    thickness. A flip would have given a thick bar either way, so that slot is a sentinel and every
    negative means what -1.0 means, which is to take Y from X. Scaling X works and drags Y with it,
    so the pair can never scale one axis alone.
+
+11. **The `GUI Border` strips**, four `push` sites in `FUN_10066860`, the box outline. They patch
+    cleanly and change nothing, because that function never runs: a hook on its entry reported
+    zero boxes across a whole session. Correctly patched code on a dead path.
+12. **`Quest GUI` for the tick box.** Its `texture info` group carries properties actually named
+    `Unchecked-Box X Size (tx)` and `Checked-Box X Size (tx)`, and `HUD-FINDING.md` calls that
+    group the objective boxes. `hud_probe` showed the class is initialised with defaults and then
+    never read by anything. The live class is `Quest HUD`, 31 properties, and its box is 23 by 23
+    texels rather than the 19 by 16 those defaults describe.
+13. **A site picked from a byte scan**, `rfl+68BF6`, where indices 15 to 22 appear in ascending
+    order exactly as the tick box would read them. It belongs to a different class. An index means
+    nothing without the class that owns it, which is what `hud_probe`'s own README says, and the
+    tool now records the property count so that a caller can be tied to a class.
 
 And one that was worse than not working, because it looked like it worked:
 
