@@ -15,6 +15,7 @@ disease, and this fixes all four.
 | the bar fills | `HUD Variable Meter` | `rfl+78DE7`, `rfl+78E2B`, `rfl+667A3` |
 | the objective tick boxes | `GUIControl_Texture` | `rfl+3F5D3`, `rfl+6C85D` |
 | the map indicator and stars | `Map GUI` | `rfl+2D636`, `rfl+2D6D1` |
+| the save and load pictures | `LoadSave GUI` | `rfl+73916`, `rfl+73CC9`, `rfl+6C890` |
 
 The groups are independent. Any one can fail to match without taking the others down, and the log
 says which. The bar fill is all or nothing within itself: if either call site or the draw does not
@@ -197,6 +198,57 @@ offered fifteen candidate windows, of which `1002D4E4` to `1002D6AF` was the str
 then recorded `rfl+2D6BE`, `2D69A`, `2D528` and `2D517` reading indices 19, 21, 25 and 26 on a 30
 property object at 295 hits each, once a frame while the map is open. The scan alone would not
 have been enough, and the same reasoning picked a wrong site for the tick box.
+
+## The save pictures, and the aspect applied twice
+
+Measured with the patch held off, the game draws a save slot picture like this:
+
+```
+source 113.78 x 64.00   scale 1.7778 x 1.0000   drawn 202.3 x 64.0
+```
+
+The saved thumbnail is 64 texels square. The menu works out the viewport aspect, applies it to the
+**source** rectangle, `64 * 1.7778` giving `113.78`, and then hands the same ratio to `SetScale` as
+well. So the ratio lands twice, and the widened source samples fifty texels past the edge of a 64
+texel texture. This is the one place in the game that writes that scale pair itself rather than
+leaving the constructor's `1.0`, which is why it is also the only place this shows.
+
+The widening cannot simply be removed. Tried, at both of its sites, and the pictures vanished
+altogether: that value feeds more than the source rectangle. So the source is left as the game
+builds it and the ratio goes back onto the scale where it belongs, `(ratio * k, k)`, with `k` the
+height ratio. The picture is then drawn at `512 x 288` here, and the quad reaching further than
+that is empty because there is no texture past 64 texels.
+
+The layout box is worked out from the **height** on both axes, because the art is square and the
+width has the emptiness in it. Sizing the row from the widened source reserved room for nothing.
+`288` of `2160` is 13.3 per cent, which is what the stock game's own rows measure.
+
+### Known issue: the picture overhangs while the list is scrolling
+
+The row is now 288 tall rather than 108, so rows no longer divide evenly into the list and one is
+usually partial. The list clips its text to itself but not this picture, so `rfl+6C890`, the
+picture's own draw at vtable slot `+0x5C`, clips it against the list read live through its parent
+chain. `room = list bottom - picture top`, with the source cropped by the same fraction so the
+picture is cut rather than squashed. Nothing is tuned to a resolution.
+
+That is correct while the list is still and a frame behind while it is moving. The cause is
+measured and is not the arithmetic: **at the `+0x5C` draw entry the control's position is not yet
+final.** Logging the picture's `y` and its row's `y` together at that point gives
+
+```
+pic_y 0.0  row_y 0.0        on the frames after the menu opens
+pic_y 259.2, 655.2, ...     on later frames, one frame behind the list
+```
+
+so the clip is computed from a position the list has not written yet. A picture measured drawing
+173 tall against a list bottom of `1447.2` matches a top of `1274`, which is the previous frame's.
+
+Fixing it means clamping where the position is resolved rather than at the draw entry, which has
+not been found. Four earlier explanations were wrong and are recorded so they are not tried again:
+the table evicting live controls (real, fixed, not this), a cached offset between picture and row
+(real, removed, not this), the row's `y` as the reference (the offset is not constant), and the
+list rectangle being the scrolling content rather than the visible box (it is the visible box,
+`259.2` to `1447.2`).
 
 ## What this does NOT reach
 

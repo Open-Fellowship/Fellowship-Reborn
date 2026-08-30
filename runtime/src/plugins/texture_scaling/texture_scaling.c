@@ -188,6 +188,215 @@ static const uint32_t map_icon_sites[] = {
 
 static const uint8_t map_icon_expected[5] = { 0x68, 0x00, 0x00, 0x80, 0x3F };
 
+/* EIGHTH SITE, the save and load slot pictures.
+ *
+ * LoadSave GUI is 53 properties and its icon geometry is class indices 28 to 31, 64 by 64
+ * texels. Two places read them, measured: rfl+73C2F and its neighbours five times, once per save
+ * slot, and rfl+7386C once for the New Save entry. Both then set the scale on the picture:
+ *
+ *     10073cc9  mov eax,[esp+0x14]     an aspect ratio, worked out above
+ *     10073ccd  push 0x3f800000        y, and it is a hard 1.0
+ *     10073cd2  push eax               x
+ *     10073ce0  call 1006C730          SetScale(x, y)
+ *
+ * This is the one place in the game that writes that scale pair itself rather than leaving the
+ * constructor's 1.0 in place, so the picture is corrected for aspect and not for resolution.
+ *
+ * Measured with this patch held off, the game draws the picture like this:
+ *
+ *     source 113.78 x 64.00   scale 1.7778 x 1.0000   drawn 202.3 x 64.0
+ *
+ * The saved thumbnail is 64 texels square. The game works out the viewport aspect and applies it
+ * to the SOURCE rectangle, 64 * 1.7778 giving 113.78, and then hands the same ratio to SetScale
+ * as well. Two things are wrong with that. The ratio lands twice, and widening the source makes
+ * it sample fifty texels past the edge of a 64 texel texture, so half the picture is nothing at
+ * all. Drawing it wider only stretches the empty part: with the source left alone at 113.78 the
+ * picture came out 512 wide with 288 of content in it, and 288 is 64 * 4.5.
+ *
+ * The widening cannot simply be removed. Tried, at both of its sites, and the pictures vanished
+ * altogether: that value feeds more than the source rectangle.
+ *
+ * So the source is left exactly as the game builds it and the ratio goes back onto the scale,
+ * where it belongs:
+ *
+ *     scale = (ratio * k, k)
+ *
+ * The picture is then drawn at 64 * ratio * k by 64 * k, which is 512 x 288 here, and that is
+ * what it measured on screen. The quad reaches further than that, out to 113.78 * ratio * k,
+ * but there is no texture past 64 texels so none of it is picture.
+ *
+ * Which is why the layout box is worked out from the height rather than the width. The saved
+ * thumbnail is square, 64 by 64, so its height is the true extent of the art on both axes, and
+ * sizing the row from the widened source reserved room for emptiness. k is the height ratio, and
+ * 288 of 2160 is 13.3 per cent, which is what the stock game's own rows measure.
+ *
+ * Nine bytes, both instructions relocated. The load reads through esp and the stub has not
+ * pushed anything at that point, so the offset still means what it did. */
+static const uint32_t save_icon_sites[] = {
+    0x73916u,       /* the New Save entry */
+    0x73CC9u        /* once per save slot */
+};
+
+#define SAVE_ICON_SIZE 9u
+
+static const uint8_t save_icon_expected[SAVE_ICON_SIZE] = {
+    0x8B, 0x44, 0x24, 0x14,          /* mov eax,[esp+0x14]  */
+    0x68, 0x00, 0x00, 0x80, 0x3F     /* push 1.0            */
+};
+
+/* No spare register at the site, so the scaled ratio goes out to memory and back. */
+static float g_save_temp = 1.0f;
+
+/*     1006c890  push -1
+ *     1006c892  push 0x100e81a8
+ *
+ * Slot +0x5C of the GUIControl_Texture vtable at 100F0668, and the README's byte scan found
+ * exactly one reference to it in the whole image, so it belongs to this class alone. Seven
+ * bytes, both pushes absolute, and ecx is the control. */
+#define DRAW_RVA        0x6C890u
+#define DRAW_RETURN_RVA 0x6C897u
+#define DRAW_SIZE       7u
+
+static const uint8_t draw_expected[DRAW_SIZE] = {
+    0x6A, 0xFF,                          /* push -1          */
+    0x68, 0xA8, 0x81, 0x0E, 0x10         /* push 0x100E81A8  */
+};
+
+/* The picture controls, so the layout box can be grown where the texel size lands. Held loosely
+ * and every read guarded, the same as the objective boxes. */
+#define SAVE_ROWS 128
+
+typedef struct save_entry {
+    uintptr_t control;
+    float     base_w;      /* the drawn size, once the source is known */
+    float     base_h;
+    float     src_h;       /* the source height it was derived from */
+} save_entry_t;
+
+static save_entry_t g_save[SAVE_ROWS];
+static volatile LONG g_save_seen;
+
+/* The list clips its text to itself but not this picture, so a row hanging over the bottom edge
+ * drew outside the list. Rows are much taller now, so they no longer divide evenly into the list
+ * and one is usually partial.
+ *
+ * The bottom edge is read from the list every time, through the control's own parent chain, so
+ * this holds at any resolution and any number of rows. Nothing here is tuned. The source is
+ * cropped by the same fraction as the height, so the picture is cut off rather than squashed.
+ *
+ * This runs from the draw rather than the poll. On the poll it was a quarter second behind, which
+ * showed as the picture clipping wrongly for a few frames while the list was being scrolled. */
+static void __cdecl clamp_save_picture(uintptr_t control)
+{
+    LONG seen = g_save_seen;
+    LONG i;
+
+    if (control == 0 || !memory_is_readable_range(control, 0x80u)) {
+        return;
+    }
+    if (seen > SAVE_ROWS) {
+        seen = SAVE_ROWS;
+    }
+    for (i = 0; i < seen; ++i) {
+        uintptr_t row  = 0;
+        uintptr_t list = 0;
+        float     want_h;
+        float     want_src;
+
+        if (g_save[i].control != control || g_save[i].base_h <= 0.0f) {
+            continue;
+        }
+        want_h   = g_save[i].base_h;
+        want_src = g_save[i].src_h;
+
+        memcpy(&row, (const void *)(control + 0x5Cu), sizeof(uint32_t));
+        if (row != 0 && memory_is_readable_range(row, 0x60u)) {
+            memcpy(&list, (const void *)(row + 0x5Cu), sizeof(uint32_t));
+        }
+        if (list != 0 && memory_is_readable_range(list, 0x48u)) {
+            float ly    = 0.0f;
+            float lh    = 0.0f;
+            float sy    = 0.0f;
+
+            memcpy(&ly,    (const void *)(list + 0x3Cu), sizeof(ly));
+            memcpy(&lh,    (const void *)(list + 0x44u), sizeof(lh));
+            memcpy(&sy,    (const void *)(control + CONTROL_SCALE_Y), sizeof(sy));
+
+            /* The picture's own y, read and never written. An earlier version took the top
+             * from the row and moved the picture to suit, which drifted: the next frame read
+             * back the value this had just written. It also assumed the picture sat exactly on
+             * its row, which one sample happened to show and the rest do not. Measured, it sits
+             * about 183 below, so clipping from the row's y cut in far too late.
+             *
+             * Only the bottom edge is clipped, because that needs no move: the height shrinks
+             * and the source shrinks with it, so the picture is cut off rather than squashed,
+             * and its position is left entirely to the engine. */
+            if (lh > 0.0f && sy > 0.0f) {
+                float top = 0.0f;
+
+                memcpy(&top, (const void *)(control + 0x3Cu), sizeof(top));
+                {
+                    float room = (ly + lh) - top;
+
+                    if (room < 0.0f) {
+                        room = 0.0f;
+                    }
+                    if (room < want_h) {
+                        want_h   = room;
+                        want_src = want_h / sy;
+                    }
+                }
+            }
+        }
+
+        /* A row entirely past an edge keeps nothing of itself: the source goes to zero as well,
+         * so a stale rectangle cannot draw one more frame of picture. */
+        if (want_h <= 0.0f) {
+            want_h   = 0.0f;
+            want_src = 0.0f;
+        }
+        if (memory_make_writable(control + 0x40u, 8u)) {
+            memcpy((void *)(control + 0x40u), &g_save[i].base_w, sizeof(float));
+            memcpy((void *)(control + 0x44u), &want_h, sizeof(float));
+        }
+        if (memory_make_writable(control + 0x74u, 4u)) {
+            memcpy((void *)(control + 0x74u), &want_src, sizeof(float));
+        }
+        return;
+    }
+}
+
+/* Scrolling rebuilds rows, so this is called again and again for controls that are already on
+ * screen. A plain ring wrapped and dropped live ones, and the picture that fell out drew
+ * unclipped for a frame or two, which is what the flicker down the edge of the list was.
+ *
+ * So a control already held keeps its slot and its measurements, and only genuinely new ones
+ * take a slot, oldest first. */
+static void __cdecl record_save_icon(uintptr_t control)
+{
+    LONG n;
+    LONG i;
+
+    if (control == 0) {
+        return;
+    }
+    n = g_save_seen;
+    if (n > SAVE_ROWS) {
+        n = SAVE_ROWS;
+    }
+    for (i = 0; i < n; ++i) {
+        if (g_save[i].control == control) {
+            return;
+        }
+    }
+    n = InterlockedIncrement(&g_save_seen) - 1;
+
+    g_save[(uint32_t)n % SAVE_ROWS].control = control;
+    g_save[(uint32_t)n % SAVE_ROWS].base_w  = 0.0f;
+    g_save[(uint32_t)n % SAVE_ROWS].base_h  = 0.0f;
+    g_save[(uint32_t)n % SAVE_ROWS].src_h   = 0.0f;
+}
+
 /* The coloured fill, which is a different draw from the seven above.
  *
  * FUN_10078CA0 builds the fill's quad and hands it to FUN_10066600. Both the arguments and the
@@ -499,8 +708,51 @@ static void __cdecl fix_quest_layout(uintptr_t control)
     LONG seen = g_quest_seen;
     LONG i;
 
-    if (control == 0 || !memory_is_readable_range(control, 0x78u)) {
+    if (control == 0 || !memory_is_readable_range(control, 0x80u)) {
         return;
+    }
+
+    /* The save pictures, whose rows size themselves to this box. Scaling the drawn picture and
+     * not the box left it spilling out of its row and over the text beside it. */
+    {
+        LONG saved = g_save_seen;
+        LONG j;
+
+        if (saved > SAVE_ROWS) {
+            saved = SAVE_ROWS;
+        }
+        for (j = 0; j < saved; ++j) {
+            if (g_save[j].control != control) {
+                continue;
+            }
+            {
+                float w = 0.0f;
+                float h = 0.0f;
+
+                memcpy(&w, (const void *)(control + 0x70u), sizeof(w));
+                memcpy(&h, (const void *)(control + 0x74u), sizeof(h));
+
+                if (w > 0.0f && h > 0.0f) {
+                    float sx = 0.0f;
+                    float sy = 0.0f;
+
+                    /* The drawn size, and the two axes no longer share a factor. */
+                    memcpy(&sx, (const void *)(control + CONTROL_SCALE_X), sizeof(sx));
+                    memcpy(&sy, (const void *)(control + CONTROL_SCALE_Y), sizeof(sy));
+
+                    /* h on both axes: the art is square and w has the emptiness in it. */
+                    g_save[j].base_w = h * sx;
+                    g_save[j].base_h = h * sy;
+                    g_save[j].src_h  = h;
+
+                    if (memory_make_writable(control + 0x40u, 8u)) {
+                        memcpy((void *)(control + 0x40u), &g_save[j].base_w, sizeof(float));
+                        memcpy((void *)(control + 0x44u), &g_save[j].base_h, sizeof(float));
+                    }
+                }
+            }
+            return;
+        }
     }
     if (seen > QUEST_ROWS) {
         seen = QUEST_ROWS;
@@ -608,7 +860,86 @@ static void *build_quest_stub(uintptr_t stub_address, uintptr_t return_address, 
     return (void *)stub_address;
 }
 
+/* Records the picture control and leaves the game's ratio scaled by k in eax, with k pushed
+ * where the hard 1.0 was, so the aspect lands once and on the destination. */
+static void *build_save_icon_stub(uintptr_t stub_address, uintptr_t return_address)
+{
+    uint8_t buffer[64];
+    emit_t  emit;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    /* First, while esp is still the engine's. */
+    emit_u8(&emit, 0xD9); emit_u8(&emit, 0x44); emit_u8(&emit, 0x24); emit_u8(&emit, 0x14);
+    emit_u8(&emit, 0xD8); emit_u8(&emit, 0x0D);
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_scale_y);        /* the ratio times k            */
+    emit_u8(&emit, 0xD9); emit_u8(&emit, 0x1D);
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_save_temp);
+    emit_u8(&emit, 0xA1); emit_u32(&emit, (uint32_t)(uintptr_t)&g_save_temp);
+
+    emit_u8(&emit, 0xFF); emit_u8(&emit, 0x35);
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_scale_y);        /* push dword [g_scale_y]       */
+
+    /* edi is the control, and the row it sits in has to grow with the picture. popad puts eax
+     * back exactly as it was set above. */
+    emit_u8(&emit, 0x60);                                    /* pushad                       */
+    emit_u8(&emit, 0x9C);                                    /* pushfd                       */
+    emit_u8(&emit, 0x57);                                    /* push edi                     */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)((uintptr_t)&record_save_icon -
+                               (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+    emit_u8(&emit, 0x83); emit_u8(&emit, 0xC4); emit_u8(&emit, 0x04);
+    emit_u8(&emit, 0x9D);                                    /* popfd                        */
+    emit_u8(&emit, 0x61);                                    /* popad                        */
+
+    emit_jump_rel32(&emit, stub_address, return_address);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
+}
+
 /* Replaces a constant push with a push of our live scale. Two instructions, eleven bytes. */
+/* Runs at the top of the picture's own draw, with the control in ecx, and performs the two
+ * pushes it displaced afterwards. Both are absolute, so neither needs fixing up. */
+static void *build_draw_stub(uintptr_t stub_address, uintptr_t return_address)
+{
+    uint8_t buffer[64];
+    emit_t  emit;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    emit_u8(&emit, 0x60);                                    /* pushad                       */
+    emit_u8(&emit, 0x9C);                                    /* pushfd                       */
+    emit_u8(&emit, 0x51);                                    /* push ecx, the control        */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)((uintptr_t)&clamp_save_picture -
+                               (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+    emit_u8(&emit, 0x83); emit_u8(&emit, 0xC4); emit_u8(&emit, 0x04);
+    emit_u8(&emit, 0x9D);                                    /* popfd                        */
+    emit_u8(&emit, 0x61);                                    /* popad                        */
+
+    {
+        unsigned i;
+
+        for (i = 0; i < DRAW_SIZE; ++i) {
+            emit_u8(&emit, draw_expected[i]);
+        }
+    }
+
+    emit_jump_rel32(&emit, stub_address, return_address);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
+}
+
 static void *build_bar_scale_stub(uintptr_t stub_address, uintptr_t return_address)
 {
     uint8_t buffer[32];
@@ -789,6 +1120,27 @@ static DWORD WINAPI hold_scale(LPVOID parameter)
                             memcpy((void *)(c + 0x40u), &w, sizeof(w));
                             memcpy((void *)(c + 0x44u), &h, sizeof(h));
                         }
+                    }
+                }
+
+                /* The save pictures, held against anything that writes the box back. Stored as
+                 * the finished size rather than a base times a factor, because the two axes take
+                 * different ones here. */
+                {
+                    LONG sn = g_save_seen;
+                    LONG i;
+
+                    if (sn > SAVE_ROWS) {
+                        sn = SAVE_ROWS;
+                    }
+                    for (i = 0; i < sn; ++i) {
+                        uintptr_t c = g_save[i].control;
+
+                        if (c == 0 || g_save[i].base_w <= 0.0f ||
+                            !memory_is_readable_range(c, 0x80u)) {
+                            continue;
+                        }
+                        clamp_save_picture(c);
                     }
                 }
 
@@ -974,6 +1326,59 @@ static void on_rfl_loaded(uintptr_t rfl_base)
             log_info("  and %u of %u map icon scales now read the live height ratio", done, n);
         }
     }
+
+    {
+        size_t   index;
+        unsigned done = 0;
+        unsigned n    = (unsigned)(sizeof(save_icon_sites) / sizeof(save_icon_sites[0]));
+
+        /* Both checked before either is written. The two sites are byte for byte identical and
+         * draw the same kind of picture, so scaling one without the other would look like a bug
+         * rather than a fix. */
+        for (index = 0; index < n; ++index) {
+            if (!patch_validate_bytes(rfl_site(rfl_base, save_icon_sites[index]),
+                                      save_icon_expected, SAVE_ICON_SIZE)) {
+                log_warning("rfl+%X is not a save picture scale push; the menu is left alone",
+                            save_icon_sites[index]);
+                n = 0;
+                break;
+            }
+        }
+        for (index = 0; index < n; ++index) {
+            uintptr_t icon = rfl_site(rfl_base, save_icon_sites[index]);
+            uintptr_t stub = (uintptr_t)trampoline_alloc(64);
+
+            if (stub != 0 &&
+                build_save_icon_stub(stub, icon + SAVE_ICON_SIZE) != NULL &&
+                patch_write_jump(icon, (const void *)stub,
+                                 SAVE_ICON_SIZE) == PATCH_RESULT_OK) {
+                done++;
+            }
+        }
+        if (n != 0) {
+            log_info("  and %u of %u save pictures now scale on both axes", done, n);
+        }
+    }
+
+    {
+        uintptr_t draw = rfl_site(rfl_base, DRAW_RVA);
+
+        if (patch_validate_bytes(draw, draw_expected, DRAW_SIZE)) {
+            uintptr_t stub = (uintptr_t)trampoline_alloc(64);
+
+            if (stub != 0 &&
+                build_draw_stub(stub, rfl_site(rfl_base, DRAW_RETURN_RVA)) != NULL &&
+                patch_write_jump(draw, (const void *)stub, DRAW_SIZE) == PATCH_RESULT_OK) {
+                log_info("  and rfl+%X -> stub at %08X, the save picture clip",
+                         DRAW_RVA, (unsigned)stub);
+            } else {
+                log_warning("the save picture clip could not be installed");
+            }
+        } else {
+            log_warning("rfl+%X is not the texture draw this expects", DRAW_RVA);
+        }
+    }
+
 
     {
         uintptr_t scale = rfl_site(rfl_base, FILL_SCALE_RVA);
