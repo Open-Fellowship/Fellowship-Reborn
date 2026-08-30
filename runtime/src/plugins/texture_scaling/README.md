@@ -377,6 +377,45 @@ Three attempts were spent on the arrows before the body of `FUN_10066AE0` was re
 reasonable and all of them working on arguments nine and ten. Reading it first cost nothing on the
 check boxes.
 
+## The box borders, where the engine had the knob all along
+
+`GUI Border` is twelve properties and every one of them is texels, read together at `rfl+65EDA`
+through `rfl+65F97` as indices 0, 11, 6, 5, 10, 9, 4, 3, 2, 1 and then 7 and 8:
+
+```
+  0  Texture                              9  Corner X Offset (tx)        2
+  1  Left X Coordinate in Texture        81  10 Corner Y Offset (tx)     2
+  2  Top Y Coordinate in Texture          1  3  Border X Size (tx)      38
+  5  Corner X Size (tx)                   9  4  Border Y Size (tx)      38
+  7  Side X Width (tx)                    5  11 Repeat or Stretch?
+```
+
+Scaling those would repeat the mistake the bars taught: the destination rectangles and the source
+rectangles come out of the same numbers, so growing one grows the region sampled and the art
+smears at the corners.
+
+There was no need. Every framed GUI class carries a `Border` group, and its second property is
+`Border Scaling`, key `BorderSize`, a float defaulting to 1.0, sitting at class relative 13 in
+`Listbox Control`, `Checkbox Control`, `Text Box` and the rest. One short function reads it:
+
+```
+10065bb7  push 0xc            index 12, Border Texture
+10065bc0  cmp  ebx,-1         no texture, no border, nothing to do
+10065bca  push 0xd            index 13, Border Scaling
+10065bd1  mov  ecx,[eax]      the value
+10065bdf  call [edx+0x20]     handed on with the texture
+```
+
+so the whole feature enters through one pair of arguments, and the value is a multiplier rather
+than a size. The hook performs those three instructions itself with the factor applied, rather
+than replaying them, so `ecx` picks up the scaled figure instead of the one the property holds.
+None of the three is position dependent.
+
+Because it is the class property and not one menu, it reaches every framed box at once: the save
+and load lists, the resolution and key lists, the pause menu, the item description popup and the
+confirm dialogs. The corner art stays sharp, which is the evidence that `BorderSize` scales the
+destination and leaves the source alone.
+
 ## What this does NOT reach
 
 `FUN_1006C890` is exclusive to `GUIControl_Texture`, proven by a byte scan of the whole image

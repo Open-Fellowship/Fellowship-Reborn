@@ -400,6 +400,55 @@ static void __cdecl scale_checkbox(uintptr_t args)
     }
 }
 
+/* The border around every framed box: the save list, the resolution list, the key list.
+ *
+ * GUI Border is a class of twelve properties and all of them are texels, read together at
+ * rfl+65EDA to rfl+65F97 as indices 0, 11, 6, 5, 10, 9, 4, 3, 2, 1 and then 7 and 8: a 38 by 38
+ * region of texture at (81, 1), 9 texel corners, 5 texel sides. Scaling those would be the same
+ * mistake the bars taught: the destination and the source come out of the same numbers, so
+ * growing one grows the region sampled and the art smears.
+ *
+ * The engine has its own knob for this. Every framed GUI class carries a Border group, and its
+ * second property is `Border Scaling`, key `BorderSize`, a float defaulting to 1.0. One small
+ * function reads it:
+ *
+ *     10065bb7  push 0xc                index 12, Border Texture
+ *     10065bc0  cmp  ebx,-1             no texture, no border, nothing to do
+ *     10065bca  push 0xd                index 13, Border Scaling
+ *     10065bd1  mov  ecx,[eax]          the value
+ *     10065bdf  call [edx+0x20]         handed on with the texture
+ *
+ * so the whole border enters through one pair of arguments, and the scale is a multiplier rather
+ * than a size. The hook performs those three instructions itself with the factor applied, which
+ * costs nothing extra since none of them is position dependent. */
+#define BORDER_RVA       0x65BD1u
+#define BORDER_HOOK_SIZE 6u
+
+static const uint8_t border_expected[BORDER_HOOK_SIZE] = {
+    0x8B, 0x08,                          /* mov ecx,[eax]  */
+    0x8B, 0x16,                          /* mov edx,[esi]  */
+    0x8B, 0xC1                           /* mov eax,ecx    */
+};
+
+/* Handed to the engine for the duration of one call, on one thread. */
+static float g_border_scale = 1.0f;
+
+static void __cdecl scale_border(uintptr_t value)
+{
+    float k = g_scale_y;
+    float v = 1.0f;
+
+    if (value == 0 || !memory_is_readable_range(value, sizeof(v))) {
+        g_border_scale = 1.0f;
+        return;
+    }
+    memcpy(&v, (const void *)value, sizeof(v));
+    if (k > 1.0f && v > 0.0f) {
+        v *= k;
+    }
+    g_border_scale = v;
+}
+
 static const uint8_t map_star_expected[MAP_STAR_SIZE] = {
     0x8B, 0xCD,                  /* mov ecx,ebp      */
     0x52,                        /* push edx         */
@@ -1504,6 +1553,41 @@ static void *build_arrow_stub(uintptr_t stub_address, uintptr_t return_address, 
     return (void *)stub_address;
 }
 
+/* eax points at the property value on entry and esi is the control. The three displaced
+ * instructions are performed here rather than replayed, so that ecx picks up the scaled figure
+ * instead of the one the property holds. */
+static void *build_border_stub(uintptr_t stub_address, uintptr_t return_address)
+{
+    uint8_t buffer[64];
+    emit_t  emit;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    emit_u8(&emit, 0x60);                                    /* pushad                       */
+    emit_u8(&emit, 0x9C);                                    /* pushfd                       */
+    emit_u8(&emit, 0x50);                                    /* push eax, the value          */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)((uintptr_t)&scale_border -
+                               (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+    emit_u8(&emit, 0x83); emit_u8(&emit, 0xC4); emit_u8(&emit, 0x04);
+    emit_u8(&emit, 0x9D);                                    /* popfd                        */
+    emit_u8(&emit, 0x61);                                    /* popad                        */
+
+    emit_u8(&emit, 0x8B); emit_u8(&emit, 0x0D);              /* mov ecx,[g_border_scale]     */
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_border_scale);
+    emit_u8(&emit, 0x8B); emit_u8(&emit, 0x16);              /* mov edx,[esi]                */
+    emit_u8(&emit, 0x8B); emit_u8(&emit, 0xC1);              /* mov eax,ecx                  */
+
+    emit_jump_rel32(&emit, stub_address, return_address);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
+}
+
 /* As the arrow stub, but the displaced instruction loads ecx from edi rather than esi. */
 static void *build_checkbox_stub(uintptr_t stub_address, uintptr_t return_address,
                                  uintptr_t callee)
@@ -2158,6 +2242,26 @@ static void on_rfl_loaded(uintptr_t rfl_base)
             }
         } else {
             log_warning("rfl+%X is not the check box draw this expects", CHECKBOX_RVA);
+        }
+    }
+
+    {
+        uintptr_t border = rfl_site(rfl_base, BORDER_RVA);
+
+        if (patch_validate_bytes(border, border_expected, BORDER_HOOK_SIZE)) {
+            uintptr_t stub = (uintptr_t)trampoline_alloc(64);
+
+            if (stub != 0 &&
+                build_border_stub(stub, border + BORDER_HOOK_SIZE) != NULL &&
+                patch_write_jump(border, (const void *)stub,
+                                 BORDER_HOOK_SIZE) == PATCH_RESULT_OK) {
+                log_info("  and rfl+%X -> stub at %08X, the box borders",
+                         BORDER_RVA, (unsigned)stub);
+            } else {
+                log_warning("the box borders could not be installed");
+            }
+        } else {
+            log_warning("rfl+%X is not the border scale this expects", BORDER_RVA);
         }
     }
 
