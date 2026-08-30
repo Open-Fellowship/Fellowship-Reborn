@@ -334,6 +334,72 @@ static void __cdecl scale_arrow(uintptr_t args, uint32_t grows_up)
     }
 }
 
+/* The check boxes in every options menu: Invert Y-Axis, Always Free-Look, Stereo Sound, Show
+ * Subtitles, Reduce Detail. They are a class of their own, Checkbox Control, 34 properties, with
+ * a Checkbox params group carrying Checkbox X Size and Checkbox Y Size at class relative 31 and
+ * 32. hud_probe named the readers: index 31 at rfl+69B9C, a thousand hits over a thousand frames.
+ *
+ * That draw ends at rfl+69C27 in a call to FUN_10066AE0, which is the SAME helper the scroll
+ * arrows go through, and it fails the same way. Tracing the pushes:
+ *
+ *     69c20  push edx        arg6 = esp+0x1C
+ *     69c17  lea  edx,[esp+0x34]
+ *     69c15  push edx        arg3 = esp+0x1C
+ *
+ * both arguments point at one rectangle, the size pair, and the helper works its scale out as
+ * arg6 divided by arg3, so it is 1.0 whatever those properties say. The two push 0x3f800000 at
+ * 69bf6 and 69bfb are arguments nine and ten, which that helper ignores.
+ *
+ * So arg6 is pointed at a rectangle of our own, k times the source, and the source is left alone.
+ * Unlike the arrows the box grows about its centre: it floats beside its label with room on
+ * either side, so it has no edge it must stay behind. */
+#define CHECKBOX_RVA       0x69C27u
+#define CHECKBOX_HOOK_SIZE 7u
+
+static const uint8_t checkbox_expected[3] = { 0x8B, 0xCF, 0xE8 };  /* mov ecx,edi ; call */
+
+/* Handed to the engine for the duration of one call, on one thread. */
+static float g_checkbox_extent[2];
+
+static void __cdecl scale_checkbox(uintptr_t args)
+{
+    float     k = g_scale_y;
+    uintptr_t source = 0;
+    uintptr_t ours;
+    float     wh[2];
+
+    if (k <= 1.0f || !memory_is_readable_range(args, 0x18u)) {
+        return;
+    }
+    memcpy(&source, (const void *)(args + 0x08u), sizeof(source));      /* arg3 */
+    if (source == 0 || !memory_is_readable_range(source, sizeof(wh))) {
+        return;
+    }
+    memcpy(wh, (const void *)source, sizeof(wh));
+    if (wh[0] <= 0.0f || wh[1] <= 0.0f) {
+        return;
+    }
+    g_checkbox_extent[0] = wh[0] * k;
+    g_checkbox_extent[1] = wh[1] * k;
+
+    ours = (uintptr_t)&g_checkbox_extent[0];
+    memcpy((void *)(args + 0x14u), &ours, sizeof(ours));                /* arg6 */
+
+    /* One factor on both axes, because the art is square and the two properties are already a
+     * percentage of width against a percentage of height. */
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+
+        memcpy(&x, (const void *)(args + 0x0Cu), sizeof(x));            /* arg4 */
+        memcpy(&y, (const void *)(args + 0x10u), sizeof(y));            /* arg5 */
+        x -= wh[0] * (k - 1.0f) * 0.5f;
+        y -= wh[1] * (k - 1.0f) * 0.5f;
+        memcpy((void *)(args + 0x0Cu), &x, sizeof(x));
+        memcpy((void *)(args + 0x10u), &y, sizeof(y));
+    }
+}
+
 static const uint8_t map_star_expected[MAP_STAR_SIZE] = {
     0x8B, 0xCD,                  /* mov ecx,ebp      */
     0x52,                        /* push edx         */
@@ -1438,6 +1504,40 @@ static void *build_arrow_stub(uintptr_t stub_address, uintptr_t return_address, 
     return (void *)stub_address;
 }
 
+/* As the arrow stub, but the displaced instruction loads ecx from edi rather than esi. */
+static void *build_checkbox_stub(uintptr_t stub_address, uintptr_t return_address,
+                                 uintptr_t callee)
+{
+    uint8_t buffer[64];
+    emit_t  emit;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    emit_u8(&emit, 0x60);                                    /* pushad                       */
+    emit_u8(&emit, 0x9C);                                    /* pushfd                       */
+    emit_u8(&emit, 0x8D); emit_u8(&emit, 0x44); emit_u8(&emit, 0x24); emit_u8(&emit, 0x24);
+    emit_u8(&emit, 0x50);                                    /* push eax, the argument list  */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)((uintptr_t)&scale_checkbox -
+                               (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+    emit_u8(&emit, 0x83); emit_u8(&emit, 0xC4); emit_u8(&emit, 0x04);
+    emit_u8(&emit, 0x9D);                                    /* popfd                        */
+    emit_u8(&emit, 0x61);                                    /* popad                        */
+
+    emit_u8(&emit, 0x8B); emit_u8(&emit, 0xCF);              /* mov ecx,edi                  */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)(callee - (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+
+    emit_jump_rel32(&emit, stub_address, return_address);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
+}
+
 /* Runs where the picture's draw reads its own geometry, with the control in esi, and performs
  * the two displaced instructions afterwards. Neither is position dependent. */
 /* eax is the clip rectangle the parent just handed back and esi is the control, and pushad
@@ -2036,6 +2136,29 @@ static void on_rfl_loaded(uintptr_t rfl_base)
             }
         }
         log_info("  and %u of %u scroll arrows size themselves to the screen", done, n);
+    }
+
+    {
+        uintptr_t box = rfl_site(rfl_base, CHECKBOX_RVA);
+        int32_t   displacement = 0;
+
+        if (patch_validate_bytes(box, checkbox_expected, sizeof(checkbox_expected))) {
+            uintptr_t stub = (uintptr_t)trampoline_alloc(64);
+
+            memcpy(&displacement, (const void *)(box + 3u), sizeof(displacement));
+            if (stub != 0 &&
+                build_checkbox_stub(stub, box + CHECKBOX_HOOK_SIZE,
+                                    box + CHECKBOX_HOOK_SIZE + (uintptr_t)displacement) != NULL &&
+                patch_write_jump(box, (const void *)stub,
+                                 CHECKBOX_HOOK_SIZE) == PATCH_RESULT_OK) {
+                log_info("  and rfl+%X -> stub at %08X, the options menu check boxes",
+                         CHECKBOX_RVA, (unsigned)stub);
+            } else {
+                log_warning("the options menu check boxes could not be installed");
+            }
+        } else {
+            log_warning("rfl+%X is not the check box draw this expects", CHECKBOX_RVA);
+        }
     }
 
     thread = CreateThread(NULL, 0, hold_scale, NULL, 0, NULL);

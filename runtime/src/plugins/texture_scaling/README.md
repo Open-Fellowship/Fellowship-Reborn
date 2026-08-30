@@ -342,6 +342,41 @@ The layout box at `+0x40` and `+0x44` keeps the full height throughout. A crop i
 happens to one frame of drawing; the space a row reserves is not a function of how much of it
 happens to be on screen this frame.
 
+## `FUN_10066AE0` computes its own scale, and ignores the one it is handed
+
+Two separate elements have now been lost to this, so it is worth naming. Anything that draws
+through `FUN_10066AE0` passes its work to the real draw like this:
+
+```
+(**(code **)(*piVar1 + 0x58))
+    (param_4, param_5, *param_2, param_2[1], *param_3, param_3[1], &local_18,
+     *param_6 / *param_3,  param_6[1] / param_3[1]);
+```
+
+The scale is `param_6` divided by `param_3`, worked out here, and arguments nine and ten of the
+outer call are never looked at. Both callers found so far push `0x3f800000` twice into those two
+slots, which reads exactly like a scale pair and is not one. Worse, both callers point `param_3`
+and `param_6` at the SAME rectangle, so the quotient is 1.0 whatever the properties say, and any
+attempt to scale the rectangle moves both halves of the division at once and changes nothing.
+
+The fix in both cases is to leave the source alone and point `param_6` at a rectangle of our own,
+`k` times it.
+
+**The scroll arrows**, `rfl+6A9D4` and `rfl+6AA0A`. `Scroll Buttons`, 30 by 17 texels. Each grows
+inward from the corner it sits in, holding its right edge and the horizontal edge it is tucked
+against, because growing from the top left put both outside the frame and centring them left each
+straddling its corner.
+
+**The options menu check boxes**, `rfl+69C27`. `Checkbox Control`, 34 properties, whose `Checkbox
+params` group carries `Checkbox X Size` and `Checkbox Y Size` at class relative 31 and 32.
+`hud_probe` named the reader without any guessing: index 31 at `rfl+69B9C`, a thousand hits over a
+thousand frames, on a 34 property object. These grow about their centre instead, because a check
+box floats beside its label with room on either side and has no edge it must stay behind.
+
+Three attempts were spent on the arrows before the body of `FUN_10066AE0` was read, all of them
+reasonable and all of them working on arguments nine and ten. Reading it first cost nothing on the
+check boxes.
+
 ## What this does NOT reach
 
 `FUN_1006C890` is exclusive to `GUIControl_Texture`, proven by a byte scan of the whole image
