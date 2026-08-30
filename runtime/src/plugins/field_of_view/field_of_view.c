@@ -62,7 +62,14 @@ static bool write_focal(const camera_view_t *view, float focal)
     if (view->half_w == 0.0f || view->half_h == 0.0f) {
         return false;
     }
-    if (!memory_make_writable(view->object + CAMERA_PROJ_X, 0x260)) {
+
+    /* No VirtualProtect here. The camera is a heap object and heap memory is already writable,
+     * so it was never needed, and calling it repeatedly is actively harmful: every call carves
+     * another protection range out of the heap's region, and enough of them bring the memory
+     * manager down inside ntdll. texture_scaling crashed exactly that way, doing this once per
+     * control per frame. This runs every 400ms, and every 16 while the dev menu's slider is
+     * being dragged, which is slower but the same mistake. */
+    if (!memory_is_readable_range(view->object + CAMERA_PROJ_X, 0x260)) {
         return false;
     }
     *(float *)(view->object + CAMERA_FOCAL)     = focal;
