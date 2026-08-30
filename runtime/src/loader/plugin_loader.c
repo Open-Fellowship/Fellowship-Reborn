@@ -13,6 +13,66 @@
 #include <stdio.h>
 #include <string.h>
 
+/* A crash with nothing but a truncated log is a guessing game, and this project has already spent
+ * a round guessing at one. This writes the fault and where it happened, then stands aside and
+ * lets the process die exactly as it would have.
+ *
+ * It reports the address relative to whichever loaded module contains it, because a raw address
+ * means nothing across machines: Fellowship.rfl and every plugin land wherever Windows puts them.
+ * An offset into a named module can be looked up directly. */
+static LONG WINAPI report_crash(EXCEPTION_POINTERS *info)
+{
+    char      where[MAX_PATH + 64];
+    uintptr_t address;
+    HMODULE   module = NULL;
+
+    if (info == NULL || info->ExceptionRecord == NULL) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+    address = (uintptr_t)info->ExceptionRecord->ExceptionAddress;
+
+    where[0] = '\0';
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                           GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           (LPCSTR)address, &module) && module != NULL) {
+        char path[MAX_PATH];
+
+        if (GetModuleFileNameA(module, path, sizeof(path)) != 0) {
+            const char *leaf = strrchr(path, '\\');
+
+            sprintf(where, "  in %s+%X", leaf != NULL ? leaf + 1 : path,
+                    (unsigned)(address - (uintptr_t)module));
+        }
+    }
+
+    log_error("CRASH  code %08X  at %08X%s",
+              (unsigned)info->ExceptionRecord->ExceptionCode, (unsigned)address, where);
+
+    /* An access violation says what it was reaching for, which is usually the whole answer. */
+    if (info->ExceptionRecord->ExceptionCode == (DWORD)EXCEPTION_ACCESS_VIOLATION &&
+        info->ExceptionRecord->NumberParameters >= 2) {
+        log_error("       %s %08X",
+                  info->ExceptionRecord->ExceptionInformation[0] != 0 ? "writing" : "reading",
+                  (unsigned)info->ExceptionRecord->ExceptionInformation[1]);
+    }
+
+    if (info->ContextRecord != NULL) {
+        const CONTEXT *c = info->ContextRecord;
+
+        log_error("       eax %08X  ebx %08X  ecx %08X  edx %08X",
+                  (unsigned)c->Eax, (unsigned)c->Ebx, (unsigned)c->Ecx, (unsigned)c->Edx);
+        log_error("       esi %08X  edi %08X  esp %08X  ebp %08X",
+                  (unsigned)c->Esi, (unsigned)c->Edi, (unsigned)c->Esp, (unsigned)c->Ebp);
+    }
+
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+static void install_crash_reporter(void)
+{
+    SetUnhandledExceptionFilter(report_crash);
+}
+
 #define LOADER_SECTION           "loader"
 #define DEFAULT_PLUGIN_DIRECTORY "plugins"
 #define MAX_PLUGINS              64
@@ -188,6 +248,7 @@ void plugin_loader_run_once(void)
     host_image_resolve();
     log_init("loader", true);
 
+    install_crash_reporter();
     log_info("Fellowship Reborn loader");
     log_info("host %s", host_path());
     log_info("ini  %s", ini_path());
