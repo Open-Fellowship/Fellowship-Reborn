@@ -84,6 +84,25 @@ static float g_hud_base_h = 1.0f;
 static float g_scale_x = 1.0f;
 static float g_scale_y = 1.0f;
 
+/* Engine objects live on the heap, and heap memory is already writable: nothing here ever needed
+ * VirtualProtect, which is for patching code.
+ *
+ * Calling it anyway, once per control per frame, is what crashed the game. Every call carves
+ * another protection range out of the heap's region, and after enough of them the memory manager
+ * gives way. The fault lands inside ntdll rather than in this file, which is what made it look
+ * like anything but a plugin bug:
+ *
+ *     CRASH  code C0000005  at 77930932  in ntdll.dll+50932   reading 00000004
+ *     ebx 0FDFBCC8, which is a control+0x40, the address last handed to VirtualProtect
+ *
+ * It showed on a machine running at 120 fps and not on one at 60, because the rate of the calls
+ * is what decides how quickly it falls over. */
+static bool control_writable(uintptr_t address, size_t size)
+{
+    return address != 0 && size != 0;
+}
+
+
 
 #define HUD_ROWS 8
 
@@ -237,7 +256,7 @@ static void __cdecl centre_map_icon(uintptr_t args)
     a[1] -= a[5] * (k - 1.0f) * 0.5f;
     a[7]  = k;
 
-    if (memory_make_writable(args, sizeof(a))) {
+    if (control_writable(args, sizeof(a))) {
         memcpy((void *)args, a, sizeof(a));
     }
 }
@@ -415,11 +434,11 @@ static void __cdecl clamp_save_picture(uintptr_t control)
             want_h   = 0.0f;
             want_src = 0.0f;
         }
-        if (memory_make_writable(control + 0x40u, 8u)) {
+        if (control_writable(control + 0x40u, 8u)) {
             memcpy((void *)(control + 0x40u), &g_save[i].base_w, sizeof(float));
             memcpy((void *)(control + 0x44u), &want_h, sizeof(float));
         }
-        if (memory_make_writable(control + 0x74u, 4u)) {
+        if (control_writable(control + 0x74u, 4u)) {
             memcpy((void *)(control + 0x74u), &want_src, sizeof(float));
         }
 
@@ -806,7 +825,7 @@ static void __cdecl fix_quest_layout(uintptr_t control)
                     g_save[j].base_h = h * sy;
                     g_save[j].src_h  = h;
 
-                    if (memory_make_writable(control + 0x40u, 8u)) {
+                    if (control_writable(control + 0x40u, 8u)) {
                         memcpy((void *)(control + 0x40u), &g_save[j].base_w, sizeof(float));
                         memcpy((void *)(control + 0x44u), &g_save[j].base_h, sizeof(float));
                     }
@@ -834,7 +853,7 @@ static void __cdecl fix_quest_layout(uintptr_t control)
                 g_quest[i].base_w = w;
                 g_quest[i].base_h = h;
 
-                if (memory_make_writable(control + 0x40u, 8u)) {
+                if (control_writable(control + 0x40u, 8u)) {
                     float sw = w * g_scale_x;
                     float sh = h * g_scale_y;
 
@@ -1036,11 +1055,11 @@ static void __cdecl on_texture_draw(uintptr_t control)
         if (g_quest[i].control != control) {
             continue;
         }
-        if (x > 1.0f && memory_make_writable(control + CONTROL_SCALE_X, 8u)) {
+        if (x > 1.0f && control_writable(control + CONTROL_SCALE_X, 8u)) {
             memcpy((void *)(control + CONTROL_SCALE_X), &x, sizeof(x));
             memcpy((void *)(control + CONTROL_SCALE_Y), &y, sizeof(y));
         }
-        if (g_quest[i].base_w > 0.0f && memory_make_writable(control + 0x40u, 8u)) {
+        if (g_quest[i].base_w > 0.0f && control_writable(control + 0x40u, 8u)) {
             float w = g_quest[i].base_w * x;
             float h = g_quest[i].base_h * y;
 
@@ -1241,7 +1260,7 @@ static DWORD WINAPI hold_scale(LPVOID parameter)
                 float x = (float)viewport_w / (float)g_reference_width;
                 float y = (float)viewport_h / (float)g_reference_height;
 
-                if (memory_make_writable(control + CONTROL_SCALE_X, 8u)) {
+                if (control_writable(control + CONTROL_SCALE_X, 8u)) {
                     memcpy((void *)(control + CONTROL_SCALE_X), &x, sizeof(x));
                     memcpy((void *)(control + CONTROL_SCALE_Y), &y, sizeof(y));
 
@@ -1266,7 +1285,7 @@ static DWORD WINAPI hold_scale(LPVOID parameter)
                         float     h = g_hud[i].base_h * y;
 
                         if (c != 0 && memory_is_readable_range(c, 0x48u) &&
-                            memory_make_writable(c + 0x40u, 8u)) {
+                            control_writable(c + 0x40u, 8u)) {
                             memcpy((void *)(c + 0x40u), &w, sizeof(w));
                             memcpy((void *)(c + 0x44u), &h, sizeof(h));
                         }
