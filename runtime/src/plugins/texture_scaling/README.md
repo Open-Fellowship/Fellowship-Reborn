@@ -223,32 +223,38 @@ The layout box is worked out from the **height** on both axes, because the art i
 width has the emptiness in it. Sizing the row from the widened source reserved room for nothing.
 `288` of `2160` is 13.3 per cent, which is what the stock game's own rows measure.
 
-### Known issue: the picture overhangs while the list is scrolling
+### Clipping the picture to its list
 
 The row is now 288 tall rather than 108, so rows no longer divide evenly into the list and one is
-usually partial. The list clips its text to itself but not this picture, so `rfl+6C890`, the
-picture's own draw at vtable slot `+0x5C`, clips it against the list read live through its parent
-chain. `room = list bottom - picture top`, with the source cropped by the same fraction so the
-picture is cut rather than squashed. Nothing is tuned to a resolution.
-
-That is correct while the list is still and a frame behind while it is moving. The cause is
-measured and is not the arithmetic: **at the `+0x5C` draw entry the control's position is not yet
-final.** Logging the picture's `y` and its row's `y` together at that point gives
+usually partial. The list clips its text to itself but not this picture, so it is clipped here,
+against the list read live through the control's parent chain:
 
 ```
-pic_y 0.0  row_y 0.0        on the frames after the menu opens
-pic_y 259.2, 655.2, ...     on later frames, one frame behind the list
+room = list bottom - picture top
 ```
 
-so the clip is computed from a position the list has not written yet. A picture measured drawing
-173 tall against a list bottom of `1447.2` matches a top of `1274`, which is the previous frame's.
+with the source cropped by the same fraction, so the picture is cut off rather than squashed.
+Every number is read at the time of the draw, so it holds at any resolution and any row count.
 
-Fixing it means clamping where the position is resolved rather than at the draw entry, which has
-not been found. Four earlier explanations were wrong and are recorded so they are not tried again:
-the table evicting live controls (real, fixed, not this), a cached offset between picture and row
-(real, removed, not this), the row's `y` as the reference (the offset is not constant), and the
-list rectangle being the scrolling content rather than the visible box (it is the visible box,
-`259.2` to `1447.2`).
+**Where the hook goes matters more than the arithmetic.** It is at `rfl+6C909`, the instruction
+that reads the position to build the rectangle:
+
+```
+1006c909  fld  [esi+0x3c]        the position
+1006c90c  fadd [esi+0x74]        plus the source height
+```
+
+not at the function's entry. The entry is one call too early: `1006c8c2` resolves the position,
+so a clamp before it works from a value up to a frame old. That was measured rather than guessed.
+A picture clamped for `y 1367.2` produced a source of `17.79`, and `17.79 * 4.5` is `80`, exactly
+`1447.2 - 1367.2`, so the arithmetic was right; by the time the rectangle was built `y` was
+`1385.6` and it reached eighteen pixels past the list.
+
+Five explanations were wrong before that one and are recorded so they are not tried again: the
+table evicting live controls (real, fixed, not this), a cached offset between picture and row
+(real, removed, not this), the row's `y` as the reference (the offset is not constant), the list
+rectangle being scrolling content rather than the visible box (it is the visible box, `259.2` to
+`1447.2`), and the position never being final at the draw entry (it is final one call in).
 
 ## What this does NOT reach
 

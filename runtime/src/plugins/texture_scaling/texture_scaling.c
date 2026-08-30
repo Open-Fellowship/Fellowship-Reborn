@@ -247,19 +247,23 @@ static const uint8_t save_icon_expected[SAVE_ICON_SIZE] = {
 /* No spare register at the site, so the scaled ratio goes out to memory and back. */
 static float g_save_temp = 1.0f;
 
-/*     1006c890  push -1
- *     1006c892  push 0x100e81a8
+/* FUN_1006C890 is slot +0x5C of the GUIControl_Texture vtable at 100F0668, and the README's byte
+ * scan found exactly one reference to it in the whole image, so it belongs to this class alone.
+ * The hook goes at the point it builds its rectangle rather than at its entry:
  *
- * Slot +0x5C of the GUIControl_Texture vtable at 100F0668, and the README's byte scan found
- * exactly one reference to it in the whole image, so it belongs to this class alone. Seven
- * bytes, both pushes absolute, and ecx is the control. */
-#define DRAW_RVA        0x6C890u
-#define DRAW_RETURN_RVA 0x6C897u
-#define DRAW_SIZE       7u
+ *     1006c909  fld  [esi+0x3c]        the position
+ *     1006c90c  fadd [esi+0x74]        plus the source height
+ *
+ * esi is the control. The entry is too early by one call: the position is resolved by the call
+ * at 1006c8c2, so a clamp at the entry works from a position up to a frame stale. Measured, a
+ * picture clamped for y 1367.2 was drawn at 1385.6 and reached eighteen pixels past the list. */
+#define DRAW_RVA        0x6C909u
+#define DRAW_RETURN_RVA 0x6C90Fu
+#define DRAW_SIZE       6u
 
 static const uint8_t draw_expected[DRAW_SIZE] = {
-    0x6A, 0xFF,                          /* push -1          */
-    0x68, 0xA8, 0x81, 0x0E, 0x10         /* push 0x100E81A8  */
+    0xD9, 0x46, 0x3C,                    /* fld  [esi+0x3c]  */
+    0xD8, 0x46, 0x74                     /* fadd [esi+0x74]  */
 };
 
 /* The picture controls, so the layout box can be grown where the texel size lands. Held loosely
@@ -297,6 +301,7 @@ static void __cdecl clamp_save_picture(uintptr_t control)
     if (seen > SAVE_ROWS) {
         seen = SAVE_ROWS;
     }
+
     for (i = 0; i < seen; ++i) {
         uintptr_t row  = 0;
         uintptr_t list = 0;
@@ -362,6 +367,7 @@ static void __cdecl clamp_save_picture(uintptr_t control)
         if (memory_make_writable(control + 0x74u, 4u)) {
             memcpy((void *)(control + 0x74u), &want_src, sizeof(float));
         }
+
         return;
     }
 }
@@ -903,8 +909,8 @@ static void *build_save_icon_stub(uintptr_t stub_address, uintptr_t return_addre
 }
 
 /* Replaces a constant push with a push of our live scale. Two instructions, eleven bytes. */
-/* Runs at the top of the picture's own draw, with the control in ecx, and performs the two
- * pushes it displaced afterwards. Both are absolute, so neither needs fixing up. */
+/* Runs where the picture's draw reads its own geometry, with the control in esi, and performs
+ * the two displaced instructions afterwards. Neither is position dependent. */
 static void *build_draw_stub(uintptr_t stub_address, uintptr_t return_address)
 {
     uint8_t buffer[64];
@@ -914,7 +920,7 @@ static void *build_draw_stub(uintptr_t stub_address, uintptr_t return_address)
 
     emit_u8(&emit, 0x60);                                    /* pushad                       */
     emit_u8(&emit, 0x9C);                                    /* pushfd                       */
-    emit_u8(&emit, 0x51);                                    /* push ecx, the control        */
+    emit_u8(&emit, 0x56);                                    /* push esi, the control        */
     emit_u8(&emit, 0xE8);
     emit_u32(&emit, (uint32_t)((uintptr_t)&clamp_save_picture -
                                (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
