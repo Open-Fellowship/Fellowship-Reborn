@@ -37,7 +37,7 @@ typedef struct entry {
 
 static entry_t g_table[TABLE_SIZE];
 static volatile LONG g_recording;
-static int  g_dump_key = VK_F2;
+static int  g_dump_key = VK_F3;
 
 /* __cdecl, because the stub pushes both arguments and cleans up after itself. */
 static void __cdecl record(uint32_t caller, uint32_t index)
@@ -197,7 +197,7 @@ void hud_probe_install(void)
 
     result = patch_write_jump(site, (const void *)stub, GETTER_SIZE);
     if (result != PATCH_RESULT_OK) {
-        log_error("could not branch to the stub - %s", patch_result_text(result));
+        log_error("could not branch to the stub, %s", patch_result_text(result));
         return;
     }
 

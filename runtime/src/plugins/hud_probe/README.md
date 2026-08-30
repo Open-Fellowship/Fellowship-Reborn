@@ -58,7 +58,7 @@ lock would cost the frame rate.
 
 ## Reading the report
 
-`F2` starts recording, `F2` again writes it and stops:
+`F3` starts recording, `F3` again writes it and stops:
 
 ```
   caller                   index  hits
@@ -81,4 +81,4 @@ addresses to disassemble.
 | Key | Default | |
 |---|---|---|
 | `Enabled` | `0` | it hooks the busiest function in the engine; opt in deliberately |
-| `DumpKey` | `113` | `VK_F2`. Press to start, press again to write the report |
+| `DumpKey` | `114` | `VK_F3`. Press to start, press again to write the report. Not F2, which the game uses for quicksave |
