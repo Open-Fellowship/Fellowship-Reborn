@@ -328,9 +328,21 @@ static void __cdecl centre_map_icon(uintptr_t args)
  *
  * Nine bytes, both instructions relocated. The load reads through esp and the stub has not
  * pushed anything at that point, so the offset still means what it did. */
-static const uint32_t save_icon_sites[] = {
-    0x73916u,       /* the New Save entry */
-    0x73CC9u        /* once per save slot */
+/* The two sites do not keep the control in the same register, which is easy to miss because
+ * they are byte for byte identical at the hook itself:
+ *
+ *     073910  mov ebp,eax / xor ebp,ebp     the New Save entry, control in EBP
+ *     073CC4  mov edi,eax / xor edi,edi     the per slot loop,  control in EDI
+ *
+ * and each then does its own `mov ecx,&lt;that register&gt;` for the SetScale call. Pushing edi at
+ * both recorded the container instead of the picture for New Save, so that one was never grown
+ * or clipped, and a pointer that is not a control sat in the table for the rest of the run. */
+static const struct {
+    uint32_t rva;
+    uint8_t  push_control;   /* 0x55 push ebp, 0x57 push edi */
+} save_icon_sites[] = {
+    { 0x73916u, 0x55u },    /* the New Save entry */
+    { 0x73CC9u, 0x57u }     /* once per save slot */
 };
 
 #define SAVE_ICON_SIZE 9u
@@ -1013,7 +1025,8 @@ static void *build_quest_stub(uintptr_t stub_address, uintptr_t return_address, 
 
 /* Records the picture control and leaves the game's ratio scaled by k in eax, with k pushed
  * where the hard 1.0 was, so the aspect lands once and on the destination. */
-static void *build_save_icon_stub(uintptr_t stub_address, uintptr_t return_address)
+static void *build_save_icon_stub(uintptr_t stub_address, uintptr_t return_address,
+                                  uint8_t push_control)
 {
     uint8_t buffer[64];
     emit_t  emit;
@@ -1035,7 +1048,7 @@ static void *build_save_icon_stub(uintptr_t stub_address, uintptr_t return_addre
      * back exactly as it was set above. */
     emit_u8(&emit, 0x60);                                    /* pushad                       */
     emit_u8(&emit, 0x9C);                                    /* pushfd                       */
-    emit_u8(&emit, 0x57);                                    /* push edi                     */
+    emit_u8(&emit, push_control);                            /* push the control's register  */
     emit_u8(&emit, 0xE8);
     emit_u32(&emit, (uint32_t)((uintptr_t)&record_save_icon -
                                (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
@@ -1512,20 +1525,21 @@ static void on_rfl_loaded(uintptr_t rfl_base)
          * draw the same kind of picture, so scaling one without the other would look like a bug
          * rather than a fix. */
         for (index = 0; index < n; ++index) {
-            if (!patch_validate_bytes(rfl_site(rfl_base, save_icon_sites[index]),
+            if (!patch_validate_bytes(rfl_site(rfl_base, save_icon_sites[index].rva),
                                       save_icon_expected, SAVE_ICON_SIZE)) {
                 log_warning("rfl+%X is not a save picture scale push; the menu is left alone",
-                            save_icon_sites[index]);
+                            save_icon_sites[index].rva);
                 n = 0;
                 break;
             }
         }
         for (index = 0; index < n; ++index) {
-            uintptr_t icon = rfl_site(rfl_base, save_icon_sites[index]);
+            uintptr_t icon = rfl_site(rfl_base, save_icon_sites[index].rva);
             uintptr_t stub = (uintptr_t)trampoline_alloc(64);
 
             if (stub != 0 &&
-                build_save_icon_stub(stub, icon + SAVE_ICON_SIZE) != NULL &&
+                build_save_icon_stub(stub, icon + SAVE_ICON_SIZE,
+                                     save_icon_sites[index].push_control) != NULL &&
                 patch_write_jump(icon, (const void *)stub,
                                  SAVE_ICON_SIZE) == PATCH_RESULT_OK) {
                 done++;
