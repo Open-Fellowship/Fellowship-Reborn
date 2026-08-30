@@ -159,6 +159,35 @@ static const uint32_t bar_scale_sites[] = {
 
 static const uint8_t bar_scale_expected[5] = { 0x68, 0x00, 0x00, 0x80, 0xBF };
 
+/* SEVENTH SITE, the map screen's indicator circle and its stars.
+ *
+ * Map GUI is 30 properties, and its geometry sits at class indices 19 to 26: the indicator at
+ * 121 by 118 texels and a star at 19 by 19. Those are source rectangle texels, so they are left
+ * alone, and the map's own corner textures already fill the screen, which is why only the icons
+ * on top of it look wrong.
+ *
+ * The draws take a scale pair, Y first then X, and hand it to slot +0x58:
+ *
+ *     1002d6cc  push 0xbf800000        Y, the sentinel
+ *     1002d6d1  push 0x3f800000        X
+ *     1002d6f1  call [edx+0x58]        the indicator, right after reading indices 19 to 22
+ *
+ * A negative Y means take the Y scale from X on this path, so scaling X alone scales both axes
+ * together, which is what an icon wants. The sentinels are left exactly as the game wrote them.
+ *
+ * Confirmed from two directions before anything was written. A byte scan for the property reads
+ * put the strongest candidate at 1002D4E4 to 1002D6AF, and hud_probe then recorded rfl+2D6BE,
+ * 2D69A, 2D528 and 2D517 reading indices 19, 21, 25 and 26 on a 30 property object, 295 hits
+ * each, which is once a frame while the map is open. The scan alone would not have been enough:
+ * it offered fifteen candidate windows, and the same reasoning picked a wrong site for the
+ * objective tick box. */
+static const uint32_t map_icon_sites[] = {
+    0x2D636u,       /* the star */
+    0x2D6D1u        /* the indicator */
+};
+
+static const uint8_t map_icon_expected[5] = { 0x68, 0x00, 0x00, 0x80, 0x3F };
+
 /* The coloured fill, which is a different draw from the seven above.
  *
  * FUN_10078CA0 builds the fill's quad and hands it to FUN_10066600. Both the arguments and the
@@ -911,6 +940,38 @@ static void on_rfl_loaded(uintptr_t rfl_base)
         }
         if (n != 0) {
             log_info("  and %u of %u bar scale pushes now read the live height ratio", done, n);
+        }
+    }
+
+    {
+        size_t   index;
+        unsigned done = 0;
+        unsigned n    = (unsigned)(sizeof(map_icon_sites) / sizeof(map_icon_sites[0]));
+
+        /* Both checked before either is written, so the map cannot end up with one icon scaled
+         * and the other the size it always was. */
+        for (index = 0; index < n; ++index) {
+            if (!patch_validate_bytes(rfl_site(rfl_base, map_icon_sites[index]),
+                                      map_icon_expected, sizeof(map_icon_expected))) {
+                log_warning("rfl+%X is not a map icon scale push; the map is left alone",
+                            map_icon_sites[index]);
+                n = 0;
+                break;
+            }
+        }
+        for (index = 0; index < n; ++index) {
+            uintptr_t icon = rfl_site(rfl_base, map_icon_sites[index]);
+            uintptr_t stub = (uintptr_t)trampoline_alloc(32);
+
+            if (stub != 0 &&
+                build_bar_scale_stub(stub, icon + sizeof(map_icon_expected)) != NULL &&
+                patch_write_jump(icon, (const void *)stub,
+                                 sizeof(map_icon_expected)) == PATCH_RESULT_OK) {
+                done++;
+            }
+        }
+        if (n != 0) {
+            log_info("  and %u of %u map icon scales now read the live height ratio", done, n);
         }
     }
 

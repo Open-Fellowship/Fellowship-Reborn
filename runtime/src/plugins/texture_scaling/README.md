@@ -14,6 +14,7 @@ disease, and this fixes all four.
 | the bar frames | `HUD Variable Meter` | seven pushes, `rfl+79356` to `rfl+797E4` |
 | the bar fills | `HUD Variable Meter` | `rfl+78DE7`, `rfl+78E2B`, `rfl+667A3` |
 | the objective tick boxes | `GUIControl_Texture` | `rfl+3F5D3`, `rfl+6C85D` |
+| the map indicator and stars | `Map GUI` | `rfl+2D636`, `rfl+2D6D1` |
 
 The groups are independent. Any one can fail to match without taking the others down, and the log
 says which. The bar fill is all or nothing within itself: if either call site or the draw does not
@@ -172,6 +173,30 @@ That function serves every `GUIControl_Texture`, the pointer included, so it act
 control this plugin recorded being built for an objective line.
 
 Measured at 3840x2160: `23.00 x 23.00 texels, laid out at 138.00 x 103.50`.
+
+## The map icons are one push each
+
+`Map GUI` is 30 properties with its geometry at class indices 19 to 26: the indicator at 121 by
+118 texels, a star at 19 by 19. The map's own corner textures already fill the screen, so only
+the icons drawn on top of it look wrong.
+
+Each draw hands a scale pair to slot `+0x58`, Y first and then X:
+
+```
+1002d6cc  push 0xbf800000        Y, the sentinel
+1002d6d1  push 0x3f800000        X
+1002d6f1  call [edx+0x58]        the indicator, right after reading indices 19 to 22
+```
+
+A negative Y on this path means take the Y scale from X, so scaling X alone scales both axes
+together, which is what an icon wants. The sentinels are untouched, and so are the `(tx)`
+properties, which are source rectangle texels.
+
+Confirmed from two directions before anything was written. A byte scan for the property reads
+offered fifteen candidate windows, of which `1002D4E4` to `1002D6AF` was the strongest; `hud_probe`
+then recorded `rfl+2D6BE`, `2D69A`, `2D528` and `2D517` reading indices 19, 21, 25 and 26 on a 30
+property object at 295 hits each, once a frame while the map is open. The scan alone would not
+have been enough, and the same reasoning picked a wrong site for the tick box.
 
 ## What this does NOT reach
 
