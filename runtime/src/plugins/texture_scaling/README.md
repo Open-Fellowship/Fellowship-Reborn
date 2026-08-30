@@ -175,29 +175,53 @@ control this plugin recorded being built for an objective line.
 
 Measured at 3840x2160: `23.00 x 23.00 texels, laid out at 138.00 x 103.50`.
 
-## The map icons are one push each
+## The map icons scale about their centres
 
 `Map GUI` is 30 properties with its geometry at class indices 19 to 26: the indicator at 121 by
-118 texels, a star at 19 by 19. The map's own corner textures already fill the screen, so only
-the icons drawn on top of it look wrong.
+118 texels, a star at 19 by 19. The map's own corner textures already fill the screen, so only the
+icons drawn on top of it look wrong.
 
-Each draw hands a scale pair to slot `+0x58`, Y first and then X:
+Both draws hand nine arguments to slot `+0x58`, read live off the stack rather than worked out
+from the disassembly:
 
 ```
-1002d6cc  push 0xbf800000        Y, the sentinel
-1002d6d1  push 0x3f800000        X
-1002d6f1  call [edx+0x58]        the indicator, right after reading indices 19 to 22
+arg1 637.000   arg2 392.406      where it goes, in screen pixels
+arg3 135.000   arg4   3.000      where it comes from in the atlas
+arg5 121.000   arg6 118.000      how big it is, in texels
+arg8   1.000   arg9  -1.000      the X scale, and Y taking its value from X
 ```
 
-A negative Y on this path means take the Y scale from X, so scaling X alone scales both axes
-together, which is what an icon wants. The sentinels are untouched, and so are the `(tx)`
-properties, which are source rectangle texels.
+The extent is the source multiplied by the scale, grown from `arg1` and `arg2` as the **top left
+corner**. So scaling alone moves an icon's centre by half its growth. The circle and the star
+differ hugely in size, 121 against 19, so at 4.5 their centres moved 212 and 33 pixels
+respectively and they ended up about 177 pixels apart while both were "correctly" scaled.
 
-Confirmed from two directions before anything was written. A byte scan for the property reads
-offered fifteen candidate windows, of which `1002D4E4` to `1002D6AF` was the strongest; `hud_probe`
-then recorded `rfl+2D6BE`, `2D69A`, `2D528` and `2D517` reading indices 19, 21, 25 and 26 on a 30
-property object at 295 hits each, once a frame while the map is open. The scan alone would not
-have been enough, and the same reasoning picked a wrong site for the tick box.
+That was not spotted when the icons were first scaled, because both were the right size and only
+the size was checked. It was confirmed by holding the patch off: with it off, the circle sits on
+the star.
+
+So the scale and the position are set together, at the call:
+
+```
+x -= w * (k - 1) / 2
+y -= h * (k - 1) / 2
+```
+
+which grows each icon about its own centre, from its own size, at any resolution.
+
+```
+1002d66b  mov ecx,ebp / push edx / call [eax+0x58]     the star, six bytes
+1002d6ef  mov ecx,ebp / call [edx+0x58]                the indicator, five
+```
+
+The star pushes its last argument after the `mov`, so in both cases the adjustment happens once
+every argument is on the stack. The stub declines anything whose `arg8` is not `1.0` and `arg9`
+not the `-1.0` sentinel, so other draws through the same slot are left alone.
+
+Found by measurement in both directions: a byte scan for the property reads gave fifteen candidate
+windows with `1002D4E4` to `1002D6AF` the strongest, and `hud_probe` recorded `rfl+2D6BE`,
+`2D69A`, `2D528` and `2D517` reading indices 19, 21, 25 and 26 on a 30 property object at 295 hits
+each, once a frame while the map is open.
 
 ## The save pictures, and the aspect applied twice
 

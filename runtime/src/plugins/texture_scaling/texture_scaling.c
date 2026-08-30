@@ -162,31 +162,86 @@ static const uint8_t bar_scale_expected[5] = { 0x68, 0x00, 0x00, 0x80, 0xBF };
 /* SEVENTH SITE, the map screen's indicator circle and its stars.
  *
  * Map GUI is 30 properties, and its geometry sits at class indices 19 to 26: the indicator at
- * 121 by 118 texels and a star at 19 by 19. Those are source rectangle texels, so they are left
- * alone, and the map's own corner textures already fill the screen, which is why only the icons
- * on top of it look wrong.
+ * 121 by 118 texels and a star at 19 by 19. Those are source rectangle texels and are left alone.
+ * The map's own corner textures already fill the screen, which is why only the icons on top of it
+ * look wrong.
  *
- * The draws take a scale pair, Y first then X, and hand it to slot +0x58:
+ * Both draws hand nine arguments to slot +0x58, read live off the stack rather than guessed:
  *
- *     1002d6cc  push 0xbf800000        Y, the sentinel
- *     1002d6d1  push 0x3f800000        X
- *     1002d6f1  call [edx+0x58]        the indicator, right after reading indices 19 to 22
+ *     arg1 637.000   arg2 392.406      where it goes, in screen pixels
+ *     arg3 135.000   arg4   3.000      where it comes from in the atlas
+ *     arg5 121.000   arg6 118.000      how big it is, in texels
+ *     arg8   1.000   arg9  -1.000      the X scale, and Y taking its value from X
  *
- * A negative Y means take the Y scale from X on this path, so scaling X alone scales both axes
- * together, which is what an icon wants. The sentinels are left exactly as the game wrote them.
+ * The extent is the source multiplied by the scale, grown from arg1 and arg2 as the top left
+ * corner. So scaling alone moves an icon's centre by half its growth, and the circle and the star
+ * differ hugely in size, 121 against 19, which pushed them about 177 pixels apart at 4.5 while
+ * both were "correctly" scaled. That was measured by holding this patch off: with it off, the
+ * circle sits on the star.
+ *
+ * So the scale and the position are set together, at the call, where every argument is already on
+ * the stack:
+ *
+ *     x -= w * (k - 1) / 2
+ *     y -= h * (k - 1) / 2
+ *
+ * which grows each icon about its own centre and leaves the two of them on top of each other at
+ * any resolution.
+ *
+ *     1002d66b  mov ecx,ebp / push edx / call [eax+0x58]     the star, six bytes
+ *     1002d6ef  mov ecx,ebp / call [edx+0x58]                the indicator, five
+ *
+ * The star pushes its last argument after the mov, so in both cases the adjustment happens once
+ * everything is on the stack.
  *
  * Confirmed from two directions before anything was written. A byte scan for the property reads
  * put the strongest candidate at 1002D4E4 to 1002D6AF, and hud_probe then recorded rfl+2D6BE,
  * 2D69A, 2D528 and 2D517 reading indices 19, 21, 25 and 26 on a 30 property object, 295 hits
- * each, which is once a frame while the map is open. The scan alone would not have been enough:
- * it offered fifteen candidate windows, and the same reasoning picked a wrong site for the
- * objective tick box. */
-static const uint32_t map_icon_sites[] = {
-    0x2D636u,       /* the star */
-    0x2D6D1u        /* the indicator */
+ * each, which is once a frame while the map is open. */
+#define MAP_STAR_RVA        0x2D66Bu
+#define MAP_STAR_RETURN_RVA 0x2D671u
+#define MAP_STAR_SIZE       6u
+
+#define MAP_IND_RVA         0x2D6EFu
+#define MAP_IND_RETURN_RVA  0x2D6F4u
+#define MAP_IND_SIZE        5u
+
+static const uint8_t map_star_expected[MAP_STAR_SIZE] = {
+    0x8B, 0xCD,                  /* mov ecx,ebp      */
+    0x52,                        /* push edx         */
+    0xFF, 0x50, 0x58             /* call [eax+0x58]  */
 };
 
-static const uint8_t map_icon_expected[5] = { 0x68, 0x00, 0x00, 0x80, 0x3F };
+static const uint8_t map_ind_expected[MAP_IND_SIZE] = {
+    0x8B, 0xCD,                  /* mov ecx,ebp      */
+    0xFF, 0x52, 0x58             /* call [edx+0x58]  */
+};
+
+/* Sets the scale and pulls the destination back by half the growth, so the icon grows about its
+ * centre. Declines anything that is not the argument list this was measured against. */
+static void __cdecl centre_map_icon(uintptr_t args)
+{
+    float a[9];
+    float k = g_scale_y;
+
+    if (k <= 1.0f || !memory_is_readable_range(args, sizeof(a))) {
+        return;
+    }
+    memcpy(a, (const void *)args, sizeof(a));
+
+    /* arg8 is the X scale and arg9 the sentinel that makes Y follow it. */
+    if (a[7] != 1.0f || a[8] != -1.0f || a[4] <= 0.0f || a[5] <= 0.0f) {
+        return;
+    }
+    a[0] -= a[4] * (k - 1.0f) * 0.5f;
+    a[1] -= a[5] * (k - 1.0f) * 0.5f;
+    a[7]  = k;
+
+    if (memory_make_writable(args, sizeof(a))) {
+        memcpy((void *)args, a, sizeof(a));
+    }
+}
+
 
 /* EIGHTH SITE, the save and load slot pictures.
  *
@@ -908,6 +963,48 @@ static void *build_save_icon_stub(uintptr_t stub_address, uintptr_t return_addre
     return (void *)stub_address;
 }
 
+
+/* The relocated bytes come in two halves: whatever has to run before the arguments are complete,
+ * then the call itself. pushad puts the argument list at esp+0x24. */
+static void *build_map_stub(uintptr_t stub_address, uintptr_t return_address,
+                            const uint8_t *before, unsigned before_len,
+                            const uint8_t *after, unsigned after_len)
+{
+    uint8_t buffer[64];
+    emit_t  emit;
+    unsigned i;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    for (i = 0; i < before_len; ++i) {
+        emit_u8(&emit, before[i]);
+    }
+
+    emit_u8(&emit, 0x60);                                    /* pushad                       */
+    emit_u8(&emit, 0x9C);                                    /* pushfd                       */
+    emit_u8(&emit, 0x8D); emit_u8(&emit, 0x44); emit_u8(&emit, 0x24); emit_u8(&emit, 0x24);
+    emit_u8(&emit, 0x50);                                    /* push eax, the argument list  */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)((uintptr_t)&centre_map_icon -
+                               (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+    emit_u8(&emit, 0x83); emit_u8(&emit, 0xC4); emit_u8(&emit, 0x04);
+    emit_u8(&emit, 0x9D);                                    /* popfd                        */
+    emit_u8(&emit, 0x61);                                    /* popad                        */
+
+    for (i = 0; i < after_len; ++i) {
+        emit_u8(&emit, after[i]);
+    }
+
+    emit_jump_rel32(&emit, stub_address, return_address);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
+}
+
 /* Replaces a constant push with a push of our live scale. Two instructions, eleven bytes. */
 /* Runs where the picture's draw reads its own geometry, with the control in esi, and performs
  * the two displaced instructions afterwards. Neither is position dependent. */
@@ -1302,34 +1399,34 @@ static void on_rfl_loaded(uintptr_t rfl_base)
     }
 
     {
-        size_t   index;
-        unsigned done = 0;
-        unsigned n    = (unsigned)(sizeof(map_icon_sites) / sizeof(map_icon_sites[0]));
+        uintptr_t star = rfl_site(rfl_base, MAP_STAR_RVA);
+        uintptr_t ind  = rfl_site(rfl_base, MAP_IND_RVA);
 
-        /* Both checked before either is written, so the map cannot end up with one icon scaled
-         * and the other the size it always was. */
-        for (index = 0; index < n; ++index) {
-            if (!patch_validate_bytes(rfl_site(rfl_base, map_icon_sites[index]),
-                                      map_icon_expected, sizeof(map_icon_expected))) {
-                log_warning("rfl+%X is not a map icon scale push; the map is left alone",
-                            map_icon_sites[index]);
-                n = 0;
-                break;
-            }
-        }
-        for (index = 0; index < n; ++index) {
-            uintptr_t icon = rfl_site(rfl_base, map_icon_sites[index]);
-            uintptr_t stub = (uintptr_t)trampoline_alloc(32);
+        /* Both checked before either is written: one icon re-centred and the other not would put
+         * them further apart than leaving both alone. */
+        if (patch_validate_bytes(star, map_star_expected, MAP_STAR_SIZE) &&
+            patch_validate_bytes(ind, map_ind_expected, MAP_IND_SIZE)) {
+            uintptr_t star_stub = (uintptr_t)trampoline_alloc(64);
+            uintptr_t ind_stub  = (uintptr_t)trampoline_alloc(64);
+            unsigned  done = 0;
 
-            if (stub != 0 &&
-                build_bar_scale_stub(stub, icon + sizeof(map_icon_expected)) != NULL &&
-                patch_write_jump(icon, (const void *)stub,
-                                 sizeof(map_icon_expected)) == PATCH_RESULT_OK) {
+            if (star_stub != 0 &&
+                build_map_stub(star_stub, rfl_site(rfl_base, MAP_STAR_RETURN_RVA),
+                               map_star_expected, 3u, map_star_expected + 3u, 3u) != NULL &&
+                patch_write_jump(star, (const void *)star_stub,
+                                 MAP_STAR_SIZE) == PATCH_RESULT_OK) {
                 done++;
             }
-        }
-        if (n != 0) {
-            log_info("  and %u of %u map icon scales now read the live height ratio", done, n);
+            if (ind_stub != 0 &&
+                build_map_stub(ind_stub, rfl_site(rfl_base, MAP_IND_RETURN_RVA),
+                               map_ind_expected, 2u, map_ind_expected + 2u, 3u) != NULL &&
+                patch_write_jump(ind, (const void *)ind_stub,
+                                 MAP_IND_SIZE) == PATCH_RESULT_OK) {
+                done++;
+            }
+            log_info("  and %u of 2 map icons scale about their centres", done);
+        } else {
+            log_warning("the map icon draws are not what this expects; the map is left alone");
         }
     }
 
@@ -1478,6 +1575,7 @@ static void on_rfl_loaded(uintptr_t rfl_base)
             log_warning("rfl+%X is not the texel copy this expects", QLAYOUT_RVA);
         }
     }
+
 
     thread = CreateThread(NULL, 0, hold_scale, NULL, 0, NULL);
     if (thread != NULL) {
