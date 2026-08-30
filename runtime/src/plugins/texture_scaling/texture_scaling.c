@@ -247,6 +247,93 @@ static const uint8_t bar_scale_expected[5] = { 0x68, 0x00, 0x00, 0x80, 0xBF };
 #define MAP_IND_RETURN_RVA  0x2D6F4u
 #define MAP_IND_SIZE        5u
 
+/* NINTH SITE, the scroll arrows on every list in the game.
+ *
+ * Scroll Buttons is its own class, 11 properties, and the arrow is 30 by 17 texels. Two calls
+ * draw it, one per arrow, both to FUN_10066AE0:
+ *
+ *     1006a9d4  mov ecx,esi / call FUN_10066AE0
+ *     1006aa0a  mov ecx,esi / call FUN_10066AE0
+ *
+ * That function hands the real draw its scale as a RATIO of two of its own arguments:
+ *
+ *     (*param_6 / *param_3,  param_6[1] / param_3[1])
+ *
+ * and both point at the same 30 by 17, so the scale is exactly 1.0 and the arrow is drawn one
+ * texel to one pixel.
+ *
+ * Three attempts missed this. Arguments nine and ten look like a scale pair and are ignored on
+ * this path, arg8 being zero. Scaling what arg3 points at does nothing, because the ratio divides
+ * it out. Scaling what arg6 points at does nothing either, for the same reason and worse: it is
+ * the SAME rectangle, so the source grew and the arrows moved instead.
+ *
+ * So arg6 is pointed at a rectangle of this plugin's own, k times the source, leaving the source
+ * itself alone. The ratio then comes out k and the art is unchanged. */
+#define ARROW_HOOK_SIZE 7u
+
+/* The two sites are the two arrows, and which is which matters for the anchor: the first draws
+ * at y 216 and the second at y 1754, measured. */
+static const struct {
+    uint32_t rva;
+    uint8_t  grows_up;      /* the lower arrow keeps its bottom edge */
+} arrow_sites[] = {
+    { 0x6A9D4u, 0u },       /* the upper arrow */
+    { 0x6AA0Au, 1u }        /* the lower arrow */
+};
+
+static const uint8_t arrow_expected[3] = { 0x8B, 0xCE, 0xE8 };   /* mov ecx,esi ; call */
+
+/* Handed to the engine for the duration of one call, on one thread. */
+static float g_arrow_extent[2];
+
+static void __cdecl scale_arrow(uintptr_t args, uint32_t grows_up)
+{
+    float     k = g_scale_y;
+    uintptr_t source = 0;
+    uintptr_t ours;
+    float     wh[2];
+
+    if (k <= 1.0f || !memory_is_readable_range(args, 0x18u)) {
+        return;
+    }
+    memcpy(&source, (const void *)(args + 0x08u), sizeof(source));      /* arg3 */
+    if (source == 0 || !memory_is_readable_range(source, sizeof(wh))) {
+        return;
+    }
+    memcpy(wh, (const void *)source, sizeof(wh));
+    if (wh[0] <= 0.0f || wh[1] <= 0.0f) {
+        return;
+    }
+    g_arrow_extent[0] = wh[0] * k;
+    g_arrow_extent[1] = wh[1] * k;
+
+    ours = (uintptr_t)&g_arrow_extent[0];
+    memcpy((void *)(args + 0x14u), &ours, sizeof(ours));                /* arg6 */
+
+    /* And move the corner so the arrow grows INWARD, because it sits in the corner of a frame
+     * and anything else pushes it through one edge or the other.
+     *
+     * Growing from the top left corner put both arrows outside; centring them, which is what the
+     * map icons want, left each straddling its corner half in and half out. Both arrows are on
+     * the right, so the right edge is held in both cases, and each holds the edge it is tucked
+     * against: the upper one its top, the lower one its bottom. */
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        float growth_x = wh[0] * (k - 1.0f);
+        float growth_y = wh[1] * (k - 1.0f);
+
+        memcpy(&x, (const void *)(args + 0x0Cu), sizeof(x));            /* arg4 */
+        memcpy(&y, (const void *)(args + 0x10u), sizeof(y));            /* arg5 */
+        x -= growth_x;
+        if (grows_up != 0) {
+            y -= growth_y;
+        }
+        memcpy((void *)(args + 0x0Cu), &x, sizeof(x));
+        memcpy((void *)(args + 0x10u), &y, sizeof(y));
+    }
+}
+
 static const uint8_t map_star_expected[MAP_STAR_SIZE] = {
     0x8B, 0xCD,                  /* mov ecx,ebp      */
     0x52,                        /* push edx         */
@@ -1195,6 +1282,42 @@ static void __cdecl on_texture_draw(uintptr_t control)
     clamp_save_picture(control);
 }
 
+/* Every argument is on the stack by now, so arg1 sits at esp+0x24 once pushad and pushfd have
+ * gone on. The call's target is read from its own displacement rather than assumed. */
+static void *build_arrow_stub(uintptr_t stub_address, uintptr_t return_address, uintptr_t callee,
+                              uint8_t grows_up)
+{
+    uint8_t buffer[64];
+    emit_t  emit;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    emit_u8(&emit, 0x60);                                    /* pushad                       */
+    emit_u8(&emit, 0x9C);                                    /* pushfd                       */
+    emit_u8(&emit, 0x8D); emit_u8(&emit, 0x44); emit_u8(&emit, 0x24); emit_u8(&emit, 0x24);
+    emit_u8(&emit, 0x6A); emit_u8(&emit, grows_up);          /* push which edge to hold      */
+    emit_u8(&emit, 0x50);                                    /* push eax, the argument list  */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)((uintptr_t)&scale_arrow -
+                               (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+    emit_u8(&emit, 0x83); emit_u8(&emit, 0xC4); emit_u8(&emit, 0x08);
+    emit_u8(&emit, 0x9D);                                    /* popfd                        */
+    emit_u8(&emit, 0x61);                                    /* popad                        */
+
+    emit_u8(&emit, 0x8B); emit_u8(&emit, 0xCE);              /* mov ecx,esi                  */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)(callee - (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+
+    emit_jump_rel32(&emit, stub_address, return_address);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
+}
+
 /* Runs where the picture's draw reads its own geometry, with the control in esi, and performs
  * the two displaced instructions afterwards. Neither is position dependent. */
 static void *build_draw_stub(uintptr_t stub_address, uintptr_t return_address)
@@ -1705,6 +1828,37 @@ static void on_rfl_loaded(uintptr_t rfl_base)
         }
     }
 
+
+    {
+        size_t   index;
+        unsigned done = 0;
+        unsigned n    = (unsigned)(sizeof(arrow_sites) / sizeof(arrow_sites[0]));
+
+        for (index = 0; index < n; ++index) {
+            uintptr_t arrow = rfl_site(rfl_base, arrow_sites[index].rva);
+            int32_t   displacement = 0;
+
+            if (!patch_validate_bytes(arrow, arrow_expected, sizeof(arrow_expected))) {
+                log_warning("rfl+%X is not a scroll arrow draw; that arrow is left alone",
+                            arrow_sites[index].rva);
+                continue;
+            }
+            memcpy(&displacement, (const void *)(arrow + 3u), sizeof(displacement));
+            {
+                uintptr_t stub = (uintptr_t)trampoline_alloc(64);
+
+                if (stub != 0 &&
+                    build_arrow_stub(stub, arrow + ARROW_HOOK_SIZE,
+                                     arrow + ARROW_HOOK_SIZE + (uintptr_t)displacement,
+                                     arrow_sites[index].grows_up) != NULL &&
+                    patch_write_jump(arrow, (const void *)stub,
+                                     ARROW_HOOK_SIZE) == PATCH_RESULT_OK) {
+                    done++;
+                }
+            }
+        }
+        log_info("  and %u of %u scroll arrows size themselves to the screen", done, n);
+    }
 
     thread = CreateThread(NULL, 0, hold_scale, NULL, 0, NULL);
     if (thread != NULL) {
