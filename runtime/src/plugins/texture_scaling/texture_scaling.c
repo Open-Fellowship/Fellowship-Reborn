@@ -1006,6 +1006,53 @@ static void *build_map_stub(uintptr_t stub_address, uintptr_t return_address,
 }
 
 /* Replaces a constant push with a push of our live scale. Two instructions, eleven bytes. */
+/* Every write to a control happens from here, at its own draw, with the control alive.
+ *
+ * It used to happen from the 250ms poll as well, over pointers remembered when the control was
+ * built. memory_is_readable_range only says the page is mapped, not that the object is still
+ * there, so once a menu closed and its controls were freed this carried on writing floats into
+ * whatever the heap had put in their place. That corrupts the heap, and the crash lands later,
+ * on opening a menu rather than on closing one.
+ *
+ * Nothing here runs unless the engine is drawing the control, so a freed one is never touched.
+ * The tables are read and never used as a write target on their own. */
+static void __cdecl on_texture_draw(uintptr_t control)
+{
+    LONG  seen;
+    LONG  i;
+    float x = g_scale_x;
+    float y = g_scale_y;
+
+    if (control == 0 || !memory_is_readable_range(control, 0x80u)) {
+        return;
+    }
+
+    /* The objective tick boxes: the scale pair, and the layout box the row reserves from. */
+    seen = g_quest_seen;
+    if (seen > QUEST_ROWS) {
+        seen = QUEST_ROWS;
+    }
+    for (i = 0; i < seen; ++i) {
+        if (g_quest[i].control != control) {
+            continue;
+        }
+        if (x > 1.0f && memory_make_writable(control + CONTROL_SCALE_X, 8u)) {
+            memcpy((void *)(control + CONTROL_SCALE_X), &x, sizeof(x));
+            memcpy((void *)(control + CONTROL_SCALE_Y), &y, sizeof(y));
+        }
+        if (g_quest[i].base_w > 0.0f && memory_make_writable(control + 0x40u, 8u)) {
+            float w = g_quest[i].base_w * x;
+            float h = g_quest[i].base_h * y;
+
+            memcpy((void *)(control + 0x40u), &w, sizeof(w));
+            memcpy((void *)(control + 0x44u), &h, sizeof(h));
+        }
+        break;
+    }
+
+    clamp_save_picture(control);
+}
+
 /* Runs where the picture's draw reads its own geometry, with the control in esi, and performs
  * the two displaced instructions afterwards. Neither is position dependent. */
 static void *build_draw_stub(uintptr_t stub_address, uintptr_t return_address)
@@ -1019,7 +1066,7 @@ static void *build_draw_stub(uintptr_t stub_address, uintptr_t return_address)
     emit_u8(&emit, 0x9C);                                    /* pushfd                       */
     emit_u8(&emit, 0x56);                                    /* push esi, the control        */
     emit_u8(&emit, 0xE8);
-    emit_u32(&emit, (uint32_t)((uintptr_t)&clamp_save_picture -
+    emit_u32(&emit, (uint32_t)((uintptr_t)&on_texture_draw -
                                (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
     emit_u8(&emit, 0x83); emit_u8(&emit, 0xC4); emit_u8(&emit, 0x04);
     emit_u8(&emit, 0x9D);                                    /* popfd                        */
@@ -1226,75 +1273,6 @@ static DWORD WINAPI hold_scale(LPVOID parameter)
                     }
                 }
 
-                /* The save pictures, held against anything that writes the box back. Stored as
-                 * the finished size rather than a base times a factor, because the two axes take
-                 * different ones here. */
-                {
-                    LONG sn = g_save_seen;
-                    LONG i;
-
-                    if (sn > SAVE_ROWS) {
-                        sn = SAVE_ROWS;
-                    }
-                    for (i = 0; i < sn; ++i) {
-                        uintptr_t c = g_save[i].control;
-
-                        if (c == 0 || g_save[i].base_w <= 0.0f ||
-                            !memory_is_readable_range(c, 0x80u)) {
-                            continue;
-                        }
-                        clamp_save_picture(c);
-                    }
-                }
-
-                /* The objective tick boxes. A scale, not a derived size, so writing it again
-                 * over the same control is idempotent and cannot compound. */
-                {
-                    LONG seen = g_quest_seen;
-                    LONG i;
-
-                    if (seen > QUEST_ROWS) {
-                        seen = QUEST_ROWS;
-                    }
-                    for (i = 0; i < seen; ++i) {
-                        uintptr_t c = g_quest[i].control;
-
-                        if (c == 0 || !memory_is_readable_range(c, CONTROL_SCALE_Y + 4u)) {
-                            continue;
-                        }
-
-                        /* The drawn extent is the source multiplied by this pair. */
-                        if (memory_make_writable(c + CONTROL_SCALE_X, 8u)) {
-                            memcpy((void *)(c + CONTROL_SCALE_X), &x, sizeof(x));
-                            memcpy((void *)(c + CONTROL_SCALE_Y), &y, sizeof(y));
-                        }
-
-                        /* And the layout box, which is what the row around it reserves space
-                         * from. Scaling the drawn size alone leaves the text of the objective
-                         * starting where a 19 texel box would have ended, on top of it.
-                         *
-                         * Captured once, the first time it is seen non zero, and re-derived from
-                         * that every pass, so this cannot compound. */
-                        if (g_quest[i].base_w == 0.0f) {
-                            float w = 0.0f;
-                            float h = 0.0f;
-
-                            memcpy(&w, (const void *)(c + 0x40u), sizeof(w));
-                            memcpy(&h, (const void *)(c + 0x44u), sizeof(h));
-                            if (w > 0.0f && h > 0.0f) {
-                                g_quest[i].base_w = w;
-                                g_quest[i].base_h = h;
-                            }
-                        }
-                        if (g_quest[i].base_w > 0.0f && memory_make_writable(c + 0x40u, 8u)) {
-                            float w = g_quest[i].base_w * x;
-                            float h = g_quest[i].base_h * y;
-
-                            memcpy((void *)(c + 0x40u), &w, sizeof(w));
-                            memcpy((void *)(c + 0x44u), &h, sizeof(h));
-                        }
-                    }
-                }
             }
         }
         Sleep(250);
