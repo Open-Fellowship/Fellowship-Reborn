@@ -97,6 +97,28 @@ static float g_scale_y = 1.0f;
  *
  * It showed on a machine running at 120 fps and not on one at 60, because the rate of the calls
  * is what decides how quickly it falls over. */
+/* A control's address is not enough to identify it.
+ *
+ * These tables are never cleared, so within a couple of levels every slot holds the address of a
+ * freed control. Freed GUIControl_Texture objects are all the same 0x80 bytes from the same heap
+ * bucket, so a dead entry's address is the MOST likely one the allocator hands back for the next
+ * one. A live, unrelated control would then be claimed by a dead entry and drawn with its
+ * geometry: the mouse pointer at a tick box's size, or a save picture blanked outright.
+ *
+ * So the source rectangle width is recorded alongside the address and re-checked here. Nothing
+ * this plugin does ever writes +0x70, so it stays what the engine put there, and a different
+ * control almost never has the same source width as the one the entry was recorded for. */
+static bool still_the_same_control(uintptr_t control, float recorded_src_w)
+{
+    float now = 0.0f;
+
+    if (recorded_src_w <= 0.0f) {
+        return true;              /* not measured yet, nothing to disagree with */
+    }
+    memcpy(&now, (const void *)(control + 0x70u), sizeof(now));
+    return now == recorded_src_w;
+}
+
 static bool control_writable(uintptr_t address, size_t size)
 {
     return address != 0 && size != 0;
@@ -349,6 +371,7 @@ typedef struct save_entry {
     float     base_w;      /* the drawn size, once the source is known */
     float     base_h;
     float     src_h;       /* the source height it was derived from */
+    float     src_w;       /* never written, so it can be re-checked at match time */
 } save_entry_t;
 
 static save_entry_t g_save[SAVE_ROWS];
@@ -364,14 +387,14 @@ static volatile LONG g_save_seen;
  *
  * This runs from the draw rather than the poll. On the poll it was a quarter second behind, which
  * showed as the picture clipping wrongly for a few frames while the list was being scrolled. */
+/* Called only from on_texture_draw, which has already validated the control. Re-checking here
+ * would be a second VirtualQuery per texture control per frame, and VirtualQuery takes the
+ * process address space lock. */
 static void __cdecl clamp_save_picture(uintptr_t control)
 {
     LONG seen = g_save_seen;
     LONG i;
 
-    if (control == 0 || !memory_is_readable_range(control, 0x80u)) {
-        return;
-    }
     if (seen > SAVE_ROWS) {
         seen = SAVE_ROWS;
     }
@@ -382,7 +405,8 @@ static void __cdecl clamp_save_picture(uintptr_t control)
         float     want_h;
         float     want_src;
 
-        if (g_save[i].control != control || g_save[i].base_h <= 0.0f) {
+        if (g_save[i].control != control || g_save[i].base_h <= 0.0f ||
+            !still_the_same_control(control, g_save[i].src_w)) {
             continue;
         }
         want_h   = g_save[i].base_h;
@@ -475,6 +499,7 @@ static void __cdecl record_save_icon(uintptr_t control)
     g_save[(uint32_t)n % SAVE_ROWS].base_w  = 0.0f;
     g_save[(uint32_t)n % SAVE_ROWS].base_h  = 0.0f;
     g_save[(uint32_t)n % SAVE_ROWS].src_h   = 0.0f;
+    g_save[(uint32_t)n % SAVE_ROWS].src_w   = 0.0f;
 }
 
 /* The coloured fill, which is a different draw from the seven above.
@@ -599,8 +624,9 @@ static const uint8_t qlayout_expected[QLAYOUT_SIZE] = {
 
 typedef struct quest_entry {
     uintptr_t control;
-    float     base_w;      /* the layout box as the engine built it, zero until it is seen */
+    float     base_w;      /* the source, in texels, once it is known */
     float     base_h;
+    float     src_w;       /* what the source measured when this entry was recorded */
 } quest_entry_t;
 
 static quest_entry_t g_quest[QUEST_ROWS];
@@ -617,28 +643,60 @@ static int32_t g_reference_height = 480;
 /* __cdecl, from the stub, after it has already stored the scaled values. Records the control and
  * the dimensions it was built from, so the poll can put the right numbers back when the camera
  * validates later than the HUD is built. */
+/* Called from the setup stub, on the game thread, with the control alive in hand.
+ *
+ * If the scale is already known the size is written here and now and the control is not
+ * remembered at all. Only a HUD built before a camera has validated needs to be, and that is a
+ * one-off at startup: the poll applies those, and holding a pointer for at most a quarter second
+ * during the loading screen is the whole of the exposure.
+ *
+ * A slot the poll has finished with is reused. It used to append at a high water mark that never
+ * came down, so once eight controls had ever been recorded the table was full of zeroes and the
+ * HUD correction silently stopped working for the rest of the session. */
 static void __cdecl remember_hud(uintptr_t control)
 {
     LONG count = g_hud_count;
     LONG i;
+    LONG slot  = -1;
 
     if (control == 0) {
         return;
     }
+
+    if (g_scale_x > 1.0f && g_scale_y > 1.0f && g_hud_base_w > 0.0f && g_hud_base_h > 0.0f &&
+        memory_is_readable_range(control, 0x48u)) {
+        float w = g_hud_base_w * g_scale_x;
+        float h = g_hud_base_h * g_scale_y;
+
+        memcpy((void *)(control + 0x40u), &w, sizeof(w));
+        memcpy((void *)(control + 0x44u), &h, sizeof(h));
+        log_info("control %08X built from %.0f x %.0f texels",
+                 (unsigned)control, (double)g_hud_base_w, (double)g_hud_base_h);
+        return;
+    }
+
     for (i = 0; i < count && i < HUD_ROWS; ++i) {
         if (g_hud[i].control == control) {
             g_hud[i].base_w = g_hud_base_w;
             g_hud[i].base_h = g_hud_base_h;
             return;
         }
+        if (g_hud[i].control == 0 && slot < 0) {
+            slot = i;
+        }
     }
-    if (count >= HUD_ROWS) {
-        return;
+    if (slot < 0) {
+        if (count >= HUD_ROWS) {
+            return;
+        }
+        slot = count;
     }
-    g_hud[count].control = control;
-    g_hud[count].base_w  = g_hud_base_w;
-    g_hud[count].base_h  = g_hud_base_h;
-    InterlockedExchange(&g_hud_count, count + 1);
+    g_hud[slot].base_w  = g_hud_base_w;
+    g_hud[slot].base_h  = g_hud_base_h;
+    g_hud[slot].control = control;
+    if (slot == count) {
+        InterlockedExchange(&g_hud_count, count + 1);
+    }
     log_info("control %08X built from %.0f x %.0f texels",
              (unsigned)control, (double)g_hud_base_w, (double)g_hud_base_h);
 }
@@ -778,6 +836,7 @@ static void __cdecl record_quest_icon(uintptr_t control)
      * once the texel size has actually been copied into it. */
     g_quest[(uint32_t)n % QUEST_ROWS].base_w = 0.0f;
     g_quest[(uint32_t)n % QUEST_ROWS].base_h = 0.0f;
+    g_quest[(uint32_t)n % QUEST_ROWS].src_w  = 0.0f;
 }
 
 /* Runs just after the texel size has been copied into the layout box, for every
@@ -812,7 +871,17 @@ static void __cdecl fix_quest_layout(uintptr_t control)
                 memcpy(&w, (const void *)(control + 0x70u), sizeof(w));
                 memcpy(&h, (const void *)(control + 0x74u), sizeof(h));
 
-                if (w > 0.0f && h > 0.0f) {
+                /* Measured ONCE per picture, and never again while it is the same picture.
+                 *
+                 * The height read here is control+0x74, which is the field the clip writes the
+                 * cropped source into. Re-measuring from it turned a partial clip into a
+                 * permanent one: scroll a row half out of view, scroll it back, and its base was
+                 * now the cropped 17.79 instead of 64, so it drew a fifth of its proper size and
+                 * shrank again on every clip after that.
+                 *
+                 * +0x70 is never written by this plugin, so a genuine change of picture in the
+                 * same control shows up there and is the signal to measure again. */
+                if (w > 0.0f && h > 0.0f && g_save[j].src_w != w) {
                     float sx = 0.0f;
                     float sy = 0.0f;
 
@@ -824,6 +893,7 @@ static void __cdecl fix_quest_layout(uintptr_t control)
                     g_save[j].base_w = h * sx;
                     g_save[j].base_h = h * sy;
                     g_save[j].src_h  = h;
+                    g_save[j].src_w  = w;
 
                     if (control_writable(control + 0x40u, 8u)) {
                         memcpy((void *)(control + 0x40u), &g_save[j].base_w, sizeof(float));
@@ -852,6 +922,7 @@ static void __cdecl fix_quest_layout(uintptr_t control)
             if (w > 0.0f && h > 0.0f) {
                 g_quest[i].base_w = w;
                 g_quest[i].base_h = h;
+                g_quest[i].src_w  = w;
 
                 if (control_writable(control + 0x40u, 8u)) {
                     float sw = w * g_scale_x;
@@ -1046,13 +1117,22 @@ static void __cdecl on_texture_draw(uintptr_t control)
         return;
     }
 
+    /* The pointer, which is a GUIControl_Texture and so passes through here like the rest. Its
+     * constructor puts 1.0 back every time the manager rebuilds it, which is why it is written
+     * again on every draw rather than once. */
+    if (control == g_cursor && x > 1.0f) {
+        memcpy((void *)(control + CONTROL_SCALE_X), &x, sizeof(x));
+        memcpy((void *)(control + CONTROL_SCALE_Y), &y, sizeof(y));
+    }
+
     /* The objective tick boxes: the scale pair, and the layout box the row reserves from. */
     seen = g_quest_seen;
     if (seen > QUEST_ROWS) {
         seen = QUEST_ROWS;
     }
     for (i = 0; i < seen; ++i) {
-        if (g_quest[i].control != control) {
+        if (g_quest[i].control != control ||
+            !still_the_same_control(control, g_quest[i].src_w)) {
             continue;
         }
         if (x > 1.0f && control_writable(control + CONTROL_SCALE_X, 8u)) {
@@ -1246,64 +1326,45 @@ static DWORD WINAPI hold_scale(LPVOID parameter)
 
     (void)parameter;
     for (;;) {
-        uintptr_t camera = g_camera;
+        camera_view_t view;
 
-        if (camera != 0) {
-            int32_t viewport_w = 0;
-            int32_t viewport_h = 0;
+        /* camera_read, not a raw read of a remembered pointer. It checks the vtable, bounds the
+         * viewport, range checks the halves and the focal, and rejects a camera caught midway
+         * through SetViewport. Reading the fields directly and accepting anything above zero let
+         * a torn or dead camera through, and the scale it produced went straight into every
+         * generated stub. */
+        if (camera_read(&view) && view.viewport_width > 0 && view.viewport_height > 0) {
+            float x = (float)view.viewport_width / (float)g_reference_width;
+            float y = (float)view.viewport_height / (float)g_reference_height;
 
-            if (memory_read(camera + CAMERA_VIEWPORT_W, &viewport_w, sizeof(viewport_w)) &&
-                memory_read(camera + CAMERA_VIEWPORT_H, &viewport_h, sizeof(viewport_h)) &&
-                viewport_w > 0 && viewport_h > 0) {
-                float x = (float)viewport_w / (float)g_reference_width;
-                float y = (float)viewport_h / (float)g_reference_height;
+            g_scale_x = x;
+            g_scale_y = y;
 
-                g_scale_x = x;
-                g_scale_y = y;
+            if (x != announced_x) {
+                announced_x = x;
+                log_info("viewport %ldx%ld -> scale %.4f x %.4f",
+                         (long)view.viewport_width, (long)view.viewport_height,
+                         (double)x, (double)y);
+            }
 
-                /* Each control is written ONCE and then let go of.
-                 *
-                 * This used to write to every remembered control on every pass, for the life of
-                 * the process. Those controls are freed when a level ends, so on the next level
-                 * this was writing into whatever the heap had put in their place, which corrupts
-                 * it and brings the process down inside ntdll. It showed as a crash on one level
-                 * in particular, because that is where the previous level's controls had been
-                 * freed and reused.
-                 *
-                 * The reason the pass exists at all is that the HUD and the pointer are built
-                 * before a camera validates, when the scale is still 1.0. That is a one-off per
-                 * control: apply it, drop the pointer, and let the next rebuild record itself.
-                 * The stubs record on every rebuild, so nothing is missed. */
-                {
-                    uintptr_t control = g_cursor;
+            /* The only controls left here are those built before a camera validated, when the
+             * scale was still 1.0. Each is written once and its slot released, so the pointer is
+             * held for at most one pass. Everything else is written at its own draw, where the
+             * engine has just handed the control over alive. */
+            {
+                LONG n = g_hud_count;
+                LONG i;
 
-                    if (control != 0 &&
-                        memory_is_readable_range(control, CONTROL_SCALE_Y + 4u)) {
-                        memcpy((void *)(control + CONTROL_SCALE_X), &x, sizeof(x));
-                        memcpy((void *)(control + CONTROL_SCALE_Y), &y, sizeof(y));
-                        g_cursor = 0;
+                for (i = 0; i < n && i < HUD_ROWS; ++i) {
+                    uintptr_t c = g_hud[i].control;
+                    float     w = g_hud[i].base_w * x;
+                    float     h = g_hud[i].base_h * y;
 
-                        if (x != announced_x) {
-                            announced_x = x;
-                            log_info("pointer control %08X scaled %.4f x %.4f",
-                                     (unsigned)control, (double)x, (double)y);
-                        }
-                    }
-                }
-                {
-                    LONG n = g_hud_count;
-                    LONG i;
-
-                    for (i = 0; i < n && i < HUD_ROWS; ++i) {
-                        uintptr_t c = g_hud[i].control;
-                        float     w = g_hud[i].base_w * x;
-                        float     h = g_hud[i].base_h * y;
-
-                        if (c != 0 && memory_is_readable_range(c, 0x48u)) {
-                            memcpy((void *)(c + 0x40u), &w, sizeof(w));
-                            memcpy((void *)(c + 0x44u), &h, sizeof(h));
-                            g_hud[i].control = 0;
-                        }
+                    if (c != 0 && w > 0.0f && h > 0.0f &&
+                        memory_is_readable_range(c, 0x48u)) {
+                        memcpy((void *)(c + 0x40u), &w, sizeof(w));
+                        memcpy((void *)(c + 0x44u), &h, sizeof(h));
+                        g_hud[i].control = 0;
                     }
                 }
             }
@@ -1314,27 +1375,28 @@ static DWORD WINAPI hold_scale(LPVOID parameter)
 
 static void on_rfl_loaded(uintptr_t rfl_base)
 {
-    uintptr_t site = rfl_site(rfl_base, CURSOR_RVA);
-    uintptr_t stub_address;
-    HANDLE    thread;
+    HANDLE thread;
 
-    if (!patch_validate_bytes(site, cursor_expected, CURSOR_SIZE)) {
-        log_error("rfl+%X is not the store this was measured against, not installing",
-                  CURSOR_RVA);
-        return;
-    }
-    stub_address = (uintptr_t)trampoline_alloc(32);
-    if (stub_address == 0) {
-        log_error("could not allocate the stub");
-        return;
-    }
-    if (build_stub(stub_address, rfl_site(rfl_base, CURSOR_RETURN_RVA)) == NULL) {
-        log_error("the stub did not fit its buffer, not installing");
-        return;
-    }
-    if (patch_write_jump(site, (const void *)stub_address, CURSOR_SIZE) != PATCH_RESULT_OK) {
-        log_error("could not branch to the stub");
-        return;
+    /* The pointer is one group of nine and is not allowed to speak for the rest. This used to
+     * return from the whole function when its site did not match, which took the eight groups
+     * below it down with it, every one of which would have validated on its own. The README says
+     * the groups are independent; this is what makes that true. */
+    {
+        uintptr_t site = rfl_site(rfl_base, CURSOR_RVA);
+        uintptr_t stub_address;
+
+        if (!patch_validate_bytes(site, cursor_expected, CURSOR_SIZE)) {
+            log_warning("rfl+%X is not the store this was measured against; the pointer is left "
+                        "alone and everything else is installed as normal", CURSOR_RVA);
+        } else if ((stub_address = (uintptr_t)trampoline_alloc(32)) == 0 ||
+                   build_stub(stub_address, rfl_site(rfl_base, CURSOR_RETURN_RVA)) == NULL ||
+                   patch_write_jump(site, (const void *)stub_address,
+                                    CURSOR_SIZE) != PATCH_RESULT_OK) {
+            log_warning("the pointer hook could not be installed; everything else is unaffected");
+        } else {
+            log_info("installed: rfl+%X -> stub at %08X, waiting for the pointer control",
+                     CURSOR_RVA, (unsigned)stub_address);
+        }
     }
 
     /* Independent of the pointer hook: if this site does not match, that fix still works. */
@@ -1596,8 +1658,6 @@ static void on_rfl_loaded(uintptr_t rfl_base)
         return;
     }
 
-    log_info("installed: rfl+%X -> stub at %08X, waiting for the pointer control",
-             CURSOR_RVA, (unsigned)stub_address);
 }
 
 void texture_scaling_install(void)

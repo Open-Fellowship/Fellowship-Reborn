@@ -217,7 +217,7 @@ void hud_probe_install(void)
         return;
     }
 
-    configured = ini_read_int(PLUGIN_SECTION, "DumpKey", VK_F2);
+    configured = ini_read_int(PLUGIN_SECTION, "DumpKey", VK_F3);
     if (configured > 0 && configured < 256) {
         g_dump_key = configured;
     }
