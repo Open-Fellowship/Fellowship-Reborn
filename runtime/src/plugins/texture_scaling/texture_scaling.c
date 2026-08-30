@@ -1246,11 +1246,9 @@ static DWORD WINAPI hold_scale(LPVOID parameter)
 
     (void)parameter;
     for (;;) {
-        uintptr_t control = g_cursor;
-        uintptr_t camera  = g_camera;
+        uintptr_t camera = g_camera;
 
-        if (control != 0 && camera != 0 &&
-            memory_is_readable_range(control, CONTROL_SCALE_Y + 4u)) {
+        if (camera != 0) {
             int32_t viewport_w = 0;
             int32_t viewport_h = 0;
 
@@ -1260,21 +1258,38 @@ static DWORD WINAPI hold_scale(LPVOID parameter)
                 float x = (float)viewport_w / (float)g_reference_width;
                 float y = (float)viewport_h / (float)g_reference_height;
 
-                if (control_writable(control + CONTROL_SCALE_X, 8u)) {
-                    memcpy((void *)(control + CONTROL_SCALE_X), &x, sizeof(x));
-                    memcpy((void *)(control + CONTROL_SCALE_Y), &y, sizeof(y));
-
-                    if (x != announced_x) {
-                        announced_x = x;
-                        log_info("pointer control %08X scaled %.4f x %.4f",
-                                 (unsigned)control, (double)x, (double)y);
-                    }
-                }
-
-                /* The HUD textures, re-derived from the dimensions they were built with, so a
-                 * repeated pass cannot compound. */
                 g_scale_x = x;
                 g_scale_y = y;
+
+                /* Each control is written ONCE and then let go of.
+                 *
+                 * This used to write to every remembered control on every pass, for the life of
+                 * the process. Those controls are freed when a level ends, so on the next level
+                 * this was writing into whatever the heap had put in their place, which corrupts
+                 * it and brings the process down inside ntdll. It showed as a crash on one level
+                 * in particular, because that is where the previous level's controls had been
+                 * freed and reused.
+                 *
+                 * The reason the pass exists at all is that the HUD and the pointer are built
+                 * before a camera validates, when the scale is still 1.0. That is a one-off per
+                 * control: apply it, drop the pointer, and let the next rebuild record itself.
+                 * The stubs record on every rebuild, so nothing is missed. */
+                {
+                    uintptr_t control = g_cursor;
+
+                    if (control != 0 &&
+                        memory_is_readable_range(control, CONTROL_SCALE_Y + 4u)) {
+                        memcpy((void *)(control + CONTROL_SCALE_X), &x, sizeof(x));
+                        memcpy((void *)(control + CONTROL_SCALE_Y), &y, sizeof(y));
+                        g_cursor = 0;
+
+                        if (x != announced_x) {
+                            announced_x = x;
+                            log_info("pointer control %08X scaled %.4f x %.4f",
+                                     (unsigned)control, (double)x, (double)y);
+                        }
+                    }
+                }
                 {
                     LONG n = g_hud_count;
                     LONG i;
@@ -1284,14 +1299,13 @@ static DWORD WINAPI hold_scale(LPVOID parameter)
                         float     w = g_hud[i].base_w * x;
                         float     h = g_hud[i].base_h * y;
 
-                        if (c != 0 && memory_is_readable_range(c, 0x48u) &&
-                            control_writable(c + 0x40u, 8u)) {
+                        if (c != 0 && memory_is_readable_range(c, 0x48u)) {
                             memcpy((void *)(c + 0x40u), &w, sizeof(w));
                             memcpy((void *)(c + 0x44u), &h, sizeof(h));
+                            g_hud[i].control = 0;
                         }
                     }
                 }
-
             }
         }
         Sleep(250);
