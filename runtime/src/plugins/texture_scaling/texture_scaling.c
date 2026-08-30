@@ -380,10 +380,8 @@ static const uint8_t draw_expected[DRAW_SIZE] = {
 
 typedef struct save_entry {
     uintptr_t control;
-    float     base_w;      /* the drawn size, once the source is known */
-    float     base_h;
-    float     src_h;       /* the source height it was derived from */
-    float     src_w;       /* never written, so it can be re-checked at match time */
+    float     src_h;       /* the source, as the engine built it, before any clip shrank it */
+    float     src_w;       /* never written by this plugin, so it doubles as the identity check */
 } save_entry_t;
 
 static save_entry_t g_save[SAVE_ROWS];
@@ -414,14 +412,27 @@ static void __cdecl clamp_save_picture(uintptr_t control)
     for (i = 0; i < seen; ++i) {
         uintptr_t row  = 0;
         uintptr_t list = 0;
+        float     scale_x = 0.0f;
+        float     scale_y = 0.0f;
+        float     full_w;
         float     want_h;
         float     want_src;
 
-        if (g_save[i].control != control || g_save[i].base_h <= 0.0f ||
+        if (g_save[i].control != control || g_save[i].src_h <= 0.0f ||
             !still_the_same_control(control, g_save[i].src_w)) {
             continue;
         }
-        want_h   = g_save[i].base_h;
+
+        /* Derived here, every draw, from the pair the menu actually set. The art is square, so
+         * the source height is the true extent on both axes and the recorded width carries the
+         * empty region past the edge of the texture. */
+        memcpy(&scale_x, (const void *)(control + CONTROL_SCALE_X), sizeof(scale_x));
+        memcpy(&scale_y, (const void *)(control + CONTROL_SCALE_Y), sizeof(scale_y));
+        if (scale_y <= 0.0f) {
+            return;
+        }
+        full_w   = g_save[i].src_h * scale_x;
+        want_h   = g_save[i].src_h * scale_y;
         want_src = g_save[i].src_h;
 
         memcpy(&row, (const void *)(control + 0x5Cu), sizeof(uint32_t));
@@ -471,7 +482,7 @@ static void __cdecl clamp_save_picture(uintptr_t control)
             want_src = 0.0f;
         }
         if (control_writable(control + 0x40u, 8u)) {
-            memcpy((void *)(control + 0x40u), &g_save[i].base_w, sizeof(float));
+            memcpy((void *)(control + 0x40u), &full_w, sizeof(float));
             memcpy((void *)(control + 0x44u), &want_h, sizeof(float));
         }
         if (control_writable(control + 0x74u, 4u)) {
@@ -508,8 +519,6 @@ static void __cdecl record_save_icon(uintptr_t control)
     n = InterlockedIncrement(&g_save_seen) - 1;
 
     g_save[(uint32_t)n % SAVE_ROWS].control = control;
-    g_save[(uint32_t)n % SAVE_ROWS].base_w  = 0.0f;
-    g_save[(uint32_t)n % SAVE_ROWS].base_h  = 0.0f;
     g_save[(uint32_t)n % SAVE_ROWS].src_h   = 0.0f;
     g_save[(uint32_t)n % SAVE_ROWS].src_w   = 0.0f;
 }
@@ -883,34 +892,21 @@ static void __cdecl fix_quest_layout(uintptr_t control)
                 memcpy(&w, (const void *)(control + 0x70u), sizeof(w));
                 memcpy(&h, (const void *)(control + 0x74u), sizeof(h));
 
-                /* Measured ONCE per picture, and never again while it is the same picture.
+                /* Only the source is recorded here, and only once per picture.
                  *
-                 * The height read here is control+0x74, which is the field the clip writes the
-                 * cropped source into. Re-measuring from it turned a partial clip into a
-                 * permanent one: scroll a row half out of view, scroll it back, and its base was
-                 * now the cropped 17.79 instead of 64, so it drew a fifth of its proper size and
-                 * shrank again on every clip after that.
+                 * The height read is control+0x74, which is the field the clip writes the cropped
+                 * source into, so re-reading it every time turned a partial clip into a permanent
+                 * one. +0x70 is never written by this plugin, so a genuine change of picture in
+                 * the same control shows up there and is the signal to measure again.
                  *
-                 * +0x70 is never written by this plugin, so a genuine change of picture in the
-                 * same control shows up there and is the signal to measure again. */
+                 * The SIZE is deliberately not worked out here. This runs when the texture is
+                 * set, which can be before the menu calls SetScale, and a size captured then is
+                 * built from a scale pair that is still 1.0 and never corrected: the pictures
+                 * come out at 64 by 64 and the rows stay short. The size is derived at the draw
+                 * instead, from whatever the pair holds by then. */
                 if (w > 0.0f && h > 0.0f && g_save[j].src_w != w) {
-                    float sx = 0.0f;
-                    float sy = 0.0f;
-
-                    /* The drawn size, and the two axes no longer share a factor. */
-                    memcpy(&sx, (const void *)(control + CONTROL_SCALE_X), sizeof(sx));
-                    memcpy(&sy, (const void *)(control + CONTROL_SCALE_Y), sizeof(sy));
-
-                    /* h on both axes: the art is square and w has the emptiness in it. */
-                    g_save[j].base_w = h * sx;
-                    g_save[j].base_h = h * sy;
-                    g_save[j].src_h  = h;
-                    g_save[j].src_w  = w;
-
-                    if (control_writable(control + 0x40u, 8u)) {
-                        memcpy((void *)(control + 0x40u), &g_save[j].base_w, sizeof(float));
-                        memcpy((void *)(control + 0x44u), &g_save[j].base_h, sizeof(float));
-                    }
+                    g_save[j].src_h = h;
+                    g_save[j].src_w = w;
                 }
             }
             return;
