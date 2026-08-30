@@ -3,17 +3,21 @@
 **Produces:** `texture_scaling.dll`. Patches `Fellowship.rfl`. **On by default.**
 
 Interface art is drawn at the size of its own texture, in texels, so at 3840x2160 the mouse
-pointer is 32 device pixels across and the One Ring icon is 64. Three separate classes have the
-same disease, and this fixes all three.
+pointer is 32 device pixels across and the One Ring icon is 64. Four classes have the same
+disease, and this fixes all four.
 
 | element | class | site |
 |---|---|---|
 | mouse pointer | `GUIControl_Texture` | `rfl+67083` |
 | the circle under the health bar | `HUD Texture` | `rfl+7B2A3` |
 | the One Ring icon | `Ring Icon` | `rfl+7ACA1` |
+| the bar frames | `HUD Variable Meter` | seven pushes, `rfl+79356` to `rfl+797E4` |
+| the bar fills | `HUD Variable Meter` | `rfl+78DE7`, `rfl+78E2B`, `rfl+667A3` |
 
-The three hooks are independent. Any one of them can fail to match without taking the others
-down, and the log says which.
+The groups are independent. Any one can fail to match without taking the others down, and the log
+says which. The bar fill is all or nothing within itself: if either call site or the draw does not
+validate, the fill is left exactly as the game drew it rather than scaled on one of its two
+draws, which would flicker.
 
 ## The shape of the bug, three times over
 
@@ -106,12 +110,45 @@ The art is also a ceiling. The pointer is a 32x32 8-bit bitmap; magnified six ti
 magnified 32x32 bitmap. A replacement texture is the only route to genuinely crisp art at 4K, and
 its source rectangle would need updating to match.
 
+## The bars are laid out correctly, and framed wrongly
+
+The bars are not a size bug at all, which is why they took so long. Every bar control carries its
+own box, and the numbers came off the live controls rather than a decompile:
+
+```
++38  x 115.20     +3C  y 108.00
++40  w 613.00     +44  h  18.00
++B4  600.00       the full track width
+```
+
+The fill is drawn at `(122.20, 115.00, 27, 6)`: inset 7 from the box's left and top, 6 high inside
+a box 18 high. That is centred, and it stays centred at any resolution. The layout was never
+wrong.
+
+What is wrong is that the frame is *rendered* four and a half times taller than the 18 its own box
+says it is, by the seven scale pushes above. A correctly placed fill inside an oversized frame
+reads as a fill pinned to the top edge. So the fill's height and its offset from the top of its
+own box are scaled by the same ratio the frame is:
+
+```
+y = box_y + ratio * (y - box_y)
+```
+
+at `rfl+667A3`, where the height is loaded for the draw. The control is still in `edi` there, one
+instruction ahead of the `mov` that overwrites it, so the box is in reach and the stub touches no
+register at all. Both the load and the store go through `esp` while it is still the engine's.
+
+This is the whole bar family, so the loading bar is carried along with the two in the corners.
+
+`FUN_10066600` draws filled rectangles for eight callers, including menu backgrounds, so the two
+calls that draw a bar raise a flag around themselves and the scaling reads it. Everything else
+that function draws is untouched.
+
 ## What this does NOT reach
 
 `FUN_1006C890` is exclusive to `GUIControl_Texture`, proven by a byte scan of the whole image
 finding exactly one reference to it. The objective boxes, the map screen icons and the save slot
-thumbnails are `(px)` and `(tx)` property geometry on a different path again, and the health and
-purple bars are a fourth class, `HUD Variable Meter`, whose setup is `FUN_100791C0`.
+thumbnails are `(px)` and `(tx)` property geometry on a different path again.
 
 `HUD-FINDING.md` has the full map of which element belongs to which family.
 
@@ -130,5 +167,30 @@ Kept because each is a reasonable idea and the reason it fails is not obvious.
 5. **Treating `rfl+6C84F` as two `mov` pairs.** There is a `push 0` between them belonging to a
    later call; lifting ten bytes splits an instruction and unbalances the stack.
 
-Every one of them came from reading a decompile. The fix came from a probe. `texture_probe` is
-still in the tree for that reason.
+6. **Scaling `[edi+0x44]` in the bar setup**, at `rfl+790E8`. The hook installed and the log proved
+   the arithmetic: 18.0 in, 81.0 written, nothing on screen. That field is not what the bar draws
+   from.
+7. **Property 29**, at `rfl+78D36`, taken for a thickness. The disassembly stores it to `[esp+0x28]`
+   and *compares* it at `10078D71` to choose between properties `0x16` and `0x15`. It is the low
+   health colour threshold. Patching it would have silently moved the colour change.
+8. **Centring against the parent box**, using the rect `FUN_10066600` fetches at `rfl+666E7`. It
+   never ran once: these controls have no parent, so that branch is skipped entirely.
+9. **The scale pair inside the fill draw.** A positive ratio in the Y slot gives the right
+   thickness in the wrong place; the same ratio negated gives the right place at the old
+   thickness. A flip would have given a thick bar either way, so that slot is a sentinel and every
+   negative means what -1.0 means, which is to take Y from X. Scaling X works and drags Y with it,
+   so the pair can never scale one axis alone.
+
+And one that was worse than not working, because it looked like it worked:
+
+10. **`rfl+79200` counted as an eighth frame push.** It matches `push 0xbf800000` like the other
+    seven, but `FUN_100791C0` is not a draw. It forwards to `FUN_10078CA0`, and that constant is
+    argument four of the fill, not a render scale. Feeding the height ratio into it drove both
+    bars to a value width of exactly 27 against a track of 600, which reads as a bar stuck near
+    empty. The frames looked right, so it passed as correct for as long as nobody put a number on
+    the fill. Any experiment run on the fill while that site was live is untrustworthy, which
+    includes an earlier attempt at `rfl+78DD7` that should have worked and did not.
+
+Every one of them came from reading a decompile, or from matching a byte pattern without checking
+what the value was for. Each fix came from measurement: a probe for the pointer, and the controls'
+own fields for the bars. `texture_probe` is still in the tree for that reason.

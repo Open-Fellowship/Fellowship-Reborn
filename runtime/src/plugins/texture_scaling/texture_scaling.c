@@ -84,6 +84,7 @@ static float g_hud_base_h = 1.0f;
 static float g_scale_x = 1.0f;
 static float g_scale_y = 1.0f;
 
+
 #define HUD_ROWS 8
 
 typedef struct hud_entry {
@@ -120,6 +121,99 @@ static const uint8_t ring_expected[RING_SIZE] = {
     0x89, 0x47, 0x40         /* mov [edi+0x40], eax */
 };
 
+/* FOURTH SITE, the health bar and the purple ring meter, and it is not a fourth mechanism. The
+ * bars reach the SAME Texture::Render as the mouse pointer, and hand it a scale pair nailed to
+ * one:
+ *
+ *     10079356  push 0xbf800000     arg10 = -1.0, the "use the X scale for Y" sentinel
+ *     10079377  push 0x3f800000     arg9  =  1.0
+ *
+ * That is why the bar height never moves. It also explains the shape of the old measurement: the
+ * width grew 104 to 598 at 4K, a ratio of 5.75, because a bar's LENGTH comes from its value and
+ * its container, while the thickness comes through this scale and this scale is 1.0.
+ *
+ * So only arg10 is replaced, and arg9 is left at 1.0. Scaling X here as well would multiply a
+ * width that already carries the resolution.
+ *
+ * EIGHT sites, and the eighth is the one that shows. The other seven are the frame and its
+ * pieces, in the three draw slots both bar classes share. rfl+79200 is in FUN_100791C0, the
+ * variable meter's OWN slot, and it draws the coloured fill. Patching the seven without it gives
+ * a correctly thick frame with a thin green line sitting inside it, which is exactly what it
+ * looked like.
+ *
+ * Each is a whole five byte push, which is exactly the size of a jump. No instruction is split
+ * and none has a neighbour that has to be carried across.
+ *
+ * ATTEMPTED AND DISPROVED FIRST: scaling [edi+0x44] in the setup at 100790E8. The hook installed,
+ * the arithmetic was right, and the log proved it: incoming 18.0, written 81.0, and nothing on
+ * screen changed. That field is not what the bar draws from. */
+static const uint32_t bar_scale_sites[] = {
+    /* rfl+79200 was here, and it does not belong. FUN_100791C0 is not a draw, it forwards to
+     * FUN_10078CA0, and the -1.0 at that site is argument four of the fill rather than a render
+     * scale. Passing the height ratio there drove both bars to a value width of exactly 27
+     * against a track of 600, which read as a bar stuck near empty. */
+    0x79356u, 0x793B5u, 0x793FBu,       /* FUN_10079230, the frame         */
+    0x79592u, 0x795FCu, 0x79649u,       /* FUN_10079450                    */
+    0x797E4u                            /* FUN_100796A0                    */
+};
+
+static const uint8_t bar_scale_expected[5] = { 0x68, 0x00, 0x00, 0x80, 0xBF };
+
+/* The coloured fill, which is a different draw from the seven above.
+ *
+ * FUN_10078CA0 builds the fill's quad and hands it to FUN_10066600. Both the arguments and the
+ * controls' own fields were read live rather than worked out from a decompile:
+ *
+ *     health quad     x 122.20   y 115.00   w  27.00   h  6.00
+ *     health box  +38 x 115.20  +3C 108.00  +40 613.00  +44 18.00
+ *
+ * The fill is inset 7 from the top of its box and 6 high inside a box 18 high. That is centred,
+ * and it stays centred at every resolution, so the layout is not the bug. The frame is rendered
+ * four and a half times taller than the 18 its own box says it is, by the seven pushes above,
+ * and a correctly placed fill inside an oversized frame reads as one pinned to the top edge.
+ *
+ * The height and the offset are both scaled at rfl+667A3, where the height is loaded for the
+ * draw. build_fill_scale_stub has the arithmetic, and why it needs no register.
+ *
+ * Eight callers draw filled rectangles through FUN_10066600, and scaling all of them would reach
+ * menu backgrounds and screen fades, so the two calls that draw a bar raise a flag around
+ * themselves and the scaling reads it. Every other caller is left alone.
+ *
+ * The scale pair inside that draw looks like the obvious lever and is not. A positive ratio in
+ * the Y slot gives the right thickness in the wrong place, and the same ratio negated gives the
+ * right place at the old thickness. A flip would have given a thick bar either way, so the slot
+ * holds a sentinel rather than a sign: every negative means what -1.0 means, which is to take Y
+ * from X. That pair can never scale one axis alone. */
+#define FILL_SCALE_RVA        0x667A3u
+#define FILL_SCALE_RETURN_RVA 0x667A9u
+#define FILL_SCALE_SIZE       6u
+
+static const uint8_t fill_scale_expected[FILL_SCALE_SIZE] = {
+    0xD9, 0x44, 0x24, 0x10,      /* fld dword ptr [esp+0x10] */
+    0x8B, 0x3E                   /* mov edi,[esi]            */
+};
+
+/* Both bar calls are the same two instructions, and neither needs relocating anywhere awkward:
+ *
+ *     10078de7  mov ecx, edi
+ *     10078de9  call 0x10066600
+ *
+ * The call is relative, so only the three bytes up to its displacement are worth checking. */
+static const uint32_t fill_call_sites[] = { 0x78DE7u, 0x78E2Bu };
+
+static const uint8_t fill_call_expected[3] = { 0x8B, 0xCF, 0xE8 };
+
+#define FILL_CALL_SIZE  7u
+#define FILL_CALLEE_RVA 0x66600u
+
+/* Raised only while a bar fill is in the middle of being drawn. */
+static uint32_t g_in_bar_fill;
+
+/* The scale stub is building an argument list and has no register it may touch, so the flags go
+ * out to memory and come back rather than riding the stack. */
+static uint32_t g_fill_flags;
+
+
 /* Written by the stub, read by the poll. Whatever the GUI manager last built. */
 static volatile uintptr_t g_cursor;
 static volatile uintptr_t g_camera;
@@ -154,6 +248,146 @@ static void __cdecl remember_hud(uintptr_t control)
     InterlockedExchange(&g_hud_count, count + 1);
     log_info("control %08X built from %.0f x %.0f texels",
              (unsigned)control, (double)g_hud_base_w, (double)g_hud_base_h);
+}
+
+/* Wraps one of the two bar fill calls so the shared draw can tell who is asking. The flag is
+ * lowered on the way out, and `mov` leaves the flags alone, so the `test ebx,ebx` that follows
+ * the call still reads what the call left it. */
+static void *build_fill_call_stub(uintptr_t stub_address, uintptr_t return_address,
+                                  uintptr_t callee)
+{
+    uint8_t buffer[64];
+    emit_t  emit;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    emit_u8(&emit, 0xC7); emit_u8(&emit, 0x05);
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_in_bar_fill);
+    emit_u32(&emit, 1u);                                     /* mov dword [flag], 1          */
+
+    emit_u8(&emit, 0x8B); emit_u8(&emit, 0xCF);              /* mov ecx, edi                 */
+    emit_u8(&emit, 0xE8);
+    emit_u32(&emit, (uint32_t)(callee - (stub_address + (uintptr_t)emit_size(&emit) + 4u)));
+
+    emit_u8(&emit, 0xC7); emit_u8(&emit, 0x05);
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_in_bar_fill);
+    emit_u32(&emit, 0u);                                     /* mov dword [flag], 0          */
+
+    emit_jump_rel32(&emit, stub_address, return_address);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
+}
+
+/* Fills a forward branch in once its target is known, so the two paths cannot drift apart. */
+static void fill_branch(uint8_t *buffer, size_t at, size_t target)
+{
+    uint32_t rel = (uint32_t)(target - (at + 4u));
+
+    buffer[at]     = (uint8_t)(rel & 0xFFu);
+    buffer[at + 1] = (uint8_t)((rel >> 8) & 0xFFu);
+    buffer[at + 2] = (uint8_t)((rel >> 16) & 0xFFu);
+    buffer[at + 3] = (uint8_t)((rel >> 24) & 0xFFu);
+}
+
+/* Scales the fill's height and its offset down from the top of its own box.
+ *
+ * Every bar is laid out the same way, measured from the controls themselves: a box 18 high, a
+ * fill 6 high, inset 7 from the top. That is already centred, and it stays centred at any
+ * resolution, right up until the frame is rendered four and a half times taller than the 18 the
+ * box says it is. The fill is then correct and the frame around it is not, which reads as a fill
+ * pinned to the top edge.
+ *
+ * So the offset is scaled by the same ratio the frame is:
+ *
+ *     y = box_y + ratio * (y - box_y)
+ *
+ * The box top is a field on the control, and the control is still in edi here, one instruction
+ * ahead of the mov that overwrites it. Nothing is pushed while esp has to be the engine's, so
+ * both the load and the store go through esp directly, and no register is touched at all. Either
+ * path leaves exactly one value on the FPU stack, which is what the load it replaced did.
+ *
+ * This is the whole bar family, so the loading bar is carried along with the two in the corners.
+ *
+ * An earlier version of this centred against the parent box instead, which never once ran: these
+ * controls have no parent, so FUN_10066600 skips the branch that fetches one. */
+static void *build_fill_scale_stub(uintptr_t stub_address, uintptr_t return_address)
+{
+    uint8_t buffer[128];
+    emit_t  emit;
+    size_t  skip_all;
+    size_t  done;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    /* Relocated first, before anything this stub does can move esp. */
+    emit_u8(&emit, 0xD9); emit_u8(&emit, 0x44); emit_u8(&emit, 0x24); emit_u8(&emit, 0x10);
+
+    emit_u8(&emit, 0x9C);                                    /* pushfd                       */
+    emit_u8(&emit, 0x8F); emit_u8(&emit, 0x05);
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_fill_flags);     /* pop dword [saved]            */
+
+    emit_u8(&emit, 0x83); emit_u8(&emit, 0x3D);
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_in_bar_fill);
+    emit_u8(&emit, 0x00);                                    /* cmp dword [flag], 0          */
+    emit_u8(&emit, 0x0F); emit_u8(&emit, 0x84);
+    skip_all = emit_size(&emit);
+    emit_u32(&emit, 0u);
+
+    emit_u8(&emit, 0xD8); emit_u8(&emit, 0x0D);
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_scale_y);        /* fmul dword [g_scale_y]       */
+
+    emit_u8(&emit, 0xD9); emit_u8(&emit, 0x44); emit_u8(&emit, 0x24); emit_u8(&emit, 0x18);
+    emit_u8(&emit, 0xD8); emit_u8(&emit, 0x67); emit_u8(&emit, 0x3C);   /* fsub [edi+0x3c]   */
+    emit_u8(&emit, 0xD8); emit_u8(&emit, 0x0D);
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_scale_y);        /* fmul dword [g_scale_y]       */
+    emit_u8(&emit, 0xD8); emit_u8(&emit, 0x47); emit_u8(&emit, 0x3C);   /* fadd [edi+0x3c]   */
+    emit_u8(&emit, 0xD9); emit_u8(&emit, 0x5C); emit_u8(&emit, 0x24); emit_u8(&emit, 0x18);
+
+    done = emit_size(&emit);
+
+    emit_u8(&emit, 0xFF); emit_u8(&emit, 0x35);
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_fill_flags);
+    emit_u8(&emit, 0x9D);                                    /* popfd                        */
+    emit_u8(&emit, 0x8B); emit_u8(&emit, 0x3E);              /* mov edi,[esi], relocated     */
+
+    emit_jump_rel32(&emit, stub_address, return_address);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    fill_branch(buffer, skip_all, done);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
+}
+
+/* Replaces a constant push with a push of our live scale. Two instructions, eleven bytes. */
+static void *build_bar_scale_stub(uintptr_t stub_address, uintptr_t return_address)
+{
+    uint8_t buffer[32];
+    emit_t  emit;
+
+    emit_init(&emit, buffer, sizeof(buffer));
+
+    emit_u8(&emit, 0xFF); emit_u8(&emit, 0x35);
+    emit_u32(&emit, (uint32_t)(uintptr_t)&g_scale_y);        /* push dword [g_scale_y]       */
+    emit_jump_rel32(&emit, stub_address, return_address);
+
+    if (emit_overflowed(&emit)) {
+        return NULL;
+    }
+    memcpy((void *)stub_address, buffer, emit_size(&emit));
+    FlushInstructionCache(GetCurrentProcess(), (LPCVOID)stub_address, emit_size(&emit));
+    return (void *)stub_address;
 }
 
 static void *build_hud_stub(uintptr_t stub_address, uintptr_t return_address)
@@ -387,6 +621,92 @@ static void on_rfl_loaded(uintptr_t rfl_base)
             }
         } else {
             log_warning("rfl+%X is not the ring icon store this expects", RING_RVA);
+        }
+    }
+
+    {
+        size_t   index;
+        unsigned done = 0;
+        unsigned n    = (unsigned)(sizeof(bar_scale_sites) / sizeof(bar_scale_sites[0]));
+
+        /* All seven checked before any is written. They are one behaviour, and half a bar frame
+         * scaled is worse to look at than none of it. */
+        for (index = 0; index < n; ++index) {
+            if (!patch_validate_bytes(rfl_site(rfl_base, bar_scale_sites[index]),
+                                      bar_scale_expected, sizeof(bar_scale_expected))) {
+                log_warning("rfl+%X is not the scale push this expects; the bars are left alone",
+                            bar_scale_sites[index]);
+                n = 0;
+                break;
+            }
+        }
+        for (index = 0; index < n; ++index) {
+            uintptr_t push_site = rfl_site(rfl_base, bar_scale_sites[index]);
+            uintptr_t stub      = (uintptr_t)trampoline_alloc(32);
+
+            if (stub != 0 &&
+                build_bar_scale_stub(stub, push_site + sizeof(bar_scale_expected)) != NULL &&
+                patch_write_jump(push_site, (const void *)stub,
+                                 sizeof(bar_scale_expected)) == PATCH_RESULT_OK) {
+                done++;
+            }
+        }
+        if (n != 0) {
+            log_info("  and %u of %u bar scale pushes now read the live height ratio", done, n);
+        }
+    }
+
+    {
+        uintptr_t scale = rfl_site(rfl_base, FILL_SCALE_RVA);
+        size_t    index;
+        unsigned  wrapped = 0;
+        unsigned  n = (unsigned)(sizeof(fill_call_sites) / sizeof(fill_call_sites[0]));
+
+        /* Both calls are checked before either is written, and the scale push is checked before
+         * any of it. A bar whose fill scaled on one of its two draws would flicker, which is
+         * worse to look at than a fill left exactly as the game drew it. */
+        for (index = 0; index < n; ++index) {
+            if (!patch_validate_bytes(rfl_site(rfl_base, fill_call_sites[index]),
+                                      fill_call_expected, sizeof(fill_call_expected))) {
+                log_warning("rfl+%X is not the bar fill call this expects; the fill is left alone",
+                            fill_call_sites[index]);
+                n = 0;
+                break;
+            }
+        }
+        if (n != 0 && !patch_validate_bytes(scale, fill_scale_expected,
+                                            sizeof(fill_scale_expected))) {
+            log_warning("rfl+%X is not the fill scale push this expects; the fill is left alone",
+                        FILL_SCALE_RVA);
+            n = 0;
+        }
+        for (index = 0; index < n; ++index) {
+            uintptr_t call = rfl_site(rfl_base, fill_call_sites[index]);
+            uintptr_t stub = (uintptr_t)trampoline_alloc(64);
+
+            if (stub != 0 &&
+                build_fill_call_stub(stub, call + FILL_CALL_SIZE,
+                                     rfl_site(rfl_base, FILL_CALLEE_RVA)) != NULL &&
+                patch_write_jump(call, (const void *)stub,
+                                 FILL_CALL_SIZE) == PATCH_RESULT_OK) {
+                wrapped++;
+            }
+        }
+        if (n != 0 && wrapped == n) {
+            uintptr_t stub = (uintptr_t)trampoline_alloc(128);
+
+            if (stub != 0 &&
+                build_fill_scale_stub(stub, rfl_site(rfl_base, FILL_SCALE_RETURN_RVA)) != NULL &&
+                patch_write_jump(scale, (const void *)stub,
+                                 FILL_SCALE_SIZE) == PATCH_RESULT_OK) {
+                log_info("  and rfl+%X -> stub at %08X, the bar fill, behind both of its calls",
+                         FILL_SCALE_RVA, (unsigned)stub);
+            } else {
+                log_warning("the bar fill scale could not be installed");
+            }
+        } else if (n != 0) {
+            log_warning("only %u of %u bar fill calls were wrapped; the fill is left alone",
+                        wrapped, n);
         }
     }
 
