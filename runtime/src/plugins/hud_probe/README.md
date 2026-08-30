@@ -61,12 +61,22 @@ lock would cost the frame rate.
 `F3` starts recording, `F3` again writes it and stops:
 
 ```
-  caller                   index  hits
-  Fellowship.rfl+65BBE     12     4366
-  Fellowship.exe+4F034     16     11808
+  caller                   index  count   getter  hits
+  Fellowship.rfl+65BBE     12     23      flat    4366
+  Fellowship.rfl+2D6BE     19     30      flat    295
   ...
 ---- 341 distinct (caller, index) pairs ----
 ```
+
+`count` is the object's element count, read from `this+4`. On its own it is a weak discriminator
+and collides for 26 of the 86 float properties, but paired with an index it is usually enough to
+say which class a caller is reading, which an index alone never is.
+
+`getter` says which of the two getters the read came through. A class can be initialised through
+one and read entirely through the other, and without the second hook that reads in a report as a
+class nothing consumes rather than as a blind spot. Both were found the hard way: the objective
+tick box took three wrong sites before the count and the sparse getter between them named the
+right class.
 
 **The index is relative to the object's class**, which is the trap this tool has already
 sprung once. Index 12 is `RFSizeX` for one class and a template ID for another; a caller list
